@@ -7,6 +7,7 @@ export type Action =
   | { type: 'engage' }
   | { type: 'weapon'; id: WeaponId }
   | { type: 'magic'; element: Element }
+  | { type: 'revelry' }
   | { type: 'provoke' }
   | { type: 'heal' }
   | { type: 'guard' }
@@ -26,6 +27,7 @@ export interface Actor {
   mp: number;
   maxMp: number;
   tp: number;
+  revelryStacks: number;
   human: boolean;
   engaged: boolean;
   moveX: number;

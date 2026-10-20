@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { REVELRY } from "../game/content.ts";
 import {
   advanceRoom, handleRoomRequest, parseRoomRequest, readRoomRequest, RoomError,
   MOVE_TIMEOUT_MS, OWNERSHIP_TIMEOUT_MS, ROOM_TTL_MS, TRUST_TIMEOUT_MS,
@@ -212,4 +213,76 @@ test("HTTP body parsing rejects malformed, oversized and non-JSON payloads", asy
   await assert.rejects(readRoomRequest(request("{}", "text/plain")), status(415));
   await assert.rejects(readRoomRequest(request("{}", "application/json-untrusted")), status(415));
   assert.deepEqual(await readRoomRequest(request('{"op":"create"}')), { op: "create", mode: "trial" });
+});
+
+test("legacy rooms migrate before duplicate snapshots and persist defaults on the next accepted sync", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  await sync(repo, owner, 0, NOW);
+  const stored = repo.rows.get(owner.code)!;
+  stored.state.party[0].tp = 1234;
+  stored.state.party[0].revelryStacks = 3;
+  for (const actor of stored.state.party.slice(1)) Reflect.deleteProperty(actor, "revelryStacks");
+  const legacy = structuredClone(stored);
+  const duplicate = await sync(repo, owner, 0, NOW + 250, [{ type: "revelry" }]);
+  assert.deepEqual(duplicate.state.party.map(actor => actor.revelryStacks), [3, 0, 0, 0, 0]);
+  assert.equal(duplicate.state.party[0].tp, 1234);
+  assert.equal(duplicate.revision, legacy.revision);
+  assert.deepEqual(repo.rows.get(owner.code), legacy, "duplicate does not write or replay its action");
+  const next = await sync(repo, owner, 1, NOW + 250);
+  assert.deepEqual(next.state.party.map(actor => actor.revelryStacks), [3, 0, 0, 0, 0]);
+  assert.equal(next.state.party[0].tp, 1234);
+  assert.equal(next.revision, legacy.revision + 1);
+  assert.deepEqual(repo.rows.get(owner.code)!.state.party.map(actor => actor.revelryStacks), [3, 0, 0, 0, 0]);
+  assert.equal(repo.rows.get(owner.code)!.occupants[0]!.tokenHash, legacy.occupants[0]!.tokenHash);
+});
+
+test("joining a legacy room restores absent recipient stacks before returning the snapshot", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const stored = repo.rows.get(owner.code)!;
+  for (const actor of stored.state.party) Reflect.deleteProperty(actor, "revelryStacks");
+  const joined = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  assert.deepEqual(joined.state.party.map(actor => actor.revelryStacks), [0, 0, 0, 0, 0]);
+  assert.equal(joined.slot, 1);
+  assert.equal(joined.state.party.filter(actor => actor.human).length, 2);
+});
+
+test("stored malformed Revelry counts fail without rewriting the room", async () => {
+  for (const count of [undefined, null, "1", -1, 0.5, 6, NaN, Infinity]) {
+    const repo = new MemoryRepository();
+    const owner = await create(repo);
+    (repo.rows.get(owner.code)!.state.party[0] as unknown as Record<string, unknown>).revelryStacks = count;
+    const before = structuredClone(repo.rows);
+    await assert.rejects(sync(repo, owner, 0, NOW + 250), status(500));
+    assert.deepEqual(repo.rows, before);
+  }
+});
+
+test("Revelry accepts an intent only and rejects client-supplied buff authority", () => {
+  const base = { op: "sync", code: "a".repeat(32), token: "b".repeat(32), seq: 0 };
+  const parsed = parseRoomRequest({ ...base, actions: [{ type: "revelry" }] });
+  assert.equal(parsed.op, "sync");
+  if (parsed.op === "sync") assert.deepEqual(parsed.actions, [{ type: "revelry" }]);
+  for (const extra of [{ stacks: 5 }, { revelryStacks: 5 }, { targets: [0, 1] }, { damage: 9999 }, { multiplier: 2 }, { cooldown: 0 }]) {
+    assert.throws(() => parseRoomRequest({ ...base, actions: [{ type: "revelry", ...extra }] }), status(400));
+  }
+});
+
+test("server enforces Revelry role and cooldown, and duplicate packets cannot grant more stacks", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  const cast = await sync(repo, owner, 0, NOW, [{ type: "start" }, { type: "revelry" }]);
+  assert.deepEqual(cast.state.party.map(actor => actor.revelryStacks), [1, 1, 1, 1, 1]);
+  assert.equal(cast.state.party[0].cooldowns.revelry, REVELRY.cooldown);
+  const duplicate = await sync(repo, owner, 0, NOW + 250, [{ type: "revelry" }]);
+  assert.deepEqual(duplicate, cast);
+  const forbidden = await sync(repo, guest, 0, NOW + 250, [{ type: "revelry" }]);
+  assert.equal(forbidden.actionErrors?.length, 1);
+  assert.equal(forbidden.state.party[guest.slot].cooldowns.revelry, undefined);
+  assert.deepEqual(forbidden.state.party.map(actor => actor.revelryStacks), [1, 1, 1, 1, 1]);
+  const coolingDown = await sync(repo, owner, 1, NOW + 500, [{ type: "revelry" }]);
+  assert.equal(coolingDown.actionErrors?.length, 1);
+  assert.deepEqual(coolingDown.state.party.map(actor => actor.revelryStacks), [1, 1, 1, 1, 1]);
 });

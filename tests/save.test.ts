@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, applyAction, stepGame } from '../game/engine.ts';
 import { ARENA_RADIUS, FIXED_STEP } from '../game/content.ts';
-import { validSave } from '../lib/local-save.ts';
+import { restoreSave, validSave } from '../lib/local-save.ts';
 
 test('local save roundtrip preserves a live god encounter', () => {
   const original = createGame('god');
@@ -105,4 +105,58 @@ test('built-in moving states and arena-boundary states remain loadable', () => {
   boundary.party[0].x = ARENA_RADIUS;
   boundary.party[0].z = 0;
   assert.equal(validSave(boundary), true);
+});
+
+test('legacy saves receive zero Revelry stacks without losing encounter data or mutating the input', () => {
+  const legacy = createGame('god');
+  applyAction(legacy, 0, { type: 'start' });
+  legacy.party[0].tp = 1500;
+  legacy.party[0].cooldowns.weapon = 2;
+  stepGame(legacy, 0.1);
+  for (const actor of legacy.party) Reflect.deleteProperty(actor, 'revelryStacks');
+  const before = structuredClone(legacy);
+  assert.equal(validSave(legacy), false, 'strict validation must not silently migrate');
+  const restored = restoreSave(legacy);
+  assert.ok(restored);
+  assert.deepEqual(legacy, before, 'migration leaves the source snapshot untouched');
+  const expected = structuredClone(before);
+  expected.party.forEach(actor => { actor.revelryStacks = 0; });
+  assert.deepEqual(restored, expected);
+  stepGame(restored, 0.05);
+  assert.deepEqual(legacy, before, 'restored simulation must not share nested mutable state');
+});
+
+test('current and partially migrated saves preserve every existing recipient stack and cooldown', () => {
+  const saved = createGame();
+  saved.party.forEach((actor, slot) => { actor.revelryStacks = slot; });
+  saved.party[0].cooldowns.revelry = 17;
+  const current = restoreSave(saved);
+  assert.deepEqual(current, saved);
+  assert.notEqual(current, saved);
+  Reflect.deleteProperty(saved.party[2], 'revelryStacks');
+  const restored = restoreSave(saved);
+  assert.ok(restored);
+  assert.deepEqual(restored.party.map(actor => actor.revelryStacks), [0, 1, 0, 3, 4]);
+  assert.equal(restored.party[0].cooldowns.revelry, 17);
+  assert.equal(Object.hasOwn(saved.party[2], 'revelryStacks'), false);
+});
+
+test('supplied invalid Revelry counts are rejected rather than defaulted or clamped', () => {
+  for (const count of [undefined, null, '1', -1, 1.5, 6, NaN, Infinity]) {
+    const saved = createGame();
+    (saved.party[0] as unknown as Record<string, unknown>).revelryStacks = count;
+    assert.equal(validSave(saved), false, String(count));
+    assert.equal(restoreSave(saved), null, String(count));
+  }
+  for (const count of [0, 5]) {
+    const saved = createGame();
+    saved.party[0].revelryStacks = count;
+    assert.ok(restoreSave(saved));
+  }
+});
+
+test('Revelry migration does not repair unrelated malformed saves or future versions', () => {
+  for (const raw of [null, [], {}, { ...createGame(), version: 2 }, { ...createGame(), tick: undefined }, { ...createGame(), party: [null] }]) {
+    assert.equal(restoreSave(raw), null);
+  }
 });

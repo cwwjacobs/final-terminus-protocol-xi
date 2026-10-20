@@ -1,5 +1,6 @@
 import { applyAction, createGame, setHuman, stepGame } from "../game/engine.ts";
 import type { Action, GameState } from "../game/types.ts";
+import { migrateRevelryState } from "./state-migrations.ts";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 export const TRUST_TIMEOUT_MS = 8_000;
@@ -114,7 +115,7 @@ function parseAction(value: unknown): Action {
     }
     return { type: "magic", element: action.element } as Action;
   }
-  if (["engage", "provoke", "heal", "guard", "dodge", "start"].includes(action.type as string)) {
+  if (["engage", "provoke", "heal", "guard", "dodge", "start", "revelry"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }
@@ -270,6 +271,11 @@ export async function handleRoomRequest(
     const room = await repository.get(request.code);
     if (!room) throw new RoomError(404, "Room was not found.");
     if (room.expiresAt <= now) throw new RoomError(410, "Room expired. Create a new encounter.");
+    // Normalize trusted persisted JSON before either simulation or a duplicate
+    // packet snapshot. A successful CAS below also persists the additive fields.
+    const migrated = migrateRevelryState(room.state);
+    if (!migrated) throw new RoomError(500, "Room data is incompatible. Create a new encounter.");
+    room.state = migrated as unknown as GameState;
     const previousRevision = room.revision;
     let slot: number;
     let actionErrors: string[] | undefined;

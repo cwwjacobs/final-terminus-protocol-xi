@@ -1,9 +1,16 @@
 import { createGame } from '../game/engine.ts';
-import { ARENA_RADIUS, FIXED_STEP, ROLES } from '../game/content.ts';
+import { ARENA_RADIUS, FIXED_STEP, REVELRY, ROLES } from '../game/content.ts';
 import type { GameState } from '../game/types.ts';
+import { migrateRevelryState } from './state-migrations.ts';
 
 const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
+
+/** Restore a detached current state, defaulting only absent legacy buff fields. */
+export function restoreSave(raw: unknown): GameState | null {
+  const state = migrateRevelryState(raw);
+  return validSave(state) ? state : null;
+}
 
 /** Validate browser saves before restoring them into the local kernel. */
 export function validSave(raw: unknown): raw is GameState {
@@ -36,6 +43,7 @@ export function validSave(raw: unknown): raw is GameState {
     state.time < 0 || state.combatTime < 0 ||
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
   if (state.party.some((actor) => !Object.hasOwn(ROLES, actor.role) ||
+    !Number.isInteger(actor.revelryStacks) || actor.revelryStacks < 0 || actor.revelryStacks > REVELRY.maxStacks ||
     actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY ||
     actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
     Math.hypot(actor.moveX, actor.moveZ) > 1 + FLOAT_TOLERANCE ||

@@ -55,12 +55,12 @@ test('saved settings normalize bounds, invalid types and duplicate key/button bi
   const settings = normalizeControls({ version: 1, keys: { forward: 'KeyD', backward: 'Escape', cameraUp: 'Ctrl+KeyR' }, buttons: { forward: 4, backward: 4, heal: 500, engage: NaN }, mouseSensitivity: Infinity, stickSensitivity: 80, zoomSensitivity: -2, cameraHeight: 100, shoulderOffset: -50, defaultDistance: 0, invertMouseX: true, invertMouseY: 'true', extra: 'discard' });
   assert.equal(settings.keys.forward, 'KeyD'); assert.equal(settings.keys.right, '');
   assert.equal(settings.keys.backward, 'KeyS'); assert.equal(settings.keys.cameraUp, 'ArrowUp');
-  assert.deepEqual(settings.buttons, { forward: 4 });
+  assert.deepEqual(settings.buttons, { forward: 4, revelry: 15 });
   assert.equal(settings.mouseSensitivity, 1); assert.equal(settings.stickSensitivity, 3); assert.equal(settings.zoomSensitivity, 0.1);
   assert.equal(settings.cameraHeight, 5); assert.equal(settings.shoulderOffset, -3); assert.equal(settings.defaultDistance, 4);
   assert.equal(settings.invertMouseX, true); assert.equal(settings.invertMouseY, false);
   assert.equal('extra' in settings, false);
-  for (const bad of [null, [], 'bad', { version: 2 }]) assert.deepEqual(normalizeControls(bad), defaults());
+  for (const bad of [null, [], 'bad', { version: 3 }]) assert.deepEqual(normalizeControls(bad), defaults());
   const unbound = bindButton(bindKey(defaults(), 'engage', ''), 'engage', undefined);
   assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(unbound))), unbound);
 });
@@ -78,6 +78,23 @@ test('rebinding swaps a conflict or unbinds it, leaves source settings intact an
   buttons = bindButton(bindButton(buttons, 'targetPrevious', undefined), 'targetPrevious', 1);
   assert.equal(buttons.buttons.targetPrevious, 1); assert.equal(buttons.buttons.engage, undefined);
   assert.deepEqual(bindButton(original, 'engage', -1), original);
+});
+
+test('legacy controls gain Revelry without displacing saved bindings or resurrecting v2 unbinds', () => {
+  const legacy = JSON.parse(JSON.stringify(defaults()));
+  legacy.version = 1;
+  delete legacy.keys.revelry;
+  delete legacy.buttons.revelry;
+  const migrated = normalizeControls(legacy);
+  assert.equal(migrated.version, 2);
+  assert.equal(migrated.keys.revelry, 'KeyQ');
+  assert.equal(migrated.buttons.revelry, 15);
+  legacy.keys.forward = 'KeyQ'; legacy.buttons.targetPrevious = 15;
+  const conflicted = normalizeControls(legacy);
+  assert.equal(conflicted.keys.forward, 'KeyQ'); assert.equal(conflicted.keys.revelry, '');
+  assert.equal(conflicted.buttons.targetPrevious, 15); assert.equal(conflicted.buttons.revelry, undefined);
+  const unbound = bindButton(bindKey(migrated, 'revelry', ''), 'revelry', undefined);
+  assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(unbound))), unbound);
 });
 
 test('keyboard capture and labels agree for Shift+Tab, modifier release and reserved browser shortcuts', () => {
@@ -158,6 +175,26 @@ test('Tab cycles targets in gameplay, Shift+Tab never also guards, and menus pre
     h.state.enabled = false; assert.equal(h.key('Tab').prevented, false);
     assert.equal(h.commands.length, 2);
     assert.equal(h.key('Escape').prevented, false);
+  } finally { h.close(); }
+});
+
+test('Revelry keyboard and controller bindings emit one intent per press and respect menus', () => {
+  const h = harness();
+  try {
+    h.key('KeyQ'); h.key('KeyQ', 'keydown', { repeat: true }); h.key('KeyQ', 'keyup');
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 1);
+    h.state.pad = h.pad; h.frame();
+    h.pad.buttons[15].pressed = true; h.frame(); h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
+    h.state.enabled = false; h.key('KeyQ');
+    h.pad.buttons[15].pressed = false; h.frame(); h.pad.buttons[15].pressed = true; h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
+    h.state.enabled = true; h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
+    h.pad.buttons[15].pressed = false; h.frame();
+    h.state.settings = bindKey(h.state.settings, 'revelry', 'KeyT'); h.frame();
+    h.key('KeyQ'); h.key('KeyT');
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 3);
   } finally { h.close(); }
 });
 

@@ -1,4 +1,4 @@
-import { ARENA_RADIUS, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, FIXED_STEP, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, WEAPONS } from './content.ts';
+import { ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import type { Action, ActionResult, Actor, BossCast, GameState, Mode, WeaponId } from './types.ts';
 
@@ -20,7 +20,7 @@ export function createGame(mode: Mode = 'trial'): GameState {
     party: PARTY.map((p, i) => ({
       id: p.id, name: p.name, role: p.role, color: p.color,
       x: (i - 2) * 2, z: 9 + Math.abs(i - 2), facing: Math.PI,
-      hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0,
+      hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0, revelryStacks: 0,
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
     })),
@@ -75,8 +75,10 @@ function finishIfNeeded(state: GameState) {
   }
 }
 
-function damageBoss(state: GameState, slot: number, amount: number, kind: string, label: string) {
-  const damage = Math.min(state.boss.hp, Math.round(amount));
+function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto' | 'weapon' | 'chain' | 'magic' | 'burst', label: string) {
+  const stats = getAttackStats(state.party[slot]);
+  const attack = kind === 'chain' || kind === 'magic' || kind === 'burst' ? stats.matk : stats.patk;
+  const damage = Math.min(state.boss.hp, Math.round(amount * attack / ATTACK_BASELINE));
   state.boss.hp -= damage;
   threat(state.party[slot], damage * 0.65, damage * 0.8);
   event(state, kind, `${state.party[slot].name}: ${label} · ${damage}`, slot, damage);
@@ -91,6 +93,10 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
     return;
   }
   const damage = Math.min(actor.hp, Math.round(amount * (actor.guardUntil > state.time ? 0.35 : 1)));
+  if (damage > 0 && actor.revelryStacks > 0) {
+    event(state, 'revelry_lost', `${actor.name} loses Revelry after taking damage.`, slot, actor.revelryStacks);
+    actor.revelryStacks = 0;
+  }
   actor.hp -= damage;
   actor.ce = Math.max(0, actor.ce - damage * 0.7);
   actor.tp = Math.min(TP_MAX, actor.tp + 45);
@@ -116,7 +122,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return fail('Invalid party slot.');
   if (!action || typeof action !== 'object' || Array.isArray(action)) return fail('Invalid action.');
   const type = action.type;
-  if (typeof type !== 'string' || !['move', 'engage', 'weapon', 'magic', 'provoke', 'heal', 'guard', 'dodge', 'start'].includes(type)) return fail('Unknown action.');
+  if (typeof type !== 'string' || !['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start'].includes(type)) return fail('Unknown action.');
   if (state.status === 'victory' || state.status === 'defeat') return fail('The encounter is over.');
   const actor = state.party[slot];
   if (actor.hp <= 0) return fail('This actor has fallen.');
@@ -146,6 +152,16 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
   }
   if (state.status !== 'fighting') return fail('Engage Crown Resonance first.');
   if ((actor.cooldowns[type] ?? 0) > 0) return fail(`${type} is on cooldown.`);
+
+  if (action.type === 'revelry') {
+    if (actor.id !== 'bacchus') return fail('Only Bacchus can grant Revelry.');
+    actor.cooldowns.revelry = REVELRY.cooldown;
+    for (const recipient of state.party) {
+      if (recipient.hp > 0) recipient.revelryStacks = Math.min(REVELRY.maxStacks, recipient.revelryStacks + 1);
+    }
+    event(state, 'revelry', `${actor.name} grants one Revelry stack to every living party member.`, slot);
+    return { ok: true };
+  }
 
   if (action.type === 'weapon') {
     if (typeof action.id !== 'string' || !Object.hasOwn(WEAPONS, action.id)) return fail('Unknown weaponskill.');
@@ -245,6 +261,7 @@ function trustAction(state: GameState, slot: number) {
     if (leader) moveToward(actor, leader.x + (slot - 2) * 1.8, leader.z + 2, 1.5);
     return;
   }
+  if (actor.id === 'bacchus') applyAction(state, slot, { type: 'revelry' });
   const cast = state.boss.cast;
   if (cast && isInTelegraph(actor, cast)) {
     if (cast.kind === 'raid') {
@@ -302,7 +319,7 @@ function bossStep(state: GameState, dt: number) {
       for (let i = 0; i < state.party.length; i++) {
         const actor = state.party[i];
         if (actor.hp > 0) event(state, 'down', `${actor.name} is lost to Coherence Collapse.`, i);
-        actor.hp = actor.ce = actor.ve = actor.moveX = actor.moveZ = 0;
+        actor.hp = actor.ce = actor.ve = actor.moveX = actor.moveZ = actor.revelryStacks = 0;
         actor.engaged = false;
       }
       finishIfNeeded(state);

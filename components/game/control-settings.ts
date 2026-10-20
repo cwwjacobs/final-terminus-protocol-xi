@@ -23,11 +23,12 @@ export const COMMANDS = [
   { id: 'heal', label: 'Mend', group: 'Combat', defaultKey: 'KeyF', defaultButton: 4 },
   { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 6 },
   { id: 'dodge', label: 'Evade', group: 'Combat', defaultKey: 'KeyC', defaultButton: 1 },
+  { id: 'revelry', label: 'Revelry', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 15 },
 ] as const;
 
 export type Command = (typeof COMMANDS)[number]['id'];
 export interface ControlSettings {
-  version: 1;
+  version: 2;
   keys: Record<Command, string>;
   buttons: Partial<Record<Command, number>>;
   mouseSensitivity: number;
@@ -51,7 +52,7 @@ const safeButton = (value: unknown): value is number => typeof value === 'number
 
 export function defaults(): ControlSettings {
   return {
-    version: 1,
+    version: 2,
     keys: Object.fromEntries(COMMANDS.map(command => [command.id, command.defaultKey])) as Record<Command, string>,
     buttons: Object.fromEntries(COMMANDS.flatMap(command => 'defaultButton' in command ? [[command.id, command.defaultButton]] : [])),
     mouseSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
@@ -66,7 +67,7 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 /** Saved bindings are data: discard unknown fields, bound numbers and remove conflicts. */
 export function normalizeControls(value: unknown): ControlSettings {
   const result = defaults();
-  if (!object(value) || (value.version !== undefined && value.version !== 1)) return result;
+  if (!object(value) || (value.version !== undefined && value.version !== 1 && value.version !== 2)) return result;
   if (object(value.keys)) for (const command of COMMANDS) {
     const key = value.keys[command.id];
     if (safeKey(key)) result.keys[command.id] = key;
@@ -78,6 +79,10 @@ export function normalizeControls(value: unknown): ControlSettings {
       const button = value.buttons[command.id];
       if (safeButton(button)) result.buttons[command.id] = button;
     }
+    // Older preferences never contained Revelry. Add its new default only if it
+    // does not displace an existing binding; v2 omissions remain deliberate unbinds.
+    if (value.version !== 2 && !Object.hasOwn(value.buttons, 'revelry') &&
+        !Object.values(result.buttons).includes(15)) result.buttons.revelry = 15;
   }
   const usedKeys = new Set<string>(), usedButtons = new Set<number>();
   for (const command of COMMANDS) {

@@ -23,6 +23,7 @@ const combat: Partial<Record<Command, Action>> = {
   pierce: { type: 'weapon', id: 'pierce' }, resonance: { type: 'weapon', id: 'resonance' },
   fire: { type: 'magic', element: 'fire' }, ice: { type: 'magic', element: 'ice' }, lightning: { type: 'magic', element: 'lightning' },
   provoke: { type: 'provoke' }, heal: { type: 'heal' }, guard: { type: 'guard' }, dodge: { type: 'dodge' },
+  revelry: { type: 'revelry' },
 };
 const continuous = new Set<Command>(['forward', 'backward', 'left', 'right', 'cameraLeft', 'cameraRight', 'cameraUp', 'cameraDown', 'zoomIn', 'zoomOut']);
 const modifier = (code: string) => code === 'ShiftLeft' || code === 'ShiftRight';

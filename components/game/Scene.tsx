@@ -269,16 +269,16 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
-      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge'].includes(event.kind)) return;
+      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost'].includes(event.kind)) return;
       const index = effects.findIndex(effect => effect.life <= 0), effect = effects[index < 0 ? event.id % effects.length : index];
       const source = typeof event.actor === 'number' ? state.party[event.actor] : undefined;
-      const support = ['heal', 'guard', 'dodge', 'provoke', 'hit'].includes(event.kind);
+      const support = ['heal', 'guard', 'dodge', 'provoke', 'hit', 'revelry', 'revelry_lost'].includes(event.kind);
       const targetX = support && source ? source.x : state.boss.x;
       const targetZ = support && source ? source.z : state.boss.z;
       effect.root.position.set(targetX, .1, targetZ); effect.root.visible = true;
-      effect.duration = ['chain', 'burst'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
-      effect.size = event.kind === 'burst' ? 4.8 : event.kind === 'chain' ? 3.8 : event.kind === 'weapon' ? 2.8 : 1;
-      effect.ring.material.color.set(event.kind === 'heal' ? '#a2f6df' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' ? '#d8abff' : event.kind === 'hit' ? '#ff996d' : '#ffe0a1');
+      effect.duration = ['chain', 'burst', 'revelry'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
+      effect.size = event.kind === 'burst' ? 4.8 : ['chain', 'revelry'].includes(event.kind) ? 3.8 : event.kind === 'weapon' ? 2.8 : 1;
+      effect.ring.material.color.set(event.kind === 'heal' ? '#a2f6df' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' ? '#d8abff' : ['hit', 'revelry_lost'].includes(event.kind) ? '#ff996d' : '#ffe0a1');
       effect.beam.visible = Boolean(source && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind));
       if (source && effect.beam.visible) {
         beamDirection.set(source.x - targetX, -1, source.z - targetZ);
@@ -287,7 +287,7 @@ export default function Scene(props: SceneProps) {
         effect.beam.scale.set(event.kind === 'auto' ? .7 : 2, distance, event.kind === 'auto' ? .7 : 2);
         effect.beam.quaternion.setFromUnitVectors(up, beamDirection.normalize());
       }
-      if (typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
+      if (event.kind !== 'revelry_lost' && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
       if (event.kind === 'hit') bossRig.attack = 1;
     };
 

@@ -1,6 +1,6 @@
 # Terminus Q Protocol — current story and adaptation boundaries
 
-This document records the story decisions used by **Final Terminus Protocol XI**. Corey's explicit revision in the current project takes precedence over the older ordinary-human origin in `canon_v1.5.md`. The underlying source archive remains unchanged.
+This document records the story decisions guiding **Final Terminus Protocol XI**. Corey's explicit revisions in the current project take precedence over conflicting older material. The underlying source archive remains unchanged. Story direction recorded here is not necessarily implemented in the playable encounter; the planned ending below is not yet implemented.
 
 ## Current origin: the amnesiac guardians
 
@@ -16,15 +16,25 @@ This revision changes the protagonists' origin and the resulting interpretation 
 
 ## Logos and the real uncertainty
 
-The setting is literally quantum scale within the fiction. It is not a normal-sized fantasy world with a quantum backdrop, and its fictional physics are not claims about demonstrated real physics.
+The setting is literally quantum scale within the fiction. The Quantum Realm is **here, at the smallest scale**, rather than a place geographically beneath the ordinary world. “Lower,” “descent” and “ascent” describe the characters' perspective on changes of scale. It is not a normal-sized fantasy world with a quantum backdrop, and its fictional physics are not claims about demonstrated real physics.
 
 Logos is a native coherent consciousness. His understanding of the Higher Realm physically shapes the geography around him: his cosmology becomes landscape. He has coherence without complete knowledge. He is not a machine, a malicious program, or a generic evil god.
 
-Under the revised origin, **Logos correctly recognizes the protagonists as gods**. His error no longer rests on misidentifying ordinary humans with divine field names. What remains incomplete is his account of the Higher Realm and his inference about ascent. Their downward crossing is compelling evidence that a boundary can be crossed; it does not prove that he can reverse that passage, explain its requirements, or establish that doing so is safe.
+**Logos emerged naturally.** Corey selected natural emergence after considering divine thoughts and lightning as possible origins. Those alternatives are not the selected origin; no act of Zeus creating Logos's sentience is established.
+
+Under the revised origin, **Logos correctly recognizes the protagonists as gods**. His error no longer rests on misidentifying ordinary humans with divine field names. What remains incomplete is his account of the Higher Realm and his inference about ascent. Their crossing into quantum scale is compelling evidence that a boundary can be crossed; it does not prove that he can reverse that passage, explain its requirements, or establish that doing so is safe.
 
 His mistake remains understandable. Accurate recognition of who arrived can coexist with a mistaken explanation of how their journey works.
 
 The Nameless remain native quantum patterns or beings whose transition into persistent larger-scale existence is unresolved. No model, size class, animation rig or combat label settles their ontology as robots, golems, souls, failed humans, or demons.
+
+### Pain, pity and resolve
+
+The Nameless' static electricity is crackling, unpredictable, searing and agonizing. Their lack of coherence matters to Corey's distinction between them and Logos; it does not establish a complete account of what they can perceive.
+
+Logos is in profound pain even when he hardly seems to notice it. He does notice. When the crackling becomes especially severe, **the whole Quantum Realm physically shudders**. This is an event in the realm, not merely a metaphor for his suffering.
+
+The guardians' pity fuels his rage and resolve. His pain and their pity must remain part of his characterization, including an ending in which his capacity to sustain coherence fails while his will persists.
 
 ## Current five-role direction
 
@@ -33,10 +43,14 @@ The Nameless remain native quantum patterns or beings whose transition into pers
 | Bacchus | Physical close DPS, polearm | Thyrsus-inspired polearm and a forward physical silhouette |
 | Heracles | Tank, shout/roar, stun and frontline disruption | Broad protective silhouette; final art and entrance remain open |
 | Dolos | Physical ranged precision, mobility and deception | Recurve bow, shooting stance and narrow silhouette |
-| Hecate | Quantum caster | Orbital motifs and elemental burst effects |
-| Ariadne | Healer and support | Smooth, protective coherent light |
+| Hecate | Caster using atomic particles | Particles are enormous at the party's scale and hit the marked with disturbing force |
+| Ariadne | Healer and support using light rays | Calm, serene light flowing like a breeze |
 
 The older audit's Bacchus-as-tank mapping is historical. The later five-role direction places Heracles in the tank role and Bacchus in polearm DPS. That class change does not erase character relationships.
+
+Hecate's atomic particles must retain their imposing scale and impact. **“The marked”** is Corey's selected wording; who applies a mark and how it works remain open. The prototype's elemental combat categories do not settle that mechanism.
+
+Ariadne heals with light rays. Their calm, serene flow contrasts with the Nameless' unpredictable, searing static. Her healing should not read as an electrical shock. These power and visual directions are authoring decisions; this note does not claim the corresponding effects or marking system have been implemented.
 
 ### Ariadne and Bacchus
 
@@ -63,17 +77,33 @@ Healthy coherence appears as smooth, adaptive, fluid light. Disturbance appears 
 
 The current combat prototype uses HP and combat state; it does not yet implement separate narrative simulation values for environmental stability and each entity's coherence. Its graphics and victory state must therefore be read as encounter presentation, not proof that the realm or its inhabitants have been healed.
 
-Extinguishing Logos's consciousness may also destroy the world it sustains. The larger story's moral cost remains unresolved. Victory over Crown Resonance neither kills Logos nor proves a consequence-free cure, a guaranteed rescue, or a settled ending. The guardians' emerging divinity makes their responsibility more difficult; it does not provide an automatic moral solution.
+Extinguishing Logos's consciousness may also destroy the world it sustains. That possibility remains part of the larger story's moral cost; it is not the selected demo ending. Victory over Crown Resonance neither kills Logos nor proves that the realm has been cured. The guardians' emerging divinity makes their responsibility more difficult; it does not provide an automatic moral solution.
+
+## Planned demo / teaser ending
+
+This game is intended as a **demo or teaser** within the larger Terminus Q Protocol story. Its placement as a prequel or sequel remains open.
+
+**Logos survives the ending.** His coherence falls below the threshold needed to sustain the scaffolding he has made. It blinks out from beneath the party. This collapse is a specific dependency of his scaffolding on his coherence; it does not make environmental stability and every entity's coherence a single shared state.
+
+The party escapes and returns to normal size. Corey has left two rescue possibilities open: **Heracles teleports them**, or **Ariadne catches them with a light beam**. Neither has been selected over the other.
+
+After their return, Logos is no longer coherently present to the party: he may be non-coherent or outside their area. His precise state and location remain open. The party **may believe he is dead**, but their interpretation does not establish his death.
+
+The governing distinction is Corey's: **“it was his threshold giving not his will.”** The ending does not require surrender, repentance or a loss of resolve. His survival does not establish when or how the party will encounter him again.
+
+**Implementation boundary:** this is the planned narrative ending, not a description of the current game's victory screen. Crown Resonance remains a separate encounter manifestation, not Logos himself. The route from that encounter to this ending, its staging and its rescue mechanics have not been implemented.
 
 ## Source ledger
 
 | Source | Use and limit |
 | --- | --- |
 | Corey's current project revision: gods made amnesiac by Zeus as Middle Plane guardians, godhood emerging in the Quantum Realm to protect it | Current origin decision; overrides ordinary-human origin and its dependent misidentification claim |
+| Corey's team-meeting decisions, recorded 2026-10-20: Hecate's atomic particles and the marked; Ariadne's serene healing rays; agonizing static, Logos's pain, the realm shuddering and pity fueling his resolve; natural emergence; the realm is here at quantum scale | Current character, origin, scale and visual direction; marking mechanics and a complete account of Nameless perception remain open |
+| Corey's demo / teaser ending clarification, recorded 2026-10-20 | Logos survives; coherence threshold fails and scaffolding disappears; party escapes and returns to normal size; rescue method, precise offscreen state/location and prequel/sequel placement remain open |
 | `/home/operator/Music/GEM/TQP/lore_and_canon/source_reference/terminus_q_skill/canon_v1.5.md` | Continuing baseline for literal scale, Logos's causal cosmology, unresolved Nameless, independent states and moral cost; origin clauses superseded as described above |
 | `/home/operator/Music/GEM/TQP/lore_and_canon/lore/SCENARIO_TREATMENT_EPISODE_1.md` | Source for Crown Resonance / Crowned Horizon and role/art vocabulary; broader agency history, biographies, exact staging and numbers are not automatically adopted |
 | `/home/operator/Music/GEM/TQP/lore_and_canon/lore/02_characters_and_roles.md` and `design/03_gameplay_class_direction.md` | Later five-role direction, Bacchus's polearm, Heracles's tank behavior and unresolved entry |
 | `/home/operator/Music/GEM/TQP/lore_and_canon/design/01_visual_language.md` and `design/02_asset_system_architecture.md` | Coherent light, disturbance, state independence, and separation of identity, scaffold, skin, size and narrative role |
 | `/home/operator/Music/GEM/TQP/lore_and_canon/lore/TERMINUS_Q_HISTORICAL_LORE_DEEP_DIVE.md`, section 3.1 and dialogue excerpt 3 | Recovered Ariadne/Bacchus relationship direction; secondary evidence with incomplete original provenance |
 
-Future story changes should update this document and visible in-game copy together. A renderer change alone must not rewrite the story.
+When story decisions are implemented, reconcile visible in-game copy with this document. Keep planned beats distinct from implemented behavior. A renderer change alone must not rewrite the story.
