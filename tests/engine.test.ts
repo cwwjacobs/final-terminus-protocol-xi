@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyAction, createGame, isInTelegraph, setHuman, stepGame } from '../game/engine.ts';
-import { ARENA_RADIUS, CHAIN_MIN_DELAY, WEAPONS } from '../game/content.ts';
+import { ARENA_RADIUS, canUseActionRole, CHAIN_MIN_DELAY, GOD_ENRAGE_TIME, ROLES, WEAPONS } from '../game/content.ts';
 import type { Action, GameState, Mode } from '../game/types.ts';
 
 /** Controlled fixtures disable autonomous allies without bypassing action validation. */
@@ -126,14 +126,15 @@ test('matching magic bursts, wrong element does ordinary damage, and burst expir
   let before = state.boss.hp;
   applyAction(state, 3, { type: 'magic', element: 'ice' });
   assert.equal(before - state.boss.hp, 250);
+  stepGame(state, 7);
   before = state.boss.hp;
-  applyAction(state, 4, { type: 'magic', element: 'fire' });
+  applyAction(state, 3, { type: 'magic', element: 'fire' });
   assert.equal(before - state.boss.hp, 1020);
   assert.equal(state.events.at(-1)?.kind, 'burst');
   stepGame(state, 8);
   assert.equal(state.burst, null);
   before = state.boss.hp;
-  applyAction(state, 4, { type: 'magic', element: 'fire' });
+  applyAction(state, 3, { type: 'magic', element: 'fire' });
   assert.equal(before - state.boss.hp, 250);
 });
 
@@ -229,7 +230,6 @@ function simulate(mode: Mode) {
     if (actor.tp >= 1000 && (!state.chain || (state.chain.opener !== 0 && state.time - state.chain.openedAt >= 1.8))) {
       applyAction(state, 0, { type: 'weapon', id: state.chain ? WEAPONS[state.chain.weapon].next : 'cleave' });
     }
-    if (actor.hp < actor.maxHp * 0.45) applyAction(state, 0, { type: 'heal' });
     stepGame(state, 0.05);
     for (const e of state.events.filter(e => e.id > seen)) {
       if (e.kind === 'chain') chains++;
@@ -274,4 +274,93 @@ test('party wipe closes the encounter and events remain bounded', () => {
   const trial = simulate('trial').state;
   assert.ok(trial.events.length <= 60);
   assert.ok(trial.eventSeq > 60);
+});
+
+test('god collapse uses combat elapsed time, warns visibly, and defeats an idle player with trusts', () => {
+  const state = createGame('god');
+  for (let i = 0; i < 20; i++) stepGame(state, 30);
+  assert.equal(state.time, 600);
+  assert.equal(state.combatTime, 0, 'preparation time cannot consume the god deadline');
+  applyAction(state, 0, { type: 'start' });
+  assert.equal(state.combatTime, 0);
+  assert.ok(state.events.some(e => e.kind === 'warning' && e.text.includes('7:30')));
+  while (state.combatTime < GOD_ENRAGE_TIME - 30) stepGame(state, 0.05);
+  assert.equal(state.status, 'fighting');
+  assert.ok(state.events.some(e => e.kind === 'warning' && e.text.includes('30 seconds')));
+  while (state.combatTime < GOD_ENRAGE_TIME - 10) stepGame(state, 0.05);
+  assert.equal(state.boss.cast?.name, 'Coherence Collapse');
+  assert.equal(state.boss.cast?.remaining, 10);
+  while (state.combatTime < GOD_ENRAGE_TIME - 0.05) stepGame(state, 0.05);
+  assert.equal(state.status, 'fighting');
+  // The time limit must not be bypassable by a last-frame defensive action.
+  for (const actor of state.party) { actor.guardUntil = state.time + 10; actor.dodgeUntil = state.time + 10; }
+  stepGame(state, 0.05);
+  assert.equal(state.combatTime, GOD_ENRAGE_TIME);
+  assert.equal(state.status, 'defeat');
+  assert.ok(state.boss.hp > 0);
+  assert.ok(state.party.every(p => p.hp === 0));
+  assert.ok(state.events.some(e => e.kind === 'enrage'));
+});
+
+test('accessible trial has no deadline and trusts can finish when the player remains idle', () => {
+  const state = createGame('trial');
+  applyAction(state, 0, { type: 'start' });
+  while (state.status === 'fighting' && state.combatTime < 300) stepGame(state, 0.05);
+  assert.equal(state.status, 'victory');
+  assert.ok(!state.events.some(e => e.kind === 'enrage'));
+});
+
+test('role capability helper and authoritative engine agree without spending forbidden resources', () => {
+  const commands: Action[] = [{ type: 'weapon', id: 'cleave' }, { type: 'magic', element: 'fire' }, { type: 'heal' }, { type: 'provoke' }, { type: 'guard' }, { type: 'dodge' }];
+  const allowed = [
+    ['weapon', 'guard', 'dodge'],
+    ['weapon', 'provoke', 'guard', 'dodge'],
+    ['weapon', 'guard', 'dodge'],
+    ['magic', 'guard', 'dodge'],
+    ['heal', 'guard', 'dodge'],
+  ];
+  for (let slot = 0; slot < 5; slot++) for (const action of commands) {
+    const state = combat();
+    arm(state, slot);
+    state.party[0].hp = 1000;
+    const expected = allowed[slot].includes(action.type);
+    assert.equal(canUseActionRole(state.party[slot].role, action.type), expected);
+    const before = JSON.stringify(state);
+    assert.equal(applyAction(state, slot, action).ok, expected, `${state.party[slot].role}: ${action.type}`);
+    if (!expected) assert.equal(JSON.stringify(state), before, 'forbidden command must not change state');
+    for (const shared of ['move', 'engage', 'start'] as const) assert.equal(canUseActionRole(state.party[slot].role, shared), true);
+  }
+});
+
+test('Dolos autos and closes skillchains at range while vanguard weaponskills stay melee', () => {
+  const state = combat();
+  const hunter = state.party[2];
+  hunter.x = state.boss.x; hunter.z = state.boss.z + 12;
+  hunter.engaged = true; hunter.attackTimer = 0;
+  stepGame(state, 0.05);
+  assert.ok(state.events.some(e => e.kind === 'auto' && e.actor === 2));
+  assert.equal(hunter.tp, ROLES.hunter.tp);
+  arm(state, 0); arm(state, 2);
+  applyAction(state, 0, { type: 'weapon', id: 'cleave' });
+  stepGame(state, 1.5);
+  assert.equal(applyAction(state, 2, { type: 'weapon', id: 'pierce' }).ok, true);
+  assert.equal(state.burst?.element, 'fire');
+  hunter.z = state.boss.z + 13.01;
+  arm(state, 2);
+  assert.equal(applyAction(state, 2, { type: 'weapon', id: 'pierce' }).ok, false);
+  arm(state, 0); state.party[0].z = state.boss.z + 12;
+  assert.equal(applyAction(state, 0, { type: 'weapon', id: 'cleave' }).ok, false);
+});
+
+test('Dolos trust maintains ranged spacing and answers a player opener in the timed window', () => {
+  const state = combat();
+  const hunter = state.party[2];
+  hunter.x = state.boss.x; hunter.z = state.boss.z - 10;
+  arm(state, 0); arm(state, 2);
+  setHuman(state, 2, false);
+  applyAction(state, 0, { type: 'weapon', id: 'cleave' });
+  stepGame(state, 2);
+  assert.ok(Math.hypot(hunter.x - state.boss.x, hunter.z - state.boss.z) > 8);
+  assert.ok(state.events.some(e => e.kind === 'chain' && e.actor === 2));
+  assert.equal(state.burst?.element, 'fire');
 });

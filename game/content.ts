@@ -1,4 +1,4 @@
-import type { Element, Role, WeaponId } from './types.ts';
+import type { Action, Element, Role, WeaponId } from './types.ts';
 
 export const FIXED_STEP = 1 / 20;
 export const ARENA_RADIUS = 24;
@@ -11,6 +11,10 @@ export const BURST_WINDOW = 8;
 export const TP_MAX = 3000;
 export const TP_COST = 1000;
 export const CONE_HALF_ANGLE = Math.PI / 5;
+// Provisional encounter rule: the god trial must be finished before collapse.
+export const GOD_ENRAGE_TIME = 450;
+export const GOD_ENRAGE_WARNING = 30;
+export const GOD_ENRAGE_CAST = 10;
 
 export const PARTY = [
   { id: 'bacchus', name: 'Bacchus', role: 'vanguard', color: '#efc56b', hp: 2400, mp: 420 },
@@ -22,11 +26,21 @@ export const PARTY = [
 
 export const ROLES: Record<Role, { description: string; damage: number; delay: number; tp: number; range: number }> = {
   vanguard: { description: 'Lead the assault. Open a chain; let the party answer.', damage: 112, delay: 2.35, tp: 240, range: MELEE_RANGE },
-  warden: { description: 'Hold enmity with Provoke, then Guard the Regent’s blows.', damage: 78, delay: 2.8, tp: 245, range: MELEE_RANGE },
-  hunter: { description: 'Close another actor’s weaponskill into a timed skillchain.', damage: 120, delay: 2.15, tp: 240, range: MELEE_RANGE },
+  warden: { description: 'Hold enmity with Provoke, then Guard Crown Resonance’s blows.', damage: 78, delay: 2.8, tp: 245, range: MELEE_RANGE },
+  hunter: { description: 'Attack from range. Close another actor’s weaponskill into a timed skillchain.', damage: 120, delay: 2.15, tp: 240, range: 13 },
   arcanist: { description: 'Match the chain’s element to land a Magic Burst.', damage: 46, delay: 3.1, tp: 200, range: 13 },
   luminary: { description: 'Restore the lowest-health ally and keep the lattice alive.', damage: 38, delay: 3.3, tp: 180, range: 13 },
 };
+
+/** Shared by the command UI and authoritative action validation. */
+export function canUseActionRole(role: Role, type: Action['type']): boolean {
+  if (!Object.hasOwn(ROLES, role)) return false;
+  if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
+  if (type === 'magic') return role === 'arcanist';
+  if (type === 'heal') return role === 'luminary';
+  if (type === 'provoke') return role === 'warden';
+  return type === 'guard' || type === 'dodge' || type === 'move' || type === 'engage' || type === 'start';
+}
 
 export const WEAPONS: Record<WeaponId, { name: string; property: string; damage: number; next: WeaponId }> = {
   cleave: { name: 'Arc Cleave', property: 'Liquefaction', damage: 660, next: 'pierce' },

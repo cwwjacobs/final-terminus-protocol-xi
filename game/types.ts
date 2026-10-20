@@ -53,6 +53,7 @@ export interface BossCast {
 export interface GameState {
   version: 1;
   time: number;
+  combatTime: number;
   tick: number;
   remainder: number;
   eventSeq: number;

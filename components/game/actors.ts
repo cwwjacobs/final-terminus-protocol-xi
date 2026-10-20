@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import type { Role } from '@/game/types';
 
 /** Art boundary: a future cached GLB factory can return this rig interface.
@@ -18,6 +19,7 @@ export interface ActorRig {
   attack: number;
   step: number;
   boss: boolean;
+  role: Role | null;
 }
 
 export class ActorAssets {
@@ -26,7 +28,7 @@ export class ActorAssets {
   private shapes = new Map<string, THREE.BufferGeometry>();
   private paints = new Map<string, THREE.MeshStandardMaterial>();
 
-  shape(name: 'box' | 'sphere' | 'crystal' | 'cylinder' | 'cone' | 'ring' | 'halo') {
+  shape(name: 'box' | 'sphere' | 'crystal' | 'cylinder' | 'cone' | 'ring' | 'halo' | 'bow') {
     const existing = this.shapes.get(name);
     if (existing) return existing;
     const geometry = name === 'box' ? new THREE.BoxGeometry(1, 1, 1)
@@ -35,6 +37,11 @@ export class ActorAssets {
       : name === 'cylinder' ? new THREE.CylinderGeometry(.5, .5, 1, 8)
       : name === 'cone' ? new THREE.ConeGeometry(.5, 1, 6)
       : name === 'halo' ? new THREE.TorusGeometry(.5, .018, 4, 48)
+      : name === 'bow' ? new THREE.TubeGeometry(new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, -.74, 0), new THREE.Vector3(.2, -.51, 0),
+        new THREE.Vector3(.32, -.18, 0), new THREE.Vector3(.27, 0, 0),
+        new THREE.Vector3(.32, .18, 0), new THREE.Vector3(.2, .51, 0), new THREE.Vector3(0, .74, 0),
+      ]), 20, .026, 5, false)
       : new THREE.RingGeometry(.42, .5, 32);
     this.shapes.set(name, geometry);
     this.geometries.add(geometry);
@@ -65,6 +72,34 @@ function part(assets: ActorAssets, parent: THREE.Object3D, shape: Parameters<Act
   mesh.castShadow = true; mesh.receiveShadow = true;
   parent.add(mesh);
   return mesh;
+}
+
+/** Batch only rigid children of each joint; articulated animation stays intact. */
+function batchStaticParts(assets: ActorAssets, root: THREE.Group) {
+  const joints: THREE.Group[] = [];
+  root.traverse(object => { if (object instanceof THREE.Group) joints.push(object); });
+  for (const joint of joints) {
+    const batches = new Map<THREE.Material, THREE.Mesh[]>();
+    for (const child of joint.children) {
+      if (!(child instanceof THREE.Mesh) || Array.isArray(child.material)) continue;
+      const batch = batches.get(child.material) ?? [];
+      batch.push(child); batches.set(child.material, batch);
+    }
+    for (const [material, originals] of batches) {
+      if (originals.length < 2) continue;
+      const parts = originals.map(original => {
+        original.updateMatrix();
+        const geometry = original.geometry.index ? original.geometry.toNonIndexed() : original.geometry.clone();
+        geometry.deleteAttribute('uv'); geometry.applyMatrix4(original.matrix);
+        return geometry;
+      });
+      const combined = mergeGeometries(parts, false); parts.forEach(geometry => geometry.dispose());
+      if (!combined) continue;
+      assets.geometries.add(combined);
+      const mesh = new THREE.Mesh(combined, material); mesh.castShadow = true; mesh.receiveShadow = true;
+      originals.forEach(original => joint.remove(original)); joint.add(mesh);
+    }
+  }
 }
 
 export function createActor(assets: ActorAssets, role: Role, color: string): ActorRig {
@@ -122,9 +157,9 @@ export function createActor(assets: ActorAssets, role: Role, color: string): Act
     part(assets, body, 'box', cloth, [0, .9, -.24], [.56, .98, .06]);
   } else if (role === 'hunter') {
     part(assets, head, 'sphere', cloth, [0, .08, -.045], [.45, .53, .37]);
-    // A narrow crescent bow gives Dolos a different silhouette from staff casters.
-    part(assets, leftArm, 'halo', ivory, [-.06, -.47, .16], [.55, 1.25, .6], [0, Math.PI / 2, 0]);
-    part(assets, leftArm, 'box', accent, [-.06, -.47, .16], [.017, 1.17, .017]);
+    // Open recurved limbs and a visible string make the ranged role legible.
+    part(assets, leftArm, 'bow', ivory, [-.11, -.47, .16], [1, 1, 1], [0, Math.PI / 3, 0]);
+    part(assets, leftArm, 'box', accent, [-.11, -.47, .16], [.012, 1.48, .012]);
     part(assets, body, 'cone', cloth, [0, .87, -.16], [.67, .95, .27], [0, 0, Math.PI]);
     part(assets, body, 'cylinder', metal, [.2, 1.12, -.27], [.16, .7, .16], [0, 0, -.3]);
   } else {
@@ -139,50 +174,58 @@ export function createActor(assets: ActorAssets, role: Role, color: string): Act
       for (const sign of [-1, 1]) part(assets, ornament, 'crystal', accent, [sign * .53, 1.88, -.1], [.11, .26, .11]);
     }
   }
-  return { root, body, head, leftArm, rightArm, leftLeg, rightLeg, ornament, marker, accent, attack: 0, step: 0, boss: false };
+  batchStaticParts(assets, root);
+  return { root, body, head, leftArm, rightArm, leftLeg, rightLeg, ornament, marker, accent, attack: 0, step: 0, boss: false, role };
 }
 
-export function createRegent(assets: ActorAssets): ActorRig {
+/** Crown Resonance is an abstract manifestation, not armored robotic anatomy.
+ * The common rig handles below are animation anchors for floating satellite cores. */
+export function createCrownResonance(assets: ActorAssets): ActorRig {
   const root = new THREE.Group(), body = new THREE.Group(), head = new THREE.Group();
   const leftArm = new THREE.Group(), rightArm = new THREE.Group();
   const leftLeg = new THREE.Group(), rightLeg = new THREE.Group(), ornament = new THREE.Group();
   root.add(body, ornament); body.add(head, leftArm, rightArm, leftLeg, rightLeg);
-  const black = assets.paint('#141c2c');
-  const metal = assets.paint('#786c59');
+  const black = assets.paint('#25203f');
+  const metal = assets.paint('#807799');
   const ivory = assets.paint('#ded8c2');
   const accent = assets.paint('#a89aef', true);
   const gold = assets.paint('#dbb66d', true);
   const marker = part(assets, root, 'ring', accent, [0, .035, 0], [5.6, 5.6, 5.6], [-Math.PI / 2, 0, 0]);
   marker.castShadow = false;
-  part(assets, body, 'crystal', black, [0, 3.1, 0], [2.6, 3.5, 1.45]);
-  part(assets, body, 'crystal', ivory, [0, 4.2, .38], [1.9, 2.05, .6]);
-  part(assets, body, 'crystal', accent, [0, 4.1, .72], [.54, 1.13, .35]);
-  part(assets, body, 'cone', metal, [0, 1.7, 0], [2.7, 3, 1.65], [0, 0, Math.PI]);
-  for (const sign of [-1, 1]) {
-    part(assets, body, 'crystal', ivory, [sign * .8, 2.2, .4], [.55, 2.9, .45], [0, 0, sign * -.18]);
-    part(assets, body, 'crystal', black, [sign * 1.25, 3, -.15], [.65, 3.1, .7], [0, 0, sign * -.32]);
+  // An open core suspended between unequally sized shards, with no face or limbs.
+  part(assets, body, 'crystal', accent, [0, 3.8, 0], [1.15, 2.2, 1.15], [.15, 0, .25]);
+  part(assets, body, 'halo', gold, [0, 3.8, 0], [2.5, 2.5, 2.5], [Math.PI / 2.4, .3, .2]);
+  part(assets, body, 'crystal', ivory, [-.86, 4.3, .15], [.52, 2.8, .7], [.1, .4, -.37]);
+  part(assets, body, 'crystal', ivory, [.75, 3.6, -.18], [.8, 2, .65], [-.2, .3, -.24]);
+  part(assets, body, 'crystal', black, [-.36, 2.1, .06], [.65, 1.7, .8], [0, .2, -.18]);
+  part(assets, body, 'crystal', metal, [.57, 1.65, -.25], [.35, 1.4, .4], [.2, 0, .3]);
+  part(assets, body, 'crystal', gold, [-.12, .9, .04], [.15, .6, .15], [0, 0, -.15]);
+  head.position.set(-.28, 5.7, -.1);
+  part(assets, head, 'crystal', ivory, [0, 0, 0], [.7, 1, .65], [.1, .5, .5]);
+  part(assets, head, 'halo', gold, [0, .05, 0], [1.4, 1.4, 1.4], [.3, .6, 0]);
+  for (let i = 0; i < 3; i++) {
+    const a = i * Math.PI * 2 / 3;
+    part(assets, head, 'crystal', gold, [Math.sin(a) * .6, .4 + Math.cos(a) * .52, -.06], [.15, .7, .15], [0, 0, -a]);
   }
-  head.position.set(0, 5.5, .1);
-  part(assets, head, 'crystal', ivory, [0, 0, 0], [.9, 1.3, .72]);
-  part(assets, head, 'box', black, [0, .08, .36], [.68, .18, .08]);
-  part(assets, head, 'box', gold, [0, .08, .41], [.5, .05, .035]);
-  for (let i = -1; i <= 1; i++) part(assets, head, 'crystal', gold, [i * .33, .68 + (i === 0 ? .22 : 0), -.06], [.17, .8, .17], [0, 0, -i * .24]);
-  for (const [arm, sign] of [[leftArm, -1], [rightArm, 1]] as const) {
-    arm.position.set(sign * 1.24, 4.6, 0);
-    part(assets, arm, 'crystal', ivory, [sign * .15, .08, 0], [1, .9, 1.15]);
-    part(assets, arm, 'cylinder', black, [sign * .1, -.8, 0], [.4, 1.3, .45], [0, 0, sign * .1]);
-    part(assets, arm, 'crystal', metal, [sign * .2, -1.45, .08], [.65, 1, .75]);
-    part(assets, arm, 'sphere', black, [sign * .2, -2.02, .08], [.6, .48, .6]);
-    for (let finger = 0; finger < 3; finger++) part(assets, arm, 'cone', ivory, [sign * .2 + (finger - 1) * .17, -2.35, .18], [.12, .55, .12], [0, 0, Math.PI]);
+  leftArm.position.set(-2.25, 4.25, .15);
+  rightArm.position.set(1.95, 3.65, -.3);
+  for (const [satellite, sign] of [[leftArm, -1], [rightArm, 1]] as const) {
+    part(assets, satellite, 'crystal', accent, [0, 0, 0], [.52, .9, .55], [.3, 0, sign * .4]);
+    part(assets, satellite, 'halo', ivory, [0, 0, 0], [1.5, 1.5, 1.5], [.4, sign * .55, .2]);
+    for (let i = 0; i < 3; i++) {
+      const a = i * Math.PI * 2 / 3 + sign * .3;
+      part(assets, satellite, 'crystal', i === 0 ? gold : ivory, [Math.sin(a) * .78, Math.cos(a) * .78, .12], [.17, .62, .22], [0, .3, -a]);
+    }
   }
-  // Large offset halo and orbiting fragments read as a provisional manifestation.
+  // The broad crown and satellite offsets retain boss-scale readability.
   part(assets, ornament, 'halo', gold, [0, 5.25, -.65], [5.6, 5.6, 5.6]);
   part(assets, ornament, 'halo', metal, [0, 5.25, -.67], [6.0, 6.0, 6.0]);
   for (let i = 0; i < 12; i++) {
     const a = i * Math.PI / 6;
     part(assets, ornament, 'crystal', i % 3 ? ivory : gold, [Math.sin(a) * 3.08, 5.25 + Math.cos(a) * 3.08, -.65], [.15, .5, .15], [0, 0, -a]);
   }
-  return { root, body, head, leftArm, rightArm, leftLeg, rightLeg, ornament, marker, accent, attack: 0, step: 0, boss: true };
+  batchStaticParts(assets, root);
+  return { root, body, head, leftArm, rightArm, leftLeg, rightLeg, ornament, marker, accent, attack: 0, step: 0, boss: true, role: null };
 }
 
 /** Update transforms only: no per-frame geometry, material, or vector allocation. */
@@ -200,8 +243,10 @@ export function animateActor(rig: ActorRig, dt: number, time: number, speed: num
   if (rig.boss) {
     rig.body.position.y = .12 + Math.sin(time * 1.25) * .12;
     rig.head.rotation.y = Math.sin(time * .45) * .12;
-    rig.leftArm.rotation.z = THREE.MathUtils.damp(rig.leftArm.rotation.z, casting ? -.9 : -.13, 4, dt);
-    rig.rightArm.rotation.z = THREE.MathUtils.damp(rig.rightArm.rotation.z, casting ? .9 : .13, 4, dt);
+    rig.leftArm.position.y = 4.25 + Math.sin(time * .83) * .22;
+    rig.rightArm.position.y = 3.65 + Math.cos(time * .71) * .3;
+    rig.leftArm.rotation.z = time * .22 + (casting ? -.35 : 0);
+    rig.rightArm.rotation.z = -time * .17 + (casting ? .35 : 0);
     rig.rightArm.rotation.x = -Math.sin(rig.attack * Math.PI) * 1.1;
     rig.ornament.rotation.z = Math.sin(time * .12) * .04;
   } else {
@@ -211,6 +256,11 @@ export function animateActor(rig: ActorRig, dt: number, time: number, speed: num
     rig.rightLeg.rotation.x = -swing * .6;
     rig.leftArm.rotation.x = -swing * .35;
     rig.rightArm.rotation.x = swing * .35 - Math.sin(rig.attack * Math.PI) * 1.35;
+    if (rig.role === 'hunter' && rig.attack > 0) {
+      const draw = Math.sin(rig.attack * Math.PI);
+      rig.leftArm.rotation.x -= draw * 1.2;
+      rig.rightArm.rotation.x = -draw * 1.15;
+    }
     rig.body.rotation.y = Math.sin(rig.attack * Math.PI) * -.32;
     rig.ornament.rotation.y = time * .28;
   }

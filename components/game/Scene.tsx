@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { Action, GameState } from '@/game/types';
 import { ARENA_RADIUS, CONE_HALF_ANGLE } from '@/game/content';
-import { ActorAssets, animateActor, createActor, createRegent, type ActorRig } from './actors';
+import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 
 export interface SceneProps {
   state: GameState;
@@ -101,7 +101,7 @@ function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
   }
   scene.add(pillars, crowns, seams);
 
-  // A broken orbital gate anchors the horizon beyond the Regent.
+  // A broken orbital gate anchors the horizon beyond Crown Resonance.
   const gate = new THREE.Group(); gate.position.set(0, 10, -37); gate.rotation.z = .12;
   mesh(gate, new THREE.TorusGeometry(12, .18, 5, 100, Math.PI * 1.73), gold);
   mesh(gate, new THREE.TorusGeometry(12.8, .06, 4, 100, Math.PI * 1.58), light);
@@ -203,7 +203,7 @@ export default function Scene(props: SceneProps) {
       rig.root.position.set(actor.x, 0, actor.z); rig.root.rotation.y = actor.facing;
       scene.add(rig.root); return rig;
     });
-    const bossRig = createRegent(assets); scene.add(bossRig.root);
+    const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
     bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
 
     const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
@@ -313,8 +313,10 @@ export default function Scene(props: SceneProps) {
       world.stars.rotation.y = now * .000001;
       const actorRig = rigs[slot], yaw = actorRig.root.rotation.y;
       const forwardX = Math.sin(yaw), forwardZ = Math.cos(yaw);
-      cameraPosition.set(actorRig.root.position.x - forwardX * 7.8, 3.6, actorRig.root.position.z - forwardZ * 7.8);
-      cameraLook.set(actorRig.root.position.x + forwardX * 4.2, 1.95, actorRig.root.position.z + forwardZ * 4.2);
+      // Keep the full controlled silhouette above the bottom action dock while
+      // remaining directly behind the character. Boss halo fits at spawn distance.
+      cameraPosition.set(actorRig.root.position.x - forwardX * 9.2, 5.2, actorRig.root.position.z - forwardZ * 9.2);
+      cameraLook.set(actorRig.root.position.x + forwardX * 2.2, 1, actorRig.root.position.z + forwardZ * 2.2);
       if (!initializedCamera) { camera.position.copy(cameraPosition); smoothedLook.copy(cameraLook); initializedCamera = true; }
       else { camera.position.lerp(cameraPosition, 1 - Math.exp(-7 * dt)); smoothedLook.lerp(cameraLook, 1 - Math.exp(-9 * dt)); }
       camera.lookAt(smoothedLook);

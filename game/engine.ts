@@ -1,4 +1,5 @@
-import { ARENA_RADIUS, BURST_WINDOW, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, FIXED_STEP, MAGIC, MAGIC_RANGE, MELEE_RANGE, MOVE_SPEED, PARTY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, WEAPONS } from './content.ts';
+import { ARENA_RADIUS, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, FIXED_STEP, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, WEAPONS } from './content.ts';
+import { LORE } from './lore.ts';
 import type { Action, ActionResult, Actor, BossCast, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
@@ -7,7 +8,7 @@ const angleDifference = (a: number, b: number) => Math.atan2(Math.sin(a - b), Ma
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
 function event(state: GameState, kind: string, text: string, actor?: number, value?: number) {
-  state.events.push({ id: ++state.eventSeq, time: state.time, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }) });
+  state.events.push({ id: ++state.eventSeq, time: state.combatTime, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }) });
   if (state.events.length > 60) state.events.splice(0, state.events.length - 60);
 }
 
@@ -15,7 +16,7 @@ export function createGame(mode: Mode = 'trial'): GameState {
   const safeMode = mode === 'god' ? 'god' : 'trial';
   const maxHp = safeMode === 'god' ? 240000 : 75000;
   return {
-    version: 1, time: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready',
+    version: 1, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready',
     party: PARTY.map((p, i) => ({
       id: p.id, name: p.name, role: p.role, color: p.color,
       x: (i - 2) * 2, z: 9 + Math.abs(i - 2), facing: Math.PI,
@@ -23,7 +24,7 @@ export function createGame(mode: Mode = 'trial'): GameState {
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
     })),
-    boss: { name: 'Hollow Regent', x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cast: null },
+    boss: { name: LORE.boss, x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cast: null },
     chain: null, burst: null, events: [],
   };
 }
@@ -59,7 +60,7 @@ function finishIfNeeded(state: GameState) {
     state.boss.cast = null;
     state.chain = null;
     state.burst = null;
-    event(state, 'victory', 'Hollow Regent dispersed. The lattice holds.');
+    event(state, 'victory', 'Crown Resonance dispersed. Local encounter ended; the wider fate remains unresolved.');
   } else if (state.party.every(a => a.hp <= 0)) {
     state.status = 'defeat';
     state.boss.cast = null;
@@ -103,9 +104,11 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
 
 function begin(state: GameState, slot: number) {
   state.status = 'fighting';
+  state.combatTime = 0;
   state.party[slot].engaged = true;
   threat(state.party[slot], 1, 1);
-  event(state, 'start', `${state.party[slot].name} engages the Hollow Regent.`, slot);
+  event(state, 'start', `${state.party[slot].name} engages the Crown Resonance.`, slot);
+  if (state.mode === 'god') event(state, 'warning', 'Coherence Collapse in 7:30. Defeat Crown Resonance before the local arena collapses.');
 }
 
 /** Untrusted runtime inputs are validated before any state mutation. */
@@ -117,6 +120,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
   if (state.status === 'victory' || state.status === 'defeat') return fail('The encounter is over.');
   const actor = state.party[slot];
   if (actor.hp <= 0) return fail('This actor has fallen.');
+  if (!canUseActionRole(actor.role, type)) return fail(`${actor.name} cannot use ${type} as a ${actor.role}.`);
 
   if (action.type === 'move') {
     if (!Number.isFinite(action.x) || !Number.isFinite(action.z) || Math.abs(action.x) > 100 || Math.abs(action.z) > 100 || (action.facing !== undefined && !Number.isFinite(action.facing))) return fail('Movement must contain finite, bounded numbers.');
@@ -140,13 +144,13 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     }
     return { ok: true };
   }
-  if (state.status !== 'fighting') return fail('Engage the Regent first.');
+  if (state.status !== 'fighting') return fail('Engage Crown Resonance first.');
   if ((actor.cooldowns[type] ?? 0) > 0) return fail(`${type} is on cooldown.`);
 
   if (action.type === 'weapon') {
     if (typeof action.id !== 'string' || !Object.hasOwn(WEAPONS, action.id)) return fail('Unknown weaponskill.');
     if (!actor.engaged) return fail('Engage before using a weaponskill.');
-    if (distance(actor, state.boss) > MELEE_RANGE) return fail('Move into weaponskill range.');
+    if (distance(actor, state.boss) > ROLES[actor.role].range) return fail('Move into weaponskill range.');
     if (actor.tp < TP_COST) return fail('A weaponskill requires 1,000 TP.');
     const spent = actor.tp;
     actor.tp = 0;
@@ -178,7 +182,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     if (distance(actor, state.boss) > MAGIC_RANGE) return fail('Move into provoke range.');
     actor.cooldowns.provoke = 18;
     threat(actor, 300, 2800);
-    event(state, 'provoke', `${actor.name} provokes the Regent.`, slot);
+    event(state, 'provoke', `${actor.name} provokes Crown Resonance.`, slot);
     return { ok: true };
   }
   if (action.type === 'heal') {
@@ -187,7 +191,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     targets.sort((a, b) => a.p.hp / a.p.maxHp - b.p.hp / b.p.maxHp || a.i - b.i);
     const target = targets[0];
     if (!target) return fail('No wounded ally in range.');
-    const restored = Math.min(target.p.maxHp - target.p.hp, actor.role === 'luminary' ? 690 : 460);
+    const restored = Math.min(target.p.maxHp - target.p.hp, 690);
     target.p.hp += restored;
     actor.mp -= 70;
     actor.cooldowns.heal = 5;
@@ -259,7 +263,7 @@ function trustAction(state: GameState, slot: number) {
       return;
     }
   }
-  const desiredRange = actor.role === 'arcanist' || actor.role === 'luminary' ? 10 : 3.3;
+  const desiredRange = actor.role === 'arcanist' || actor.role === 'luminary' || actor.role === 'hunter' ? 10 : 3.3;
   const formationAngle = actor.role === 'warden' ? 0 : actor.role === 'hunter' ? Math.PI : slot * 1.2;
   if (distance(actor, state.boss) > desiredRange + 1 || distance(actor, state.boss) < desiredRange - 1.5) {
     moveToward(actor, state.boss.x + Math.sin(formationAngle) * desiredRange, state.boss.z + Math.cos(formationAngle) * desiredRange, 0.3);
@@ -275,7 +279,7 @@ function trustAction(state: GameState, slot: number) {
     if (state.burst) applyAction(state, slot, { type: 'magic', element: state.burst.element });
     else if (!state.chain && actor.mp > 200) applyAction(state, slot, { type: 'magic', element: 'lightning' });
   }
-  if (actor.tp >= TP_COST && distance(actor, state.boss) <= MELEE_RANGE) {
+  if (canUseActionRole(actor.role, 'weapon') && actor.tp >= TP_COST && distance(actor, state.boss) <= ROLES[actor.role].range) {
     const chain = state.chain;
     if (chain && chain.opener !== slot && state.time - chain.openedAt >= CHAIN_MIN_DELAY + 0.3) {
       applyAction(state, slot, { type: 'weapon', id: WEAPONS[chain.weapon].next });
@@ -288,6 +292,23 @@ function trustAction(state: GameState, slot: number) {
 
 function bossStep(state: GameState, dt: number) {
   const boss = state.boss;
+  if (state.mode === 'god' && state.combatTime >= GOD_ENRAGE_TIME - GOD_ENRAGE_CAST) {
+    const remaining = Math.max(0, GOD_ENRAGE_TIME - state.combatTime);
+    if (remaining > 0) {
+      if (boss.cast?.name !== 'Coherence Collapse') event(state, 'cast', 'Coherence Collapse — 10 seconds remain. Defeat Crown Resonance; this collapse cannot be guarded or evaded.');
+      boss.cast = { name: 'Coherence Collapse', kind: 'raid', x: boss.x, z: boss.z, radius: 100, angle: boss.facing, total: GOD_ENRAGE_CAST, remaining };
+    } else {
+      event(state, 'enrage', 'Coherence Collapse. The Regent outlasts the party; the local arena gives way.');
+      for (let i = 0; i < state.party.length; i++) {
+        const actor = state.party[i];
+        if (actor.hp > 0) event(state, 'down', `${actor.name} is lost to Coherence Collapse.`, i);
+        actor.hp = actor.ce = actor.ve = actor.moveX = actor.moveZ = 0;
+        actor.engaged = false;
+      }
+      finishIfNeeded(state);
+    }
+    return;
+  }
   const candidates = state.party.map((a, i) => ({ a, i })).filter(({ a }) => a.hp > 0 && (a.engaged || a.ce + a.ve > 0));
   candidates.sort((a, b) => (b.a.ce + b.a.ve) - (a.a.ce + a.a.ve) || a.i - b.i);
   boss.target = candidates[0]?.i ?? -1;
@@ -297,7 +318,7 @@ function bossStep(state: GameState, dt: number) {
   if (phase !== boss.phase) {
     boss.phase = phase;
     boss.specialTimer = Math.min(boss.specialTimer, 3);
-    event(state, 'phase', `Regent phase ${phase}: ${phase === 2 ? 'Fractured Crown' : 'Terminal Eclipse'}.`);
+    event(state, 'phase', `Crown Resonance phase ${phase}: ${phase === 2 ? 'Fractured Crown' : 'Terminal Eclipse'}.`);
   }
   if (boss.cast) {
     boss.cast.remaining = Math.max(0, boss.cast.remaining - dt);
@@ -336,6 +357,11 @@ function bossStep(state: GameState, dt: number) {
 function fixedStep(state: GameState) {
   const dt = FIXED_STEP;
   state.time = ++state.tick * dt;
+  if (state.status === 'fighting') {
+    const previous = state.combatTime;
+    state.combatTime = Math.round((state.combatTime + dt) / dt) * dt;
+    if (state.mode === 'god' && previous < GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING && state.combatTime >= GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING) event(state, 'warning', 'Coherence Collapse approaches — 30 seconds remain. Finish Crown Resonance.');
+  }
   if (state.chain) {
     state.chain.remaining = Math.max(0, CHAIN_WINDOW - (state.time - state.chain.openedAt));
     if (state.chain.remaining <= 1e-8) state.chain = null;
