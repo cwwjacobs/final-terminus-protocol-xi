@@ -1,0 +1,365 @@
+'use client';
+
+import { useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
+import type { Action, GameState } from '@/game/types';
+import { ARENA_RADIUS, CONE_HALF_ANGLE } from '@/game/content';
+import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
+
+export interface SceneProps {
+  state: GameState;
+  slot: number;
+  quality: 'low' | 'high';
+  wireframe: boolean;
+  onIntent: (action: Action) => void;
+  onTelemetry?: (data: { fps: number; drawCalls: number; triangles: number }) => void;
+  onGamepad?: (connected: boolean) => void;
+}
+
+const floorRotation = -Math.PI / 2;
+const labelStyle = {
+  position: 'absolute' as const, top: 0, left: 0, pointerEvents: 'none' as const,
+  color: '#eee8d9', fontFamily: 'Arial, sans-serif', fontSize: 10,
+  letterSpacing: '0.12em', fontWeight: 600, textShadow: '0 1px 6px #000, 0 1px 3px #000',
+  whiteSpace: 'nowrap' as const, willChange: 'transform', opacity: 0,
+};
+
+function mesh(scene: THREE.Object3D, geometry: THREE.BufferGeometry, material: THREE.Material,
+  x = 0, y = 0, z = 0) {
+  const result = new THREE.Mesh(geometry, material);
+  result.position.set(x, y, z); scene.add(result); return result;
+}
+
+function ring(scene: THREE.Object3D, inner: number, outer: number, color: string, opacity = 1, y = .018) {
+  const material = new THREE.MeshBasicMaterial({ color, transparent: opacity < 1, opacity, side: THREE.DoubleSide, depthWrite: opacity === 1 });
+  const result = mesh(scene, new THREE.RingGeometry(inner, outer, 128), material, 0, y, 0);
+  result.rotation.x = floorRotation; return result;
+}
+
+/** A sector in local x/z, centered on local +z. Same cone half-angle as the engine. */
+function sectorGeometry(halfAngle: number) {
+  const segments = 48, coordinates: number[] = [];
+  for (let i = 0; i < segments; i++) {
+    const a = -halfAngle + i / segments * halfAngle * 2;
+    const b = -halfAngle + (i + 1) / segments * halfAngle * 2;
+    coordinates.push(0, 0, 0, Math.sin(a), 0, Math.cos(a), Math.sin(b), 0, Math.cos(b));
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(coordinates, 3));
+  geometry.computeVertexNormals(); return geometry;
+}
+
+function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
+  const stone = new THREE.MeshStandardMaterial({ color: '#142033', metalness: .56, roughness: .72 });
+  const edge = new THREE.MeshStandardMaterial({ color: '#6c6553', metalness: .8, roughness: .46 });
+  const dark = new THREE.MeshStandardMaterial({ color: '#0c1323', roughness: .65, metalness: .42 });
+  const gold = new THREE.MeshStandardMaterial({ color: '#bead7e', emissive: '#816435', emissiveIntensity: .32, metalness: .7, roughness: .35 });
+  const light = new THREE.MeshBasicMaterial({ color: '#e2c989' });
+  const platform = mesh(scene, new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS + .6, .8, 128), edge, 0, -.42);
+  platform.receiveShadow = true;
+  const ground = mesh(scene, new THREE.CircleGeometry(ARENA_RADIUS, 128), stone, 0, .001);
+  ground.rotation.x = floorRotation; ground.receiveShadow = true;
+  ring(scene, ARENA_RADIUS - .32, ARENA_RADIUS - .18, '#e2c989');
+  ring(scene, ARENA_RADIUS - .8, ARENA_RADIUS - .77, '#a2926b', .75);
+  ring(scene, 18.95, 19.02, '#6e7f8a', .42);
+  ring(scene, 12.95, 13.02, '#6e7f8a', .42);
+  ring(scene, 6.95, 7.02, '#6e7f8a', .42);
+  ring(scene, 2.7, 2.76, '#d6bc83', .7);
+  ring(scene, .7, .74, '#d6bc83', .6);
+
+  // Radial inlay and concentric etched paths are a single line draw call.
+  const lines: number[] = [];
+  for (let i = 0; i < 48; i++) {
+    const a = i / 48 * Math.PI * 2, c = Math.cos(a), s = Math.sin(a);
+    const start = i % 4 ? 19.5 : 3.2;
+    lines.push(s * start, .025, c * start, s * 23.45, .025, c * 23.45);
+    if (i % 4 === 0) {
+      lines.push(s * 5, .026, c * 5, Math.sin(a + .09) * 7, .026, Math.cos(a + .09) * 7);
+      lines.push(Math.sin(a + .09) * 7, .026, Math.cos(a + .09) * 7, Math.sin(a + .09) * 11.5, .026, Math.cos(a + .09) * 11.5);
+    }
+  }
+  const lineGeo = new THREE.BufferGeometry();
+  lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
+  scene.add(new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: '#9b957c', transparent: true, opacity: .25 })));
+
+  // Instancing holds architecture to a handful of draw calls as the scene grows.
+  const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), scale = new THREE.Vector3();
+  const quaternion = new THREE.Quaternion(), euler = new THREE.Euler();
+  const pillars = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), dark, 28);
+  const crowns = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.5, 0), gold, 28);
+  const seams = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), light, 28);
+  for (let i = 0; i < 28; i++) {
+    const a = i / 28 * Math.PI * 2, radius = 31 + (i % 3) * 5;
+    const height = 7 + ((i * 7) % 11), x = Math.sin(a) * radius, z = Math.cos(a) * radius;
+    quaternion.setFromEuler(euler.set(0, -a, Math.sin(i * 4.7) * .14));
+    position.set(x, height / 2 - 6, z); scale.set(1.7 + i % 2, height, 1.5);
+    matrix.compose(position, quaternion, scale); pillars.setMatrixAt(i, matrix);
+    position.y += height / 2 + 1; scale.set(2.5, 4, 2.5);
+    matrix.compose(position, quaternion, scale); crowns.setMatrixAt(i, matrix);
+    position.set(x + Math.sin(a) * -.84, height / 2 - 6, z + Math.cos(a) * -.84);
+    scale.set(.055, height * .84, .055); matrix.compose(position, quaternion, scale); seams.setMatrixAt(i, matrix);
+  }
+  scene.add(pillars, crowns, seams);
+
+  // A broken orbital gate anchors the horizon beyond Crown Resonance.
+  const gate = new THREE.Group(); gate.position.set(0, 10, -37); gate.rotation.z = .12;
+  mesh(gate, new THREE.TorusGeometry(12, .18, 5, 100, Math.PI * 1.73), gold);
+  mesh(gate, new THREE.TorusGeometry(12.8, .06, 4, 100, Math.PI * 1.58), light);
+  mesh(gate, new THREE.TorusGeometry(10.8, .025, 4, 100), light);
+  scene.add(gate);
+
+  const shardCount = quality === 'high' ? 180 : 90;
+  const shards = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), edge, shardCount);
+  for (let i = 0; i < shardCount; i++) {
+    const a = i * 2.3999632297, radius = 29 + (i * 13 % 55), h = -7 + (i * 17 % 45);
+    position.set(Math.sin(a) * radius, h, Math.cos(a) * radius);
+    quaternion.setFromEuler(euler.set(i * .8, i * .5, i * .3));
+    const size = .2 + (i % 7) * .12; scale.set(size, size * (2 + i % 4), size);
+    matrix.compose(position, quaternion, scale); shards.setMatrixAt(i, matrix);
+  }
+  scene.add(shards);
+
+  const starCount = quality === 'high' ? 1100 : 550;
+  const starPositions = new Float32Array(starCount * 3);
+  for (let i = 0; i < starCount; i++) {
+    const a = i * 2.3999632297, b = Math.acos(1 - 2 * (i + .5) / starCount);
+    starPositions[i * 3] = Math.sin(b) * Math.cos(a) * 120;
+    starPositions[i * 3 + 1] = Math.cos(b) * 100;
+    starPositions[i * 3 + 2] = Math.sin(b) * Math.sin(a) * 120;
+  }
+  const starGeometry = new THREE.BufferGeometry(); starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#abc0d6', size: .12, transparent: true, opacity: .62, sizeAttenuation: true, depthWrite: false }));
+  scene.add(stars);
+  return { shards, gate, stars };
+}
+
+interface Effect {
+  root: THREE.Group;
+  ring: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  beam: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshBasicMaterial>;
+  life: number;
+  duration: number;
+  size: number;
+}
+
+function createEffects(scene: THREE.Scene): Effect[] {
+  const effects: Effect[] = [];
+  const ringGeometry = new THREE.RingGeometry(.72, 1, 40);
+  const beamGeometry = new THREE.CylinderGeometry(.025, .08, 1, 5, 1, true);
+  for (let i = 0; i < 18; i++) {
+    const root = new THREE.Group(); root.visible = false;
+    const paint = new THREE.MeshBasicMaterial({ color: '#e8c786', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false });
+    const effectRing = new THREE.Mesh(ringGeometry, paint); effectRing.rotation.x = floorRotation;
+    const beam = new THREE.Mesh(beamGeometry, paint); root.add(effectRing, beam); scene.add(root);
+    effects.push({ root, ring: effectRing, beam, life: 0, duration: 1, size: 1 });
+  }
+  return effects;
+}
+
+export default function Scene(props: SceneProps) {
+  const hostRef = useRef<HTMLDivElement>(null);
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const latest = useRef(props);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { latest.current = props; });
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: props.quality === 'high', alpha: false, powerPreference: 'high-performance' });
+    } catch {
+      // Renderer startup is external system state; surface its failure in the UI.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setError('The 3D renderer could not start. Enable WebGL / hardware acceleration, then reload to enter the Quantum Plane.');
+      return;
+    }
+    setError(null);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, props.quality === 'high' ? 1.5 : 1));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.28;
+    renderer.shadowMap.enabled = props.quality === 'high';
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;outline:none;touch-action:none';
+    renderer.domElement.setAttribute('aria-label', 'Third-person Quantum Plane battlefield');
+    renderer.domElement.dataset.gameCanvas = 'true';
+    host.insertBefore(renderer.domElement, host.firstChild);
+
+    const scene = new THREE.Scene(); scene.background = new THREE.Color('#060b17');
+    scene.fog = new THREE.FogExp2('#080e20', .0105);
+    const camera = new THREE.PerspectiveCamera(58, 1, .15, 220);
+    scene.add(new THREE.HemisphereLight('#b3cbdc', '#2b1739', 2.5));
+    const key = new THREE.DirectionalLight('#ffdfac', 3.1); key.position.set(-10, 18, 9);
+    key.castShadow = props.quality === 'high'; key.shadow.mapSize.set(1024, 1024);
+    key.shadow.camera.left = -27; key.shadow.camera.right = 27; key.shadow.camera.top = 27; key.shadow.camera.bottom = -27;
+    key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; scene.add(key);
+    const rim = new THREE.DirectionalLight('#8d88ff', 2.4); rim.position.set(8, 9, -16); scene.add(rim);
+    const world = buildWorld(scene, props.quality);
+    const assets = new ActorAssets();
+    const rigs: ActorRig[] = latest.current.state.party.map(actor => {
+      const rig = createActor(assets, actor.role, actor.color);
+      rig.root.position.set(actor.x, 0, actor.z); rig.root.rotation.y = actor.facing;
+      scene.add(rig.root); return rig;
+    });
+    const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
+    bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
+
+    const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
+    const warnMaterial = new THREE.MeshBasicMaterial({ color: '#f3a765', transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false });
+    const circleWarn = mesh(scene, new THREE.CircleGeometry(1, 80), warnMaterial, 0, .055); circleWarn.rotation.x = floorRotation;
+    const coneWarn = mesh(scene, sectorGeometry(CONE_HALF_ANGLE), warnMaterial, 0, .055);
+    const warningEdge = ring(scene, .985, 1, '#ffc28a', .85, .06);
+    circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
+    const effects = createEffects(scene);
+
+    let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0;
+    let lastEvent = latest.current.state.events.at(-1)?.id ?? 0;
+    let lastWireframe = !latest.current.wireframe;
+    let initializedCamera = false;
+    let lastTime = latest.current.state.time;
+    const cameraPosition = new THREE.Vector3(), cameraLook = new THREE.Vector3(), smoothedLook = new THREE.Vector3();
+    const projected = new THREE.Vector3(), ray = new THREE.Vector3(), beamDirection = new THREE.Vector3();
+    const up = new THREE.Vector3(0, 1, 0);
+    const size = new THREE.Vector2();
+    const activeSlot = () => Math.max(0, Math.min(rigs.length - 1, latest.current.slot));
+    const resize = () => {
+      const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
+      renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix(); size.set(width, height);
+    };
+    const observer = new ResizeObserver(resize); observer.observe(host); resize();
+    const onContextLost = (event: Event) => {
+      event.preventDefault(); stopped = true; cancelAnimationFrame(frame);
+      setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+
+    const spawnEffect = (event: GameState['events'][number], state: GameState) => {
+      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge'].includes(event.kind)) return;
+      const index = effects.findIndex(effect => effect.life <= 0), effect = effects[index < 0 ? event.id % effects.length : index];
+      const source = typeof event.actor === 'number' ? state.party[event.actor] : undefined;
+      const support = ['heal', 'guard', 'dodge', 'provoke', 'hit'].includes(event.kind);
+      const targetX = support && source ? source.x : state.boss.x;
+      const targetZ = support && source ? source.z : state.boss.z;
+      effect.root.position.set(targetX, .1, targetZ); effect.root.visible = true;
+      effect.duration = ['chain', 'burst'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
+      effect.size = event.kind === 'burst' ? 4.8 : event.kind === 'chain' ? 3.8 : event.kind === 'weapon' ? 2.8 : 1;
+      effect.ring.material.color.set(event.kind === 'heal' ? '#a2f6df' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' ? '#d8abff' : event.kind === 'hit' ? '#ff996d' : '#ffe0a1');
+      effect.beam.visible = Boolean(source && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind));
+      if (source && effect.beam.visible) {
+        beamDirection.set(source.x - targetX, -1, source.z - targetZ);
+        const distance = beamDirection.length();
+        effect.beam.position.set(beamDirection.x / 2, 1.5, beamDirection.z / 2);
+        effect.beam.scale.set(event.kind === 'auto' ? .7 : 2, distance, event.kind === 'auto' ? .7 : 2);
+        effect.beam.quaternion.setFromUnitVectors(up, beamDirection.normalize());
+      }
+      if (typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
+      if (event.kind === 'hit') bossRig.attack = 1;
+    };
+
+    const render = (now: number) => {
+      if (stopped) return;
+      const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
+      const { state, wireframe } = latest.current;
+      const slot = activeSlot(), selected = state.party[slot];
+      if (!selected) return;
+      if (state.time < lastTime) { lastEvent = 0; initializedCamera = false; }
+      lastTime = state.time;
+      if (lastWireframe !== wireframe) {
+        assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
+        lastWireframe = wireframe;
+      }
+      for (let i = 0; i < rigs.length; i++) {
+        const actor = state.party[i], rig = rigs[i];
+        if (!actor) continue;
+        const beforeX = rig.root.position.x, beforeZ = rig.root.position.z;
+        rig.root.position.x = THREE.MathUtils.damp(beforeX, actor.x, 16, dt);
+        rig.root.position.z = THREE.MathUtils.damp(beforeZ, actor.z, 16, dt);
+        let difference = Math.atan2(Math.sin(actor.facing - rig.root.rotation.y), Math.cos(actor.facing - rig.root.rotation.y));
+        difference *= 1 - Math.exp(-15 * dt); rig.root.rotation.y += difference;
+        const speed = Math.hypot(rig.root.position.x - beforeX, rig.root.position.z - beforeZ) / dt;
+        animateActor(rig, dt, now / 1000, speed, actor.hp > 0);
+        rig.marker.scale.setScalar(i === slot ? 1.65 : 1.1);
+        rig.marker.visible = actor.hp > 0 && (i === slot || actor.engaged);
+      }
+      bossRig.root.position.x = THREE.MathUtils.damp(bossRig.root.position.x, state.boss.x, 9, dt);
+      bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
+      bossRig.root.rotation.y += Math.atan2(Math.sin(state.boss.facing - bossRig.root.rotation.y), Math.cos(state.boss.facing - bossRig.root.rotation.y)) * (1 - Math.exp(-5 * dt));
+      animateActor(bossRig, dt, now / 1000, 0, state.boss.hp > 0, Boolean(state.boss.cast));
+      targetRing.position.set(state.boss.x, .045, state.boss.z); targetRing.visible = state.boss.hp > 0;
+
+      const cast = state.boss.cast;
+      circleWarn.visible = Boolean(cast && cast.kind !== 'cone'); coneWarn.visible = cast?.kind === 'cone';
+      warningEdge.visible = Boolean(cast && cast.kind !== 'cone');
+      if (cast) {
+        const radius = cast.kind === 'raid' ? ARENA_RADIUS : cast.radius;
+        const x = cast.kind === 'raid' ? 0 : cast.x, z = cast.kind === 'raid' ? 0 : cast.z;
+        circleWarn.position.set(x, .055, z); circleWarn.scale.set(radius, radius, 1);
+        coneWarn.position.set(cast.x, .055, cast.z); coneWarn.scale.set(cast.radius, 1, cast.radius); coneWarn.rotation.y = cast.angle;
+        warningEdge.position.set(x, .06, z); warningEdge.scale.setScalar(radius);
+        warnMaterial.opacity = .15 + .15 * (1 - cast.remaining / cast.total) + Math.sin(now * .008) * .035;
+        warnMaterial.color.set(cast.kind === 'raid' ? '#9994ff' : '#f4a575');
+      }
+      for (const event of state.events) if (event.id > lastEvent) { spawnEffect(event, state); lastEvent = Math.max(lastEvent, event.id); }
+      for (const effect of effects) {
+        if (effect.life <= 0) continue;
+        effect.life = Math.max(0, effect.life - dt); const progress = 1 - effect.life / effect.duration;
+        effect.root.visible = effect.life > 0; effect.ring.scale.setScalar((.25 + progress) * effect.size);
+        effect.ring.material.opacity = (1 - progress) * .85;
+        effect.beam.visible = effect.beam.visible && progress < .28;
+      }
+      world.shards.rotation.y = Math.sin(now * .000015) * .018;
+      world.stars.rotation.y = now * .000001;
+      const actorRig = rigs[slot], yaw = actorRig.root.rotation.y;
+      const forwardX = Math.sin(yaw), forwardZ = Math.cos(yaw);
+      // Keep the full controlled silhouette above the bottom action dock while
+      // remaining directly behind the character. Boss halo fits at spawn distance.
+      cameraPosition.set(actorRig.root.position.x - forwardX * 9.2, 5.2, actorRig.root.position.z - forwardZ * 9.2);
+      cameraLook.set(actorRig.root.position.x + forwardX * 2.2, 1, actorRig.root.position.z + forwardZ * 2.2);
+      if (!initializedCamera) { camera.position.copy(cameraPosition); smoothedLook.copy(cameraLook); initializedCamera = true; }
+      else { camera.position.lerp(cameraPosition, 1 - Math.exp(-7 * dt)); smoothedLook.lerp(cameraLook, 1 - Math.exp(-9 * dt)); }
+      camera.lookAt(smoothedLook);
+      camera.updateMatrixWorld();
+      for (let i = 0; i < rigs.length; i++) {
+        const label = labelRefs.current[i]; if (!label) continue;
+        projected.copy(rigs[i].root.position); projected.y = i === slot ? 2.5 : 2.75;
+        ray.copy(projected).sub(camera.position); const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
+        projected.project(camera);
+        const visible = inFront && projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15 && state.party[i]?.hp > 0;
+        label.style.opacity = visible ? (i === slot ? '.55' : '.9') : '0';
+        label.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-100%)`;
+      }
+      renderer.render(scene, camera); frames++;
+      if (now - reportAt >= 1000) {
+        latest.current.onTelemetry?.({ fps: Math.round(frames * 1000 / (now - reportAt)), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+        frames = 0; reportAt = now;
+      }
+      frame = requestAnimationFrame(render);
+    };
+    frame = requestAnimationFrame(render);
+    return () => {
+      stopped = true; cancelAnimationFrame(frame); observer.disconnect();
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      const geometries = new Set<THREE.BufferGeometry>(assets.geometries), materials = new Set<THREE.Material>(assets.materials);
+      scene.traverse(object => {
+        if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments || object instanceof THREE.Points) {
+          geometries.add(object.geometry);
+          (Array.isArray(object.material) ? object.material : [object.material]).forEach(material => materials.add(material));
+          if (object instanceof THREE.InstancedMesh) object.dispose();
+        }
+      });
+      geometries.forEach(geometry => geometry.dispose()); materials.forEach(material => material.dispose());
+      key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
+    };
+  // Scene lifetime depends only on quality. Simulation snapshots are read through latest.
+  }, [props.quality]);
+
+  return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
+    {props.state.party.map((actor, index) => <div key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
+      <span style={{ color: actor.color, marginRight: 6 }}>◇</span>{actor.name.toUpperCase()}
+      <span style={{ opacity: .55, fontSize: 8, marginLeft: 7 }}>{actor.human ? 'PLAYER' : 'TRUST'}</span>
+    </div>)}
+    {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
+  </div>;
+}
