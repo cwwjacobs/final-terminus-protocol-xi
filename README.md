@@ -57,21 +57,32 @@ The god encounter has a **7:30 combat deadline**. Coherence Collapse warns at 30
 
 ## Controls
 
-Controller labels follow a standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical controller hardware has not been verified for this milestone.
+Open **Settings → Controls & camera** to remap keyboard keys and controller buttons, adjust sensitivity, camera distance/height/shoulder offset, or enable optional inversion. All inversion starts **off**. Changes save on this browser/origin and the HUD shows your current bindings. Restore defaults is available in the same panel.
 
-| Action | Keyboard / mouse | Standard controller |
+| Action | Default keyboard / mouse | Standard controller |
 | --- | --- | --- |
-| Move | WASD; Up/Down also move forward/back | Left stick |
-| Turn character and follow camera | Drag on battlefield; Q/E or Left/Right | Right stick horizontal |
+| Move relative to camera | WASD | Left stick |
+| Orbit and pitch camera | Drag battlefield; arrow keys | Right stick horizontal and vertical |
+| Zoom | Mouse wheel; Page Up / Page Down | Assign buttons in Controls & camera |
+| Recenter behind character | V | Right-stick click |
+| Cycle enemy target | Tab; Shift + Tab reverses | Left-stick click |
 | Engage / disengage | Space | A |
 | Arc Cleave / Vector Pierce / Resonance | 1 / 2 / 3 | X / Y / RB |
 | Fire / Ice / Lightning | 4 / 5 / 6 | D-pad Up / Down / Left |
 | Provoke | R | RT |
 | Mend | F | LB |
-| Guard | Left Shift | LT |
+| Guard | Left Shift (release) | LT |
 | Evade | C | B |
 
-Buttons in the HUD also perform combat actions. Abilities follow the selected role: Bacchus, Heracles and Dolos use weaponskills; Hecate casts magic; Ariadne heals; Heracles provokes. Everyone can engage, move, guard and evade. Menus and text fields suppress gameplay input. Controller navigation of menus and controller remapping are not implemented.
+The camera can orbit independently while standing still. Mouse-right looks right; mouse-up looks up. The same default convention applies to the right stick. Camera height adjusts the vertical anchor, shoulder offset shifts the view sideways, and distance controls depth/zoom. Movement uses the camera's forward/right basis; moving right no longer moves left on screen. Recenter restores the view behind the character while preserving zoom.
+
+Tab always selects/cycles the available enemy, including when Crown Resonance is the only target; every press pulses its world-space marker. This is enemy selection, separate from the boss's enmity target. Starting an attack also selects the current boss automatically. This encounter still contains one enemy; cycling supports a target list for future encounters without inventing additional enemies now.
+
+Click a key binding and press a replacement; Escape cancels. Conflicts swap the previous key/button where possible or clear the displaced binding. Ctrl/Meta/Alt/browser shortcuts remain reserved. Modifier-only combat keys activate on release so Shift + Tab does not also trigger Guard. Menus preserve normal Tab navigation and suppress gameplay; wheel zoom applies only on the battlefield. Lost focus clears held input.
+
+Controller labels use the standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical hardware remains unverified. Left/right stick axes are fixed, while action buttons and their inversion/sensitivity settings are configurable. Controller menu navigation is not implemented.
+
+Buttons in the HUD also perform combat actions. Bacchus, Heracles and Dolos use weaponskills; Hecate casts magic; Ariadne heals; Heracles provokes. Everyone can engage, move, guard and evade.
 
 ## Online parties and saves
 

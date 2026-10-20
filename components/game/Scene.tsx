@@ -5,12 +5,18 @@ import * as THREE from 'three';
 import type { Action, GameState } from '@/game/types';
 import { ARENA_RADIUS, CONE_HALF_ANGLE } from '@/game/content';
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
+import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, createCamera, type CameraState } from './camera';
 
 export interface SceneProps {
   state: GameState;
   slot: number;
   quality: 'low' | 'high';
   wireframe: boolean;
+  cameraState: CameraState;
+  cameraHeight: number;
+  shoulderOffset: number;
+  selectedTarget: string | null;
+  targetPulse: number;
   onIntent: (action: Action) => void;
   onTelemetry?: (data: { fps: number; drawCalls: number; triangles: number }) => void;
   onGamepad?: (connected: boolean) => void;
@@ -207,6 +213,10 @@ export default function Scene(props: SceneProps) {
     bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
 
     const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
+    const targetMaterial = targetRing.material as THREE.MeshBasicMaterial;
+    const reticleMaterial = new THREE.MeshBasicMaterial({ color: '#ead39a', transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
+    const targetReticle = mesh(scene, new THREE.RingGeometry(.6, .64, 4), reticleMaterial);
+    targetRing.visible = targetReticle.visible = false;
     const warnMaterial = new THREE.MeshBasicMaterial({ color: '#f3a765', transparent: true, opacity: .3, side: THREE.DoubleSide, depthWrite: false });
     const circleWarn = mesh(scene, new THREE.CircleGeometry(1, 80), warnMaterial, 0, .055); circleWarn.rotation.x = floorRotation;
     const coneWarn = mesh(scene, sectorGeometry(CONE_HALF_ANGLE), warnMaterial, 0, .055);
@@ -219,16 +229,39 @@ export default function Scene(props: SceneProps) {
     let lastWireframe = !latest.current.wireframe;
     let initializedCamera = false;
     let lastTime = latest.current.state.time;
+    let lastTargetPulse = latest.current.targetPulse;
+    let lastSelectedTarget: string | null = null;
+    let targetPulseAge = 10;
+    const fallbackCamera = createCamera(latest.current.state.party[latest.current.slot]?.facing ?? Math.PI);
     const cameraPosition = new THREE.Vector3(), cameraLook = new THREE.Vector3(), smoothedLook = new THREE.Vector3();
     const projected = new THREE.Vector3(), ray = new THREE.Vector3(), beamDirection = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0);
     const size = new THREE.Vector2();
+    // Measure the default silhouette once per layout change. A view offset shifts
+    // composition without silently changing the user's orbit, height, or zoom.
+    const framingCamera = new THREE.PerspectiveCamera(camera.fov, 1, camera.near, camera.far);
+    const defaultPose = calculateCameraPose(createCamera(Math.PI), { x: 0, z: 0 }, CAMERA_DEFAULTS.height, 0);
+    framingCamera.position.set(defaultPose.position.x, defaultPose.position.y, defaultPose.position.z);
+    framingCamera.lookAt(defaultPose.lookAt.x, defaultPose.lookAt.y, defaultPose.lookAt.z);
+    framingCamera.updateMatrixWorld();
+    const framingPoint = new THREE.Vector3();
+    const actionDock = host.parentElement?.querySelector<HTMLElement>('.player-console');
     const activeSlot = () => Math.max(0, Math.min(rigs.length - 1, latest.current.slot));
     const resize = () => {
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
-      renderer.setSize(width, height, false); camera.aspect = width / height; camera.updateProjectionMatrix(); size.set(width, height);
+      renderer.setSize(width, height, false); camera.aspect = width / height;
+      framingCamera.aspect = width / height; framingCamera.updateProjectionMatrix();
+      framingPoint.set(0, 0, 0).project(framingCamera);
+      const footY = (-framingPoint.y * .5 + .5) * height;
+      const dockTop = actionDock ? actionDock.getBoundingClientRect().top - host.getBoundingClientRect().top : height;
+      const offset = calculateCameraViewOffset(height, footY, dockTop);
+      if (offset > 0) camera.setViewOffset(width, height, 0, offset, width, height);
+      else camera.clearViewOffset();
+      camera.updateProjectionMatrix(); size.set(width, height);
     };
-    const observer = new ResizeObserver(resize); observer.observe(host); resize();
+    const observer = new ResizeObserver(resize); observer.observe(host);
+    if (actionDock) observer.observe(actionDock);
+    resize();
     const onContextLost = (event: Event) => {
       event.preventDefault(); stopped = true; cancelAnimationFrame(frame);
       setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
@@ -261,7 +294,7 @@ export default function Scene(props: SceneProps) {
     const render = (now: number) => {
       if (stopped) return;
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
-      const { state, wireframe } = latest.current;
+      const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, targetPulse } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
       if (state.time < lastTime) { lastEvent = 0; initializedCamera = false; }
@@ -287,7 +320,20 @@ export default function Scene(props: SceneProps) {
       bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
       bossRig.root.rotation.y += Math.atan2(Math.sin(state.boss.facing - bossRig.root.rotation.y), Math.cos(state.boss.facing - bossRig.root.rotation.y)) * (1 - Math.exp(-5 * dt));
       animateActor(bossRig, dt, now / 1000, 0, state.boss.hp > 0, Boolean(state.boss.cast));
-      targetRing.position.set(state.boss.x, .045, state.boss.z); targetRing.visible = state.boss.hp > 0;
+      if (targetPulse !== lastTargetPulse || selectedTarget !== lastSelectedTarget) {
+        targetPulseAge = 0; lastTargetPulse = targetPulse; lastSelectedTarget = selectedTarget;
+      }
+      targetPulseAge += dt;
+      const pulse = Math.max(0, 1 - targetPulseAge / .5);
+      const bossSelected = selectedTarget === 'boss' && state.boss.hp > 0;
+      targetRing.position.set(state.boss.x, .045, state.boss.z);
+      targetRing.visible = targetReticle.visible = bossSelected;
+      targetRing.scale.setScalar(1 + pulse * .18);
+      targetMaterial.color.setRGB(.86 + pulse * .14, .69 + pulse * .31, .4 + pulse * .6);
+      targetMaterial.opacity = .65 + pulse * .35;
+      targetReticle.position.set(bossRig.root.position.x, 3.8, bossRig.root.position.z);
+      targetReticle.scale.setScalar(1 + pulse * .5);
+      reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
 
       const cast = state.boss.cast;
       circleWarn.visible = Boolean(cast && cast.kind !== 'cone'); coneWarn.visible = cast?.kind === 'cone';
@@ -311,16 +357,16 @@ export default function Scene(props: SceneProps) {
       }
       world.shards.rotation.y = Math.sin(now * .000015) * .018;
       world.stars.rotation.y = now * .000001;
-      const actorRig = rigs[slot], yaw = actorRig.root.rotation.y;
-      const forwardX = Math.sin(yaw), forwardZ = Math.cos(yaw);
-      // Keep the full controlled silhouette above the bottom action dock while
-      // remaining directly behind the character. Boss halo fits at spawn distance.
-      cameraPosition.set(actorRig.root.position.x - forwardX * 9.2, 5.2, actorRig.root.position.z - forwardZ * 9.2);
-      cameraLook.set(actorRig.root.position.x + forwardX * 2.2, 1, actorRig.root.position.z + forwardZ * 2.2);
+      // Read the mutable local camera every frame. Actor movement/facing cannot
+      // overwrite an independent orbit; explicit recenter belongs to input/UI.
+      const pose = calculateCameraPose(cameraState ?? fallbackCamera, rigs[slot].root.position, cameraHeight, shoulderOffset);
+      cameraPosition.set(pose.position.x, pose.position.y, pose.position.z);
+      cameraLook.set(pose.lookAt.x, pose.lookAt.y, pose.lookAt.z);
       if (!initializedCamera) { camera.position.copy(cameraPosition); smoothedLook.copy(cameraLook); initializedCamera = true; }
       else { camera.position.lerp(cameraPosition, 1 - Math.exp(-7 * dt)); smoothedLook.lerp(cameraLook, 1 - Math.exp(-9 * dt)); }
       camera.lookAt(smoothedLook);
       camera.updateMatrixWorld();
+      targetReticle.quaternion.copy(camera.quaternion);
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position); projected.y = i === slot ? 2.5 : 2.75;
