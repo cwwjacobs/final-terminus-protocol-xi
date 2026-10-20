@@ -12,7 +12,10 @@ The foundation separates combat rules, player input, presentation and room autho
 | `game/engine.ts` | Fixed-step combat, movement, trusts, enmity, boss phases and action validation |
 | `components/game/GameClient.tsx` | HUD, local simulation/save lifecycle, selected slot and online session orchestration |
 | `components/game/catalog.ts` | Ability labels, glyphs, displayed control hints and action intents |
-| `components/game/input.ts` | Keyboard, mouse and browser Gamepad API translated into actions |
+| `components/game/control-settings.ts` | Validated default bindings, conflict handling, labels and persisted preference schema |
+| `components/game/input.ts` | Keyboard, mouse and browser Gamepad API translated into combat or local camera/target commands |
+| `components/game/camera.ts` | Bounded independent camera orbit, pitch, zoom and pure world-space pose |
+| `components/game/ControlsPanel.tsx`, `targeting.ts` | Remapping UI and client-only target cycling |
 | `components/game/Scene.tsx` | Three.js scene, follow camera, telegraphs, pooled effects and telemetry |
 | `components/game/actors.ts` | Procedural articulated rigs, reusable asset resources and animation adapter |
 | `lib/rooms.ts` | Request validation, room leases, server-time advancement, CAS and D1 repository |
@@ -74,7 +77,7 @@ Site access remains an independent boundary. A room invite authorizes joining an
 
 ## Graphics and performance
 
-`Scene` receives state and the controlled slot. It does not own combat. Its camera is positioned behind the active rig using that actor's facing, with smoothing toward the desired position and look target. Character transforms interpolate toward received state; there is no client-side prediction or network rollback in this milestone.
+`Scene` receives state and the controlled slot. It does not own combat. Its camera starts behind the active rig, then consumes independent camera yaw/pitch/distance from `camera.ts`, with smoothing toward the desired position and look target. Height and shoulder offset adjust framing. Camera orbit does not mutate character facing or server state. Movement uses this camera yaw; recenter explicitly realigns it with the actor. Character transforms interpolate toward received state; there is no client-side prediction or network rollback in this milestone.
 
 `ActorAssets` caches primitive geometry/materials, and rigid pieces within individual joints are batched while the limbs remain articulated. World pillars, ornaments and shards are instanced. Combat uses a fixed pool of 18 effect objects. High quality caps device pixel ratio at 1.5 and uses shadows; Performance caps it at 1 and omits shadows. GPU resources and event listeners are disposed when the scene unmounts or is rebuilt.
 
@@ -99,6 +102,12 @@ A continuous room process could own ticking and use D1 for checkpoints rather th
 
 The scripted encounter test controls one actor programmatically while four trusts run their normal logic. The player moves, avoids telegraphs, guards and selects weaponskills; trusts supply their role-specific support. Current diagnostics report trial victory at 116.50 seconds and god victory at 363.85 seconds, with chains, bursts and all three phases. A separate idle-leader god scenario loses at the 450-second deadline. Those results establish the loop and participation requirement under those test policies; they do not establish difficulty, enjoyment, accessibility or human fight duration.
 
-The gamepad mapping is implemented through the browser Gamepad API, including dead zones and button-edge detection. Physical controller hardware is unverified. Menu controller navigation and remapping are absent. The renderer has a WebGL failure message, but that is not a substitute for browser/GPU testing.
+The gamepad mapping is implemented through the browser Gamepad API, including dead zones and button-edge detection. Physical controller hardware is unverified. Controller menu navigation is absent; keyboard/action-button remapping and optional inversion are implemented. The renderer has a WebGL failure message, but that is not a substitute for browser/GPU testing.
 
 Tests, TypeScript checks and a production build should remain separate from browser gameplay, multi-client deployment and physical-device checks. These documents make no claim that those latter gates have passed. Publication, access-policy changes and source synchronization are separate milestone operations.
+
+## Controls revision
+
+`terminus-xi-controls-v1` stores validated local bindings and preferences. Hydration finishes before persistence begins. Camera and target commands remain client-only; the room endpoint still accepts the unchanged bounded combat Action vocabulary. `ControlsPanel` consumes shared command metadata, and hotbar hints read the same current settings used by input. Camera math and target cycling are pure modules with direction/boundary tests; DOM input tests exercise suppression and remapping behavior.
+
+Only the current boss is an enemy candidate today. `cycleTarget` wraps a candidate list and returns the same ID for repeated single-target cycling. A separate pulse counter retriggers the selected world marker without changing combat or enmity. Gameplay Tab is intercepted only outside controls/forms/menus; inside dialogs it navigates focus normally.

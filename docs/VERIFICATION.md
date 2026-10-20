@@ -1,5 +1,7 @@
 # First playable milestone — verification
 
+Historical first-milestone receipt. See [CONTROLS-VERIFICATION.md](CONTROLS-VERIFICATION.md) for the subsequent controls revision, including remapping and camera support that supersede the input limitations below.
+
 This is a playable combat foundation with procedural art and one encounter, not a finished MMO. The current source was checked locally on 2026-10-19/20. Deployment and GitHub synchronization receipts are reported separately from these checks.
 
 ## Automated mechanisms
