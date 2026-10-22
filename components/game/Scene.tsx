@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import type { Action, GameState } from '@/game/types';
 import { ARENA_RADIUS, CONE_HALF_ANGLE } from '@/game/content';
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
+import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, createCamera, type CameraState } from './camera';
 
 export interface SceneProps {
@@ -12,6 +13,7 @@ export interface SceneProps {
   slot: number;
   quality: 'low' | 'high';
   wireframe: boolean;
+  characterStyle: 'painted' | 'scaffold';
   cameraState: CameraState;
   cameraHeight: number;
   shoulderOffset: number;
@@ -209,6 +211,8 @@ export default function Scene(props: SceneProps) {
       rig.root.position.set(actor.x, 0, actor.z); rig.root.rotation.y = actor.facing;
       scene.add(rig.root); return rig;
     });
+    const heroCache = new HeroAssetCache();
+    const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
     bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
 
@@ -225,6 +229,27 @@ export default function Scene(props: SceneProps) {
     const effects = createEffects(scene);
 
     let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0;
+    let loadedModels = 0, failedModels = 0;
+    renderer.domElement.dataset.characterStyle = props.characterStyle;
+    renderer.domElement.dataset.characterModels = '0';
+    renderer.domElement.dataset.characterModelFailures = '0';
+    if (props.characterStyle === 'painted') {
+      latest.current.state.party.forEach((actor, i) => {
+        void heroCache.load(actor.id).then(visual => {
+          if (stopped) { visual.dispose(); return; }
+          const rig = rigs[i];
+          visual.setWireframe(latest.current.wireframe);
+          // Keep the world root and selection ring. Only replace its artwork.
+          rig.body.visible = false; rig.ornament.visible = false;
+          rig.root.add(visual.object); heroVisuals[i] = visual;
+          renderer.domElement.dataset.characterModels = String(++loadedModels);
+        }).catch(() => {
+          if (stopped) return;
+          // A missing asset leaves this actor's fully functional scaffold visible.
+          renderer.domElement.dataset.characterModelFailures = String(++failedModels);
+        });
+      });
+    }
     let lastEvent = latest.current.state.events.at(-1)?.id ?? 0;
     let lastWireframe = !latest.current.wireframe;
     let initializedCamera = false;
@@ -301,6 +326,7 @@ export default function Scene(props: SceneProps) {
       lastTime = state.time;
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
+        heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
         lastWireframe = wireframe;
       }
       for (let i = 0; i < rigs.length; i++) {
@@ -312,7 +338,11 @@ export default function Scene(props: SceneProps) {
         let difference = Math.atan2(Math.sin(actor.facing - rig.root.rotation.y), Math.cos(actor.facing - rig.root.rotation.y));
         difference *= 1 - Math.exp(-15 * dt); rig.root.rotation.y += difference;
         const speed = Math.hypot(rig.root.position.x - beforeX, rig.root.position.z - beforeZ) / dt;
-        animateActor(rig, dt, now / 1000, speed, actor.hp > 0);
+        const visual = heroVisuals[i];
+        if (visual) {
+          rig.attack = Math.max(0, rig.attack - dt * 2.5);
+          visual.update(dt, speed, actor.hp > 0, rig.attack);
+        } else animateActor(rig, dt, now / 1000, speed, actor.hp > 0);
         rig.marker.scale.setScalar(i === slot ? 1.65 : 1.1);
         rig.marker.visible = actor.hp > 0 && (i === slot || actor.engaged);
       }
@@ -369,7 +399,8 @@ export default function Scene(props: SceneProps) {
       targetReticle.quaternion.copy(camera.quaternion);
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
-        projected.copy(rigs[i].root.position); projected.y = i === slot ? 2.5 : 2.75;
+        projected.copy(rigs[i].root.position);
+        projected.y += heroVisuals[i]?.labelHeight ?? (i === slot ? 2.5 : 2.75);
         ray.copy(projected).sub(camera.position); const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
         projected.project(camera);
         const visible = inFront && projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15 && state.party[i]?.hp > 0;
@@ -387,6 +418,10 @@ export default function Scene(props: SceneProps) {
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      // GLB instances/cache own their skeletons, textures and shared geometry.
+      // Detach them before generic arena cleanup to avoid disposing them twice.
+      heroVisuals.forEach(visual => { if (visual) { visual.object.removeFromParent(); visual.dispose(); } });
+      heroCache.dispose();
       const geometries = new Set<THREE.BufferGeometry>(assets.geometries), materials = new Set<THREE.Material>(assets.materials);
       scene.traverse(object => {
         if (object instanceof THREE.Mesh || object instanceof THREE.LineSegments || object instanceof THREE.Points) {
@@ -398,8 +433,8 @@ export default function Scene(props: SceneProps) {
       geometries.forEach(geometry => geometry.dispose()); materials.forEach(material => material.dispose());
       key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
-  // Scene lifetime depends only on quality. Simulation snapshots are read through latest.
-  }, [props.quality]);
+  // Visual preferences rebuild the scene; simulation snapshots are read through latest.
+  }, [props.quality, props.characterStyle]);
 
   return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
     {props.state.party.map((actor, index) => <div key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>

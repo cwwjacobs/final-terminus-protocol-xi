@@ -13,7 +13,8 @@ Start with the smallest module that owns the behavior. Keep the shared kernel, p
 | New action or resource | `game/types.ts`, then `applyAction` and content definitions | Also extend `lib/rooms.ts` validation, HUD catalog, input mapping and save compatibility. A client button alone does not implement an action |
 | Ability icon, label or displayed key hint | `components/game/catalog.ts` | Bindings and labels come from `control-settings.ts`; device behavior lives in `input.ts` |
 | Keyboard, mouse or controller binding | `components/game/control-settings.ts` for defaults/schema, `input.ts` for device behavior | The HUD reads current bindings; update command metadata and `tests/input.test.ts`; test the physical controller separately |
-| Party/boss mesh, material or animation | `components/game/actors.ts` | Preserve the rig adapter used by `Scene`; check telemetry and disposal, then inspect the result in a browser |
+| Painted party mesh, material or animation | `public/assets/models/`, its `manifest.json`, and `components/game/hero-assets.ts` | Preserve the `HeroVisual` adapter used by `Scene`; update asset tests, verify textures/forward/grounding and inspect playback/disposal in a browser |
+| Procedural fallback or boss mesh | `components/game/actors.ts` | Preserve world roots, rings and the scaffold adapter; check telemetry and disposal |
 | Follow-camera distance/height/smoothing | `components/game/camera.ts`, then its adapter in `Scene.tsx` | Preserve independent orbit, camera-relative movement and recenter; test walls/obstructions when those are introduced |
 | Arena appearance | `buildWorld` in `components/game/Scene.tsx` | Shared arena dimensions and damage geometry come from content/kernel; visual scenery is not collision data |
 | Arena size or collision rules | `ARENA_RADIUS` in content, `bounds` and telegraph checks in the kernel | Rendering imports shared radius/angle. Larger maps need explicit collision, navigation and camera handling, not only a larger floor |
@@ -24,11 +25,13 @@ Start with the smallest module that owns the behavior. Keep the shared kernel, p
 
 `catalog.ts` owns presentation metadata, not damage or ability permissions. `local-save.ts` owns validation, while `GameClient` still owns browser storage and session orchestration. These are deliberate small extractions, not a new framework or a blanket rewrite.
 
-## Replace procedural art with GLB assets
+## Upgrade painted character assets
 
-The current `ActorRig` in `actors.ts` exposes a world root, articulated handles, selection marker and animation state. A first GLB change can replace one factory while retaining that outward adapter. A rigged model may need an adapter that maps its bones/clips to those handles; loading a GLB alone does not establish that mapping.
+The party now loads five painted GLBs by default. **Settings → Characters → Original scaffold** selects the procedural models; a failed GLB load also leaves that actor's scaffold visible. `HeroAssetCache` in `components/game/hero-assets.ts` loads and caches assets, clones independent skeletons/materials, blends idle/walk, and owns resource cleanup. `Scene.tsx` attaches each `HeroVisual` while retaining its existing world root, facing, selection ring and camera behavior.
 
-Keep asset loading/caching and resource disposal in the presentation layer. Preserve the actor's world position/facing and the selected-slot marker. Drive animation from movement and combat event IDs; the server/kernel continues to determine hits, damage and timing. Compare FPS, draw calls and triangles before and after the replacement in both quality settings. Keep party identity, replaceable scaffold, authored skin and narrative role separate, as [LORE.md](LORE.md) describes.
+For an art revision, replace the appropriate GLB in `public/assets/models/`, update its byte size/hash and revision in `manifest.json`, and update the asset receipt tests. Keep hero IDs and URLs stable unless a deliberate mapping change is needed. Preserve metre scale, +Y up, +Z forward, feet near Y=0, embedded PBR textures and the named `idle`/`walk` clips. The assets currently contain no weapon props or authored combat clips; adding those requires presentation/animation work, not a claim that idle/walk implements combat choreography.
+
+Keep the shared kernel authoritative for hits, damage and timing. Replacing art does not require a combat rewrite. Run the asset/cache tests, then inspect loading/fallback, movement, wireframe, both graphics settings, slot changes and teardown in the browser. Compare telemetry when assessing performance; the imported file/triangle counts alone are not a benchmark. See [CHARACTER_ASSETS.md](CHARACTER_ASSETS.md) for provenance, current measurements and the concrete replacement checklist. Keep party identity, replaceable scaffold, authored skin and narrative role separate, as [LORE.md](LORE.md) describes.
 
 The current boss factory is `createCrownResonance` in `actors.ts`. Replace that factory's art implementation when upgrading the boss mesh; edit displayed story names through lore copy. Keep runtime identifier changes deliberate and update their imports together.
 

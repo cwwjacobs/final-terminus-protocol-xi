@@ -1,0 +1,35 @@
+{
+  "revision": "desktop-finished-2026-10-22",
+  "models": [
+    {
+      "id": "bacchus",
+      "file": "bacchus.glb",
+      "bytes": 4147236,
+      "sha256": "cbaf1a62fac85d006c0cd0acd44d70d6790b5598a8b4eec57f7756585da09f88"
+    },
+    {
+      "id": "heracles",
+      "file": "heracles.glb",
+      "bytes": 4174492,
+      "sha256": "40c5fd442ba74c0c1d7f89cf3457f2b7e9e5ee889436d8b4b6ceadfc7a569d13"
+    },
+    {
+      "id": "dolos",
+      "file": "dolos.glb",
+      "bytes": 3892696,
+      "sha256": "0c20ebd8158ca364f12f65c631254344dada717ca230828a4680d8cea8690ee3"
+    },
+    {
+      "id": "hecate",
+      "file": "hecate.glb",
+      "bytes": 4625976,
+      "sha256": "b7fc01a5b38cfd0310b2b063c4fc8418b1076d600a32f4e794c0373a7b2d2b08"
+    },
+    {
+      "id": "ariadne",
+      "file": "ariadne.glb",
+      "bytes": 4364444,
+      "sha256": "3264c881f35ac1c3c92c62958a85d497a68107b25aaf0dac2431a5fe22ca81b4"
+    }
+  ]
+}
