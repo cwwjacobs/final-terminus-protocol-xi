@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createTouchStick, touchAxes, normalizeLayout, usesTouchLayout } from '../components/game/touch-input.ts';
 import { bindInput, deadzone, movement } from '../components/game/input.ts';
 import { bindButton, bindKey, buttonLabel, COMMANDS, defaults, keyboardEventBinding, keyLabel, normalizeControls } from '../components/game/control-settings.ts';
 import type { Command, ControlSettings } from '../components/game/control-settings.ts';
@@ -143,16 +144,17 @@ function surface() {
 function harness(initialSettings: ControlSettings = defaults()) {
   const win = surface(), doc = { ...surface(), activeElement: { tagName: 'BODY', isContentEditable: false, closest: (() => null) as (selector?: string) => object | null }, hidden: false, hasFocus: () => true };
   const pad = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
-  const state = { settings: initialSettings, enabled: true, commandOpen: false, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const touch = createTouchStick();
+  const state = { touchEnabled: true, settings: initialSettings, enabled: true, commandOpen: false, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
   const menuInputs: MenuIntent[] = [];
   const sent: Action[] = [], commands: Command[] = [], looks: number[][] = [], zooms: number[] = [], connections: boolean[] = [];
   let callback: FrameRequestCallback | null = null, now = performance.now() + 100;
   const replacements = { window: win, document: doc, navigator: { getGamepads: () => state.pad ? [state.pad] : [] }, requestAnimationFrame: (fn: FrameRequestCallback) => { callback = fn; return 1; }, cancelAnimationFrame: () => { callback = null; } };
   const descriptors = Object.fromEntries(Object.keys(replacements).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(replacements)) Object.defineProperty(globalThis, key, { value, configurable: true });
-  const cleanup = bindInput({ send: action => sent.push(action), getFacing: () => state.facing, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => commands.push(command), commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
+  const cleanup = bindInput({ touch: { stick: touch, enabled: () => state.touchEnabled }, send: action => sent.push(action), getFacing: () => state.facing, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => commands.push(command), commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
   return {
-    state, sent, commands, looks, zooms, connections, menuInputs, win, doc, pad,
+    state, touch, sent, commands, looks, zooms, connections, menuInputs, win, doc, pad,
     frame() { now += 60; assert.ok(callback); callback(now); },
     key(code: string, type = 'keydown', extra: Record<string, unknown> = {}) { return win.emit(type, { code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, repeat: false, ...extra }); },
     move() { const action = sent.filter((action): action is Extract<Action, { type: 'move' }> => action.type === 'move').at(-1); assert.ok(action); return action; },
@@ -374,5 +376,67 @@ test('menu focus works on its rows; settings dialogs keep native navigation and 
     assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 1);
     h.doc.activeElement.closest = selector => selector === '[data-command-menu]' || selector === '[data-command-native]' ? {} : null;
     assert.equal(h.key('Enter').prevented, false, 'native close/back buttons remain keyboard accessible');
+  } finally { h.close(); }
+});
+
+
+test('touch stick uses a radial deadzone, keeps diagonal speed bounded and maps screen up forward', () => {
+  assert.deepEqual(touchAxes(2, -2, 40), { x: 0, z: 0 });
+  assert.deepEqual(touchAxes(0, -40, 40), { x: 0, z: 1 });
+  assert.deepEqual(touchAxes(100, 0, 40), { x: 1, z: -0 });
+  for (const [x, y] of [[40, 40], [-400, 300], [0, 900]]) {
+    const axis = touchAxes(x, y, 40);
+    assert.ok(Math.hypot(axis.x, axis.z) <= 1.0000000001);
+  }
+  assert.deepEqual(touchAxes(NaN, 20, 40), { x: 0, z: 0 });
+  assert.deepEqual(touchAxes(10, 20, 0), { x: 0, z: 0 });
+});
+
+test('layout follows active input while touch and desktop overrides stay explicit', () => {
+  assert.equal(usesTouchLayout('auto', 'touch'), true);
+  assert.equal(usesTouchLayout('auto', 'keyboard'), false);
+  assert.equal(usesTouchLayout('auto', 'controller'), false);
+  assert.equal(usesTouchLayout('touch', 'controller'), true);
+  assert.equal(usesTouchLayout('desktop', 'touch'), false);
+  assert.equal(normalizeLayout('invalid'), 'auto');
+});
+
+test('touch movement shares the camera basis, survives ability input and stops on blur, menu or layout change', () => {
+  const h = harness();
+  try {
+    h.touch.pointerId = 1; h.touch.x = 1; h.frame();
+    assert.ok(h.move().x > .99);
+    h.key('KeyQ'); h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'revelry').length, 1);
+    assert.ok(h.move().x > .99, 'combat must not steal movement');
+    h.win.emit('blur'); h.frame();
+    assert.equal(h.move().x, 0); assert.equal(h.touch.pointerId, null);
+    h.win.emit('focus'); h.frame(); assert.equal(h.move().x, 0);
+    h.touch.pointerId = 2; h.touch.z = 1; h.frame(); assert.ok(h.move().z < -.99);
+    h.state.commandOpen = true; h.frame(); assert.equal(h.move().z, 0);
+    h.state.commandOpen = false; h.frame(); assert.equal(h.move().z, 0);
+    h.touch.pointerId = 3; h.touch.x = 1; h.state.touchEnabled = false; h.frame(); assert.equal(h.move().x, 0);
+    h.state.enabled = false; h.frame(); assert.equal(h.touch.pointerId, null);
+  } finally { h.close(); }
+});
+
+test('touch camera isolates pointer IDs, pinches to zoom and cancels without leaving camera motion', () => {
+  const h = harness();
+  const pointer = (pointerId: number, clientX: number, clientY: number, tagName = 'CANVAS') => ({ pointerId, pointerType: 'touch', clientX, clientY, target: { tagName } });
+  try {
+    h.win.emit('pointerdown', pointer(9, 0, 0, 'BUTTON'));
+    h.win.emit('pointermove', pointer(9, 30, 30)); assert.equal(h.looks.length, 0);
+    assert.equal(h.win.emit('pointerdown', pointer(1, 100, 100)).prevented, true);
+    h.win.emit('pointermove', pointer(1, 110, 90));
+    assert.deepEqual(h.looks.at(-1), [-.06, -.06]);
+    h.win.emit('pointerdown', pointer(2, 210, 90));
+    h.win.emit('pointermove', pointer(2, 230, 90));
+    assert.equal(h.looks.length, 1); assert.equal(h.zooms.at(-1), -.5);
+    h.win.emit('pointercancel', pointer(2, 230, 90));
+    h.win.emit('pointerup', pointer(1, 110, 90));
+    h.win.emit('pointermove', pointer(1, 200, 200)); assert.equal(h.looks.length, 1);
+    h.win.emit('pointerdown', pointer(3, 100, 100)); h.state.enabled = false;
+    h.win.emit('pointermove', pointer(3, 200, 200)); assert.equal(h.looks.length, 1);
+    h.state.enabled = true; h.win.emit('pointermove', pointer(3, 210, 210)); assert.equal(h.looks.length, 1);
   } finally { h.close(); }
 });

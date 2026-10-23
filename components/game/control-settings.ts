@@ -33,6 +33,7 @@ export interface ControlSettings {
   keys: Record<Command, string>;
   buttons: Partial<Record<Command, number>>;
   mouseSensitivity: number;
+  touchSensitivity: number;
   stickSensitivity: number;
   zoomSensitivity: number;
   invertMouseX: boolean;
@@ -56,7 +57,7 @@ export function defaults(): ControlSettings {
     version: 3,
     keys: Object.fromEntries(COMMANDS.map(command => [command.id, command.defaultKey])) as Record<Command, string>,
     buttons: Object.fromEntries(COMMANDS.flatMap(command => 'defaultButton' in command ? [[command.id, command.defaultButton]] : [])),
-    mouseSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
+    mouseSensitivity: 1, touchSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
     invertMouseX: false, invertMouseY: false, invertPadX: false, invertPadY: false,
     invertMoveX: false, invertMoveY: false,
     cameraHeight: 1.5, shoulderOffset: 0, defaultDistance: 12,
@@ -99,7 +100,7 @@ export function normalizeControls(value: unknown): ControlSettings {
     if (button !== undefined && usedButtons.has(button)) delete result.buttons[command.id];
     else if (button !== undefined) usedButtons.add(button);
   }
-  for (const key of ['mouseSensitivity', 'stickSensitivity', 'zoomSensitivity'] as const) {
+  for (const key of ['mouseSensitivity', 'touchSensitivity', 'stickSensitivity', 'zoomSensitivity'] as const) {
     const n = value[key];
     if (typeof n === 'number' && Number.isFinite(n)) result[key] = Math.max(0.1, Math.min(3, n));
   }

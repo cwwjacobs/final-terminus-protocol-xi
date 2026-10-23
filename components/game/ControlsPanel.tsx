@@ -24,14 +24,16 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
     window.addEventListener('keydown', capture, true); window.addEventListener('keyup', release, true);
     return () => { window.removeEventListener('keydown', capture, true); window.removeEventListener('keyup', release, true); };
   }, [capturing, onChange, value]);
-  const number = (key: 'mouseSensitivity'|'stickSensitivity'|'zoomSensitivity'|'cameraHeight'|'shoulderOffset'|'defaultDistance', label: string, min: number, max: number, step: number) =>
+  const number = (key: 'mouseSensitivity'|'touchSensitivity'|'stickSensitivity'|'zoomSensitivity'|'cameraHeight'|'shoulderOffset'|'defaultDistance', label: string, min: number, max: number, step: number) =>
     <label className="control-range" key={key}>{label}<output>{value[key].toFixed(1)}</output><input aria-label={label} type="range" min={min} max={max} step={step} value={value[key]} onChange={e => onChange({ ...value, [key]: Number(e.target.value) })}/></label>;
   const toggle = (key: 'invertMouseX'|'invertMouseY'|'invertPadX'|'invertPadY'|'invertMoveX'|'invertMoveY', label: string) =>
     <label className="checkbox" key={key}><input type="checkbox" checked={value[key]} onChange={e => onChange({ ...value, [key]: e.target.checked })}/>{label}</label>;
   return <div className="controls-panel">
-    <p>Engaging automatically locks the camera onto the enemy. Disengage to look around with a battlefield drag or the right stick. Scroll to zoom in either mode. Movement follows the camera.</p>
+    <p>Engaging automatically locks the camera onto the enemy. Disengage to look around with a battlefield drag, touchscreen swipe or the right stick. Scroll or pinch the battlefield to zoom in either mode. Movement follows the camera.</p>
+    <p>On mobile, hold the left movement stick and tap the right-hand abilities with your other thumb. Only your current character’s abilities are shown. Touch controls reset when you open a menu or leave the game.</p>
     <div className="camera-settings">
       {number('mouseSensitivity','Mouse look sensitivity',.1,3,.1)}
+      {number('touchSensitivity','Touch look sensitivity',.1,3,.1)}
       {number('stickSensitivity','Controller look sensitivity',.1,3,.1)}
       {number('zoomSensitivity','Zoom sensitivity',.1,3,.1)}
       {number('defaultDistance','Camera distance',4,24,.5)}

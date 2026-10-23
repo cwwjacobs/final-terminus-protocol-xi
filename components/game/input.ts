@@ -2,6 +2,7 @@ import type { Action } from '../../game/types.ts';
 import { COMMANDS, keyboardEventBinding, normalizeControls } from './control-settings.ts';
 import type { Command, ControlSettings } from './control-settings.ts';
 import type { MenuIntent } from './command-menu.ts';
+import { resetTouchStick, type InputMode, type TouchStickState } from './touch-input.ts';
 
 export const deadzone = (n: number, threshold = 0.18) => !Number.isFinite(n) || Math.abs(n) <= threshold ? 0 : Math.sign(n) * Math.min(1, (Math.abs(n) - threshold) / (1 - threshold));
 /** Positive local x is screen-right; positive local z is camera-forward. */
@@ -17,6 +18,8 @@ export interface InputOptions {
   onCommand: (command: Command) => void;
   onLook: (dx: number, dy: number) => void;
   onZoom: (delta: number) => void;
+  touch?: { stick: TouchStickState; enabled: () => boolean };
+  onInputMode?: (mode: InputMode) => void;
   commandMenu?: { isOpen: () => boolean; onInput: (intent: MenuIntent) => void };
 }
 
@@ -40,6 +43,7 @@ export function bindInput(options: InputOptions): () => void {
   let focused = document.hasFocus(), wasPlayable = false, padPresent = false, padArmed = false;
   let previousButtons: boolean[] = [], padId: number | null = null;
   let menuWasOpen = false, menuPadArmed = false, menuDirection = -1, menuRepeatAt = 0;
+  const touchPointers = new Map<number, { x: number; y: number }>();
 
   const editable = () => {
     const element = document.activeElement as HTMLElement | null;
@@ -52,6 +56,8 @@ export function bindInput(options: InputOptions): () => void {
   const stop = () => send({ type: 'move', x: 0, z: 0, facing: getFacing() });
   function clearHeld() {
     held.clear(); pendingModifiers.clear(); dragging = false; padArmed = false; menuPadArmed = false; menuDirection = -1;
+    touchPointers.clear();
+    if (options.touch) resetTouchStick(options.touch.stick);
     stop();
   }
   function refreshSettings() {
@@ -65,6 +71,7 @@ export function bindInput(options: InputOptions): () => void {
     else if (!continuous.has(command)) onCommand(command);
   }
   function down(event: KeyboardEvent) {
+    if (!event.ctrlKey && !event.altKey && !event.metaKey) options.onInputMode?.('keyboard');
     refreshSettings();
     if (menuOpen()) {
       if (!menuPlayable() || event.ctrlKey || event.altKey || event.metaKey) return;
@@ -106,6 +113,7 @@ export function bindInput(options: InputOptions): () => void {
     if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || (event.button !== 0 && event.button !== 2) || !available() || menuOpen()) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     if (!playable()) return;
+    options.onInputMode?.('keyboard');
     event.preventDefault(); dragging = true;
   }
   function mouseMove(event: MouseEvent) {
@@ -124,6 +132,31 @@ export function bindInput(options: InputOptions): () => void {
   function contextMenu(event: MouseEvent) {
     if (playable() && (event.target as HTMLElement)?.tagName === 'CANVAS') event.preventDefault();
   }
+  function touchDown(event: PointerEvent) {
+    if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
+    if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || !available() || menuOpen() || touchPointers.size >= 2) return;
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    if (!playable()) return;
+    event.preventDefault(); options.onInputMode?.('touch');
+    touchPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    (event.target as HTMLElement).setPointerCapture?.(event.pointerId);
+  }
+  function touchMove(event: PointerEvent) {
+    const point = touchPointers.get(event.pointerId);
+    if (!point) return;
+    if (!playable()) { touchPointers.clear(); return; }
+    event.preventDefault(); refreshSettings();
+    const other = [...touchPointers.entries()].find(([id]) => id !== event.pointerId)?.[1];
+    if (other) {
+      const before = Math.hypot(point.x - other.x, point.y - other.y);
+      const after = Math.hypot(event.clientX - other.x, event.clientY - other.y);
+      onZoom(bounded(before - after, 200) * .025 * settings.zoomSensitivity);
+    } else {
+      onLook(-bounded(event.clientX - point.x, 200) * .006 * settings.touchSensitivity * (settings.invertMouseX ? -1 : 1), bounded(event.clientY - point.y, 200) * .006 * settings.touchSensitivity * (settings.invertMouseY ? -1 : 1));
+    }
+    point.x = event.clientX; point.y = event.clientY;
+  }
+  function touchEnd(event: PointerEvent) { touchPointers.delete(event.pointerId); }
   function loop(now: number) {
     refreshSettings();
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.05)); last = now;
@@ -137,6 +170,7 @@ export function bindInput(options: InputOptions): () => void {
     wasPlayable = active;
     const buttons = pad?.buttons.map(button => button.pressed) ?? [];
     const neutral = !buttons.some(Boolean) && (!pad || pad.axes.slice(0, 4).every(axis => deadzone(axis) === 0));
+    if (pad && !neutral) options.onInputMode?.('controller');
     if (!navigating || !menuPlayable()) { menuPadArmed = false; menuDirection = -1; }
     else if (pad && !menuPadArmed && neutral) menuPadArmed = true;
     if (navigating && menuPlayable() && menuPadArmed) {
@@ -166,6 +200,7 @@ export function bindInput(options: InputOptions): () => void {
     if (active && playable()) {
       x = pressing('right') - pressing('left');
       z = pressing('forward') - pressing('backward');
+      if (options.touch?.enabled()) { x += bounded(options.touch.stick.x, 1); z += bounded(options.touch.stick.z, 1); }
       let lookX = (pressing('cameraLeft') - pressing('cameraRight')) * 2.1 * dt;
       let lookY = (pressing('cameraDown') - pressing('cameraUp')) * 2.1 * dt;
       if (pad && padArmed) {
@@ -198,6 +233,8 @@ export function bindInput(options: InputOptions): () => void {
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('mousedown', mouseDown); window.addEventListener('mousemove', mouseMove); window.addEventListener('mouseup', mouseUp);
   window.addEventListener('wheel', wheel, { passive: false }); window.addEventListener('contextmenu', contextMenu);
+  window.addEventListener('pointerdown', touchDown, { passive: false }); window.addEventListener('pointermove', touchMove, { passive: false });
+  window.addEventListener('pointerup', touchEnd); window.addEventListener('pointercancel', touchEnd); window.addEventListener('lostpointercapture', touchEnd);
   frame = requestAnimationFrame(loop);
   return () => {
     cancelAnimationFrame(frame); clearHeld();
@@ -206,5 +243,7 @@ export function bindInput(options: InputOptions): () => void {
     document.removeEventListener('visibilitychange', visibility);
     window.removeEventListener('mousedown', mouseDown); window.removeEventListener('mousemove', mouseMove); window.removeEventListener('mouseup', mouseUp);
     window.removeEventListener('wheel', wheel); window.removeEventListener('contextmenu', contextMenu);
+    window.removeEventListener('pointerdown', touchDown); window.removeEventListener('pointermove', touchMove);
+    window.removeEventListener('pointerup', touchEnd); window.removeEventListener('pointercancel', touchEnd); window.removeEventListener('lostpointercapture', touchEnd);
   };
 }
