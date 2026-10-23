@@ -21,16 +21,20 @@ export const ABILITY_MARKS = {
 } as const satisfies Record<string, IconShape[]>;
 
 
-/** Pictorial role emblems in the 64-unit box: what each role does, not a shape. */
+/** Role sigils in the 64-unit box, in the Nova/Lumae house style: mono-line,
+ * vertical axis, four-point star crown, two sparkle satellites, a geometric
+ * core and a flourished base. Cores are the Greek letters of the earlier
+ * GameSigils set: Υ Bacchus, Π Heracles, Λ Dolos, Ψ Hecate, ∞ Ariadne. */
 export const ROLE_EMBLEMS = {
-  vanguard: [stroke('M32 26v30'), stroke('M25 56h14'), stroke('M32 6c6 2 10 8 10 14 0 5-4 9-10 10-6-1-10-5-10-10 0-6 4-12 10-14z'), stroke('M26 13l6 4 6-4M24 20l8 5 8-5M28 27l4 2 4-2', 1.8), stroke('M32 10v18', 1.4), fill('M32 34c-8 0-11 6-8 12 6 0 9-5 8-12z'), stroke('M32 42c7-1 9 4 6 9', 1.8)],
-  warden: [stroke('M32 6l20 6v16c0 14-9 23-20 29C21 51 12 42 12 28V12z'), stroke('M32 12l14 4v12c0 10-6 17-14 22-8-5-14-12-14-22V16z', 1.6), fill('M32 22l4 4h5l-3 4 1 6-7-3-7 3 1-6-3-4h5z'), stroke('M26 38h12')],
-  hunter: [stroke('M16 6c18 7 18 45 0 52'), stroke('M16 6v52', 1.3), stroke('M8 32h46'), fill('M58 32l-10-6v12z'), stroke('M9 32l5-6M9 32l5 6', 2), fill('M14 29h4v6h-4z')],
-  arcanist: [stroke('M32 12c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z', 1.6), stroke('M14 24c9-9 27-9 36 0M50 40c-9 9-27 9-36 0', 1.6), fill('M32 20l4 8 8 4-8 4-4 8-4-8-8-4 8-4z'), fill('M52 32a2 2 0 1 0 4 0 2 2 0 1 0-4 0M8 32a2 2 0 1 0 4 0 2 2 0 1 0-4 0')],
-  luminary: [stroke('M32 4v10M32 50v10M4 32h10M50 32h10', 1.4), fill('M32 14l5 13 13 5-13 5-5 13-5-13-13-5 13-5z'), stroke('M32 12c11 0 20 9 20 20s-9 20-20 20S12 43 12 32c0-6 3-12 8-16', 1.8), fill('M20 16a2.6 2.6 0 1 0 0 .1')],
+  vanguard: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V30M20 16c4 8 8 12 12 14 4-2 8-6 12-14'), stroke('M32 14l6 6-6 6-6-6z'), stroke('M32 17.5l2.5 2.5-2.5 2.5-2.5-2.5z', 1.2), stroke('M24 44h16'), stroke('M32 52c-5-2-10 0-12 4 3 3 8 2 12-4zM32 52c5-2 10 0 12 4-3 3-8 2-12-4z', 1.6)],
+  warden: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M14 30c4-10 32-10 36 0', 1.6), stroke('M18 24h28M23 24v22M41 24v22'), stroke('M32 36a3.2 3.2 0 1 0 0 .1', 1.5), stroke('M16 50h32'), stroke('M22 56h20', 1.6)],
+  hunter: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V20'), stroke('M22 32l10-14 10 14'), stroke('M14 48c6-9 30-9 36 0', 1.6), stroke('M14 48v3M50 48v3', 1.6), stroke('M27 56l5-4 5 4', 1.6)],
+  arcanist: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V16M20 18c0 10 4 16 12 16s12-6 12-16'), fill('M20 12.8L20.5 14.5L22.2 15L20.5 15.5L20 17.2L19.5 15.5L17.8 15L19.5 14.5Z'), fill('M44 12.8L44.5 14.5L46.2 15L44.5 15.5L44 17.2L43.5 15.5L41.8 15L43.5 14.5Z'), stroke('M14 40c0-8 8-12 18-12s18 4 18 12-8 12-18 12-18-4-18-12z', 1.4), stroke('M26 50h12')],
+  luminary: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V14'), stroke('M32 30c-4-8-14-8-14 0s10 8 14 0 14-8 14 0-10 8-14 0', 1.8), stroke('M18 50c6 0 10 2 14 6 4-4 8-6 14-6', 1.6), fill('M46 50a2.2 2.2 0 1 0 0 .1'), stroke('M26 42h12', 1.6)],
 } as const satisfies Record<string, IconShape[]>;
 
 const mark = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stroke: 3, shapes: [...shapes] });
+const sigil = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stroke: 2.2, shapes: [...shapes] });
 const icon = (...shapes: IconShape[]): IconDefinition => ({ box: 24, stroke: 1.8, shapes });
 
 export const ICONS = {
@@ -40,9 +44,9 @@ export const ICONS = {
   guide: icon(stroke('M9.3 9.2a2.7 2.7 0 1 1 4 2.5c-1 .6-1.3 1.2-1.3 2.3'), fill('M12 17a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z')),
   settings: icon(stroke('M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'), stroke('M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1', 2.2)),
   menu: icon(stroke('M4 7h16M4 12h16M4 17h16', 2)),
-  // Party roles, pictorial: thyrsus, shield, bow, orbit, thread-and-star
-  vanguard: mark(ROLE_EMBLEMS.vanguard), warden: mark(ROLE_EMBLEMS.warden), hunter: mark(ROLE_EMBLEMS.hunter),
-  arcanist: mark(ROLE_EMBLEMS.arcanist), luminary: mark(ROLE_EMBLEMS.luminary),
+  // Party role sigils: thyrsus Υ, gate Π, arrow Λ, trident Ψ, thread ∞
+  vanguard: sigil(ROLE_EMBLEMS.vanguard), warden: sigil(ROLE_EMBLEMS.warden), hunter: sigil(ROLE_EMBLEMS.hunter),
+  arcanist: sigil(ROLE_EMBLEMS.arcanist), luminary: sigil(ROLE_EMBLEMS.luminary),
   // Party roles, geometric: the same shapes as the floor rings in party-markers.ts
   vanguardShape: icon(stroke('M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z')),
   wardenShape: icon(stroke('M12 3l9 9-9 9-9-9z')),
@@ -75,7 +79,7 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
-/** Party portrait emblem for a role; falls back to the vanguard thyrsus so an
+/** Party portrait sigil for a role; falls back to the vanguard thyrsus so an
  * unknown role still renders rather than throwing in the HUD. */
 export function roleIcon(role: string): IconName {
   return role in ICONS && ['vanguard', 'warden', 'hunter', 'arcanist', 'luminary'].includes(role) ? role as IconName : 'vanguard';

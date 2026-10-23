@@ -245,3 +245,7 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .resource>div,.mini-track,.boss-hp,.threat-track{box-shadow:inset 1px 1px 2px #000b,0 1px 0 #ffffff14}
 @media(prefers-reduced-motion:reduce){.command-row.is-current{translate:none}.ability:hover:not(:disabled){transform:none}}
 @media(forced-colors:active){.player-console::before,.player-console::after{display:none}.ability,.command-popover,.command-row.is-current,.modal,.party-member.selected,.portrait{box-shadow:none;translate:none;border-color:ButtonText}}
+/* Sigils glow in the member's color; the portrait cell is the sigil's lantern. */
+.portrait .ui-icon{filter:drop-shadow(0 0 2px currentColor) drop-shadow(0 0 6px currentColor)}
+.portrait{background:radial-gradient(circle at 50% 45%,#ffffff14,#0000 70%)}
+@media(forced-colors:active){.portrait .ui-icon{filter:none}}
