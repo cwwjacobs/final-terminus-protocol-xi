@@ -8,6 +8,8 @@ import { ActorAssets, animateActor, createActor, createCrownResonance, type Acto
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { activeBurst } from './combat-feedback';
 import EnemyMark from './EnemyMark';
+import Icon from './Icon';
+import { roleIcon } from './icons';
 import { combatNumber, PresentationEvents } from './world-feedback';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
@@ -523,7 +525,7 @@ export default function Scene(props: SceneProps) {
   return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
     {props.state.party.map((actor, index) => {
       return <div className="party-world-label" key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
-        <span style={{ color: actor.color }}>{actor.name}</span>
+        <span style={{ color: actor.color }}><Icon name={roleIcon(actor.role)} className="label-sigil"/>{actor.name}</span>
       </div>;
     })}
     <EnemyMark state={props.state} anchor={enemyMarkRef}/>

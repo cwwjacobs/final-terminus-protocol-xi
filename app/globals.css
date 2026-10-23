@@ -143,7 +143,7 @@
 @media(orientation:landscape){
  .game-shell[data-layout=touch] .boss-panel{top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:clamp(180px,35vw,380px)}
  .game-shell[data-layout=touch] .player-console{top:calc(14px + env(safe-area-inset-top,0px));left:max(14px,env(safe-area-inset-left,0px));width:170px}
- .game-shell[data-layout=touch] .player-name{display:none}
+ .game-shell[data-layout=touch] .player-name>span:last-child{display:none}
  .game-shell[data-layout=touch] .command-popover{top:64px;max-height:calc(100dvh - 80px)}
  .game-shell[data-layout=touch] .entry-card{top:48%;transform:translate(-50%,-35%);width:min(330px,60vw)}
  .game-shell[data-layout=touch] .entry-card h2{font-size:25px}
@@ -199,7 +199,9 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .party-member.selected:hover:not(:disabled){transform:translateX(6px)}
 .portrait{background:radial-gradient(circle at 40% 30%,#ffffff22,#0000);box-shadow:inset 0 1px 0 #ffffff1a}
 /* Console, command popover and modal: the big panes. */
-.player-console,.command-popover,.modal{border-color:var(--glass-rim);background:var(--glass-fill);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);box-shadow:inset 0 1px 0 var(--glass-lit),inset 1px 0 0 #ffffff10,0 18px 50px #0009,0 0 0 1px #0004}
+.player-console,.command-popover,.modal{border-color:var(--glass-rim);background:var(--glass-fill);}
+.command-popover,.modal{background:linear-gradient(135deg,#3b2e5ea8,#1a132ecc);}
+.player-console,.command-popover,.modal{backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);box-shadow:inset 0 1px 0 var(--glass-lit),inset 1px 0 0 #ffffff10,0 18px 50px #0009,0 0 0 1px #0004}
 .player-console{border-radius:10px}
 .game-shell[data-layout=touch] .player-console{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
 /* Bars read as lit grooves. */
@@ -245,7 +247,26 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .resource>div,.mini-track,.boss-hp,.threat-track{box-shadow:inset 1px 1px 2px #000b,0 1px 0 #ffffff14}
 @media(prefers-reduced-motion:reduce){.command-row.is-current{translate:none}.ability:hover:not(:disabled){transform:none}}
 @media(forced-colors:active){.player-console::before,.player-console::after{display:none}.ability,.command-popover,.command-row.is-current,.modal,.party-member.selected,.portrait{box-shadow:none;translate:none;border-color:ButtonText}}
-/* Sigils glow in the member's color; the portrait cell is the sigil's lantern. */
-.portrait .ui-icon{filter:drop-shadow(0 0 2px currentColor) drop-shadow(0 0 6px currentColor)}
+
+/* ── Sigils through the HUD, with a gentle breathing glow ────────────────
+   Portraits, the player console, world labels, the touch picker and the
+   entry card all carry the member's sigil in the member's color. The glow is
+   a drop-shadow filter on the SVG only, so it costs nothing per frame beyond
+   the compositor, and it breathes slowly; reduced motion holds it steady. */
+.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{filter:drop-shadow(0 0 2px currentColor) drop-shadow(0 0 7px currentColor);animation:sigil-breathe 3.6s ease-in-out infinite}
+.party-member.selected .portrait .ui-icon,.player-sigil .ui-icon{filter:drop-shadow(0 0 3px currentColor) drop-shadow(0 0 10px currentColor)}
+.party-member.fallen .portrait .ui-icon{filter:none;animation:none;opacity:.5}
+@keyframes sigil-breathe{0%,100%{opacity:.82}50%{opacity:1}}
 .portrait{background:radial-gradient(circle at 50% 45%,#ffffff14,#0000 70%)}
-@media(forced-colors:active){.portrait .ui-icon{filter:none}}
+.player-name{display:flex;align-items:center;gap:10px}
+.player-sigil{font-size:30px;line-height:1;flex-shrink:0}
+.player-sigil .ui-icon{display:block}
+.label-sigil{font-size:13px;vertical-align:-.22em;margin-right:4px}
+.choice-sigil{display:block;font-size:26px;line-height:1;margin:0 auto 4px}
+.sigil-row{display:flex;justify-content:center;gap:18px;font-size:30px;line-height:1;margin-bottom:14px}
+.sigil-row .ui-icon{display:block}
+.game-shell[data-layout=touch] .player-sigil{font-size:22px}
+.game-shell[data-layout=touch] .sigil-row{font-size:24px;gap:12px}
+@media(max-width:760px){.player-sigil{font-size:22px}.sigil-row{font-size:22px;gap:12px}}
+@media(prefers-reduced-motion:reduce){.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{animation:none}}
+@media(forced-colors:active){.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{filter:none;animation:none}}

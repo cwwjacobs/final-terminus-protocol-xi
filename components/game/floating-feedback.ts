@@ -14,6 +14,8 @@ const MIN_SCALE = .7, MAX_SCALE = 1.4;
 const PUNCH_TIME = .18;
 /** Fake extrusion offset of the depth layer, in em units. */
 const DEPTH_X = 14, DEPTH_Y = 18;
+/** Screen-space lane spacing at scale 1: wider than the longest number ('−999,999+' ≈ 110px at 19px em). */
+const LANE_COLUMN = 64, LANE_ROW = 28;
 let instances = 0;
 
 /** Depth cue for a projected world point: nearer hits read larger, far ones
@@ -123,7 +125,9 @@ export class FloatingFeedback {
       label.style.opacity = visible ? String(Math.min(1, (1 - progress) * 4)) : '0';
       const column = slot.lane % 3 === 0 ? 0 : slot.lane % 3 === 1 ? -1 : 1, row = Math.floor(slot.lane / 3);
       const scale = depthScale(distance) * punchScale(slot.age, feedback.tone, reducedMotion);
-      label.style.transform = `translate3d(${(this.point.x * .5 + .5) * width + column * 46}px,${(-this.point.y * .5 + .5) * height - row * 25}px,0) translate(-50%,-100%) rotateX(${tilt.toFixed(3)}rad) scale(${scale.toFixed(3)})`;
+      // Lane offsets grow with the depth scale so concurrent numbers on one target never overlap.
+      const lane = depthScale(distance);
+      label.style.transform = `translate3d(${(this.point.x * .5 + .5) * width + column * LANE_COLUMN * lane}px,${(-this.point.y * .5 + .5) * height - row * LANE_ROW * lane}px,0) translate(-50%,-100%) rotateX(${tilt.toFixed(3)}rad) scale(${scale.toFixed(3)})`;
     });
   }
 
