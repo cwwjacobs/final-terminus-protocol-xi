@@ -1,4 +1,6 @@
-/** Local presentation state. Orbit never changes actor facing or network state. */
+import type { GameState } from '../../game/types.ts';
+
+/** Local presentation state. Camera tracking never changes combat/network state. */
 export interface CameraState {
   yaw: number;
   pitch: number;
@@ -16,6 +18,16 @@ export const CAMERA_LIMITS = {
 export interface CameraPose {
   position: { x: number; y: number; z: number };
   lookAt: { x: number; y: number; z: number };
+}
+
+type CameraAnchor = { x: number; z: number };
+
+/** Engagement, not the local selection marker, owns the lock. This also handles
+ * restored encounters, online snapshots and switching the controlled party slot. */
+export function cameraLockTarget(state: GameState, slot: number): CameraAnchor | null {
+  const actor = state.party[slot];
+  return state.status === 'fighting' && actor?.engaged && actor.hp > 0 && state.boss.hp > 0
+    ? state.boss : null;
 }
 
 /** Projection-only clearance for an overlaid action dock. The scene supplies its
@@ -41,10 +53,27 @@ export function createCamera(facing: number, distance: number = CAMERA_DEFAULTS.
 }
 
 /** Deltas are already signed radians. Negative dx looks right; negative dy looks up. */
-export function orbitCamera(camera: CameraState, dx: number, dy: number): void {
+export function orbitCamera(camera: CameraState, dx: number, dy: number, locked = false): void {
+  if (locked) return;
   camera.yaw = wrapYaw(wrapYaw(camera.yaw) + wrapYaw(dx));
   camera.pitch = pitchInRange(pitchInRange(camera.pitch) + finite(dy, 0));
   camera.distance = distanceInRange(camera.distance);
+}
+
+/** Turn behind the player toward the enemy. Limit angular speed and hold the last
+ * heading at overlapping positions so crossing the target cannot whip the view.
+ * A released lock preserves the current view; zoom remains independently owned. */
+export function trackCameraTarget(camera: CameraState, actor: CameraAnchor, target: CameraAnchor | null, delta: number): void {
+  if (!target) return;
+  const dt = clamp(delta, 0, .05, 0);
+  const dx = target.x - actor.x, dz = target.z - actor.z;
+  if (Number.isFinite(dx) && Number.isFinite(dz) && Math.hypot(dx, dz) > .75) {
+    const yaw = wrapYaw(camera.yaw);
+    const difference = wrapYaw(Math.atan2(dx, dz) - yaw);
+    const turn = difference * (1 - Math.exp(-10 * dt));
+    camera.yaw = wrapYaw(yaw + Math.max(-3.5 * dt, Math.min(3.5 * dt, turn)));
+  }
+  camera.pitch = pitchInRange(camera.pitch) + (CAMERA_DEFAULTS.pitch - pitchInRange(camera.pitch)) * (1 - Math.exp(-8 * dt));
 }
 
 /** Positive delta zooms out, in world units; negative delta zooms in. */

@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { CAMERA_DEFAULTS, CAMERA_LIMITS, calculateCameraPose, calculateCameraViewOffset, createCamera, orbitCamera, recenterCamera, zoomCamera } from '../components/game/camera.ts';
+import { CAMERA_DEFAULTS, CAMERA_LIMITS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, orbitCamera, recenterCamera, trackCameraTarget, zoomCamera } from '../components/game/camera.ts';
+import { applyAction, createGame } from '../game/engine.ts';
+import { movement } from '../components/game/input.ts';
 
 const near = (actual: number, expected: number) => assert.ok(Math.abs(actual - expected) < 1e-9, `${actual} != ${expected}`);
 
@@ -144,4 +146,79 @@ test('viewport framing shift is bounded and handles missing or invalid layout sa
   assert.equal(calculateCameraViewOffset(NaN, 470, 450), 0);
   assert.equal(calculateCameraViewOffset(720, Infinity, 450), 0);
   assert.equal(calculateCameraViewOffset(720, 470, NaN), 0);
+});
+
+test('camera locks only for the controlled living engaged actor and releases with encounter state', () => {
+  const state = createGame('trial');
+  assert.equal(cameraLockTarget(state, 0), null);
+  applyAction(state, 0, { type: 'start' });
+  assert.equal(cameraLockTarget(state, 0), state.boss);
+  assert.equal(cameraLockTarget(state, 1), null, 'another actor engaging must not lock this slot');
+  applyAction(state, 0, { type: 'engage' });
+  assert.equal(cameraLockTarget(state, 0), null, 'disengage releases even while the party is fighting');
+  applyAction(state, 0, { type: 'engage' });
+  const restored = JSON.parse(JSON.stringify(state));
+  assert.equal(cameraLockTarget(restored, 0), restored.boss, 'restored/online snapshots need no local selection marker');
+  state.party[0].hp = 0;
+  assert.equal(cameraLockTarget(state, 0), null);
+  state.party[0].hp = 100;
+  state.boss.hp = 0;
+  assert.equal(cameraLockTarget(state, 0), null);
+  state.boss.hp = 100;
+  for (const status of ['ready', 'victory', 'defeat'] as const) {
+    state.status = status;
+    assert.equal(cameraLockTarget(state, 0), null);
+  }
+});
+
+test('combat tracking faces the enemy from every side without changing game state or zoom', () => {
+  const state = createGame('trial');
+  applyAction(state, 0, { type: 'start' });
+  const before = structuredClone(state), actor = state.party[0];
+  for (const angle of [-Math.PI, -Math.PI / 2, 0, Math.PI / 2, Math.PI - .01]) {
+    const camera = createCamera(angle + 2, 18);
+    orbitCamera(camera, 0, .5);
+    const target = { x: actor.x + Math.sin(angle) * 9, z: actor.z + Math.cos(angle) * 9 };
+    for (let i = 0; i < 240; i++) trackCameraTarget(camera, actor, target, 1 / 60);
+    near(Math.sin(camera.yaw), Math.sin(angle));
+    near(Math.cos(camera.yaw), Math.cos(angle));
+    near(camera.pitch, CAMERA_DEFAULTS.pitch);
+    assert.equal(camera.distance, 18);
+    const forward = movement(0, 1, camera.yaw), strafe = movement(1, 0, camera.yaw);
+    assert.ok(forward.x * (target.x - actor.x) + forward.z * (target.z - actor.z) > 8.99);
+    near(strafe.x * (target.x - actor.x) + strafe.z * (target.z - actor.z), 0);
+  }
+  assert.deepEqual(state, before);
+});
+
+test('look input cannot break engagement lock, zoom works, and free orbit resumes without a snap', () => {
+  const state = createGame('trial'), camera = createCamera(.8, 16);
+  applyAction(state, 0, { type: 'engage' });
+  const before = { ...camera };
+  orbitCamera(camera, 1, .8, !!cameraLockTarget(state, 0));
+  assert.deepEqual(camera, before, 'all mouse, key and stick look input shares this guard');
+  zoomCamera(camera, -2);
+  assert.equal(camera.distance, 14);
+  trackCameraTarget(camera, state.party[0], cameraLockTarget(state, 0), .05);
+  const lockedView = { ...camera };
+  applyAction(state, 0, { type: 'engage' });
+  trackCameraTarget(camera, state.party[0], cameraLockTarget(state, 0), .05);
+  assert.deepEqual(camera, lockedView, 'release keeps the last view');
+  orbitCamera(camera, .2, .1, !!cameraLockTarget(state, 0));
+  near(camera.yaw, lockedView.yaw + .2);
+  near(camera.pitch, lockedView.pitch + .1);
+  assert.equal(camera.distance, 14);
+});
+
+test('tracking crosses the yaw seam along the short arc and avoids whips at target overlap', () => {
+  const camera = createCamera(Math.PI - .01);
+  trackCameraTarget(camera, { x: 0, z: 0 }, { x: -.1, z: -10 }, .05);
+  assert.ok(Math.abs(Math.atan2(Math.sin(camera.yaw - Math.PI), Math.cos(camera.yaw - Math.PI))) < .01);
+  const yaw = camera.yaw;
+  for (const target of [{ x: 0, z: 0 }, { x: .1, z: .1 }, { x: -.2, z: -.2 }]) {
+    trackCameraTarget(camera, { x: 0, z: 0 }, target, .05);
+    near(camera.yaw, yaw);
+  }
+  trackCameraTarget(camera, { x: 0, z: 0 }, { x: 0, z: 10 }, 5);
+  assert.ok(Math.abs(Math.atan2(Math.sin(camera.yaw - yaw), Math.cos(camera.yaw - yaw))) <= .175 + 1e-9, 'resume/crossing rotation is bounded');
 });

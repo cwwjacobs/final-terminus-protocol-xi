@@ -29,7 +29,7 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
   const toggle = (key: 'invertMouseX'|'invertMouseY'|'invertPadX'|'invertPadY'|'invertMoveX'|'invertMoveY', label: string) =>
     <label className="checkbox" key={key}><input type="checkbox" checked={value[key]} onChange={e => onChange({ ...value, [key]: e.target.checked })}/>{label}</label>;
   return <div className="controls-panel">
-    <p>Drag the battlefield or use the right stick to look around. Scroll to zoom. Looking around while standing still does not turn your character. Movement follows the camera.</p>
+    <p>Engaging automatically locks the camera onto the enemy. Disengage to look around with a battlefield drag or the right stick. Scroll to zoom in either mode. Movement follows the camera.</p>
     <div className="camera-settings">
       {number('mouseSensitivity','Mouse look sensitivity',.1,3,.1)}
       {number('stickSensitivity','Controller look sensitivity',.1,3,.1)}

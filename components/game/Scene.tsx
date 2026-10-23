@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import type { Action, GameState } from '@/game/types';
-import { ARENA_RADIUS, CONE_HALF_ANGLE } from '@/game/content';
+import { ARENA_RADIUS, BURST_WINDOW, CONE_HALF_ANGLE, MAGIC } from '@/game/content';
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
-import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, createCamera, type CameraState } from './camera';
+import { activeBurst } from './combat-feedback';
+import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
 
 export interface SceneProps {
   state: GameState;
@@ -218,6 +219,9 @@ export default function Scene(props: SceneProps) {
 
     const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
     const targetMaterial = targetRing.material as THREE.MeshBasicMaterial;
+    const burstRing = ring(scene, 3.15, 3.24, '#ffffff', .95, .07);
+    const burstMaterial = burstRing.material as THREE.MeshBasicMaterial;
+    burstRing.visible = false;
     const reticleMaterial = new THREE.MeshBasicMaterial({ color: '#ead39a', transparent: true, opacity: .9, side: THREE.DoubleSide, depthWrite: false });
     const targetReticle = mesh(scene, new THREE.RingGeometry(.6, .64, 4), reticleMaterial);
     targetRing.visible = targetReticle.visible = false;
@@ -368,7 +372,8 @@ export default function Scene(props: SceneProps) {
       }
       targetPulseAge += dt;
       const pulse = Math.max(0, 1 - targetPulseAge / .5);
-      const bossSelected = selectedTarget === 'boss' && state.boss.hp > 0;
+      const lockedTarget = cameraLockTarget(state, slot);
+      const bossSelected = (selectedTarget === 'boss' || !!lockedTarget) && state.boss.hp > 0;
       targetRing.position.set(state.boss.x, .045, state.boss.z);
       targetRing.visible = targetReticle.visible = bossSelected;
       targetRing.scale.setScalar(1 + pulse * .18);
@@ -377,6 +382,14 @@ export default function Scene(props: SceneProps) {
       targetReticle.position.set(bossRig.root.position.x, 3.8, bossRig.root.position.z);
       targetReticle.scale.setScalar(1 + pulse * .5);
       reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
+      const burst = activeBurst(state);
+      burstRing.visible = !!burst;
+      if (burst) {
+        burstRing.position.set(bossRig.root.position.x, .07, bossRig.root.position.z);
+        burstMaterial.color.set(MAGIC[burst.element].color);
+        burstRing.geometry.setDrawRange(0, Math.max(1, Math.ceil(128 * Math.min(1, burst.remaining / BURST_WINDOW))) * 6);
+        reticleMaterial.color.copy(burstMaterial.color);
+      }
 
       const cast = state.boss.cast;
       circleWarn.visible = Boolean(cast && cast.kind !== 'cone'); coneWarn.visible = cast?.kind === 'cone';
@@ -405,9 +418,11 @@ export default function Scene(props: SceneProps) {
       }
       world.shards.rotation.y = Math.sin(now * .000015) * .018;
       world.stars.rotation.y = now * .000001;
-      // Read the mutable local camera every frame. Actor movement/facing cannot
-      // overwrite an independent orbit; explicit recenter belongs to input/UI.
-      const pose = calculateCameraPose(cameraState ?? fallbackCamera, rigs[slot].root.position, cameraHeight, shoulderOffset);
+      // Engaging locks the view toward the living enemy; disengaging leaves this
+      // heading in place for free orbit. Input reads the same yaw for movement.
+      const orbit = cameraState ?? fallbackCamera;
+      trackCameraTarget(orbit, rigs[slot].root.position, lockedTarget ? bossRig.root.position : null, dt);
+      const pose = calculateCameraPose(orbit, rigs[slot].root.position, cameraHeight, shoulderOffset);
       cameraPosition.set(pose.position.x, pose.position.y, pose.position.z);
       cameraLook.set(pose.lookAt.x, pose.lookAt.y, pose.lookAt.z);
       if (!initializedCamera) { camera.position.copy(cameraPosition); smoothedLook.copy(cameraLook); initializedCamera = true; }
