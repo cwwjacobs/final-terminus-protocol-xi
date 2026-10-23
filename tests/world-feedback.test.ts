@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { createGame } from '../game/engine.ts';
 import { combatNumber, CombatNumberPool, partyFeedback, PresentationEvents, type CombatEvent, type CombatNumber } from '../components/game/world-feedback.ts';
 import { FloatingFeedback } from '../components/game/floating-feedback.ts';
+import { GLYPHS, MAX_GLYPHS_PER_NUMBER, layoutGlyphs } from '../components/game/combat-glyphs.ts';
 
 function damage(id: number, time = 0): CombatEvent {
   return { id, time, kind: 'auto', text: 'A log is not a targeting API', actor: 0, value: 120 };
@@ -105,14 +106,17 @@ test('number overlay stays still with reduced motion, clips behind camera and re
     children: Element[] = [];
     style: Record<string, string> = {};
     dataset: Record<string, string> = {};
+    attributes: Record<string, string> = {};
     textContent = '';
     removed = false;
-    setAttribute() {}
+    tag: string;
+    constructor(tag = 'div') { this.tag = tag; }
+    setAttribute(name: string, value: string) { this.attributes[name] = value; }
     appendChild(child: Element) { this.children.push(child); }
     remove() { this.removed = true; }
   }
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
-  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: () => new Element() } });
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: (tag: string) => new Element(tag), createElementNS: (_ns: string, tag: string) => new Element(tag) } });
   try {
     const host = new Element();
     const overlay = new FloatingFeedback(host as unknown as HTMLElement, 2);
@@ -121,9 +125,14 @@ test('number overlay stays still with reduced motion, clips behind camera and re
     const feedback: CombatNumber = { id: 1, target: 0, tone: 'heal', text: '+640' };
     overlay.spawn(feedback, { x: 0, y: 2, z: 0 });
     overlay.update(.1, camera, 800, 800, true);
-    const layer = host.children[0], label = layer.children[0];
+    const layer = host.children[0], sheet = layer.children[0], label = layer.children[1];
     const still = label.style.transform;
-    assert.equal(label.textContent, '+640'); assert.equal(label.style.opacity, '1');
+    assert.equal(sheet.children[0].children.length, Object.keys(GLYPHS).length, 'one shared outline per glyph');
+    assert.equal(label.dataset.value, '+640'); assert.equal(label.style.opacity, '1');
+    const drawn = label.children.filter(use => use.style.display !== 'none');
+    assert.deepEqual(drawn.map(use => use.attributes.href.split('-').at(-1)), ['plus', '6', '4', '0'], 'outlines are referenced, not text');
+    assert.equal(label.children.length, MAX_GLYPHS_PER_NUMBER, 'glyph nodes are preallocated');
+    assert.equal(label.attributes.viewBox.split(' ')[2], String(layoutGlyphs('+640').width));
     overlay.update(.2, camera, 800, 800, true);
     assert.equal(label.style.transform, still, 'reduced motion fades in place without lift');
     overlay.update(.1, camera, 800, 800, false);
@@ -132,10 +141,41 @@ test('number overlay stays still with reduced motion, clips behind camera and re
     overlay.spawn({ ...feedback, id: 2 }, { x: 0, y: 2, z: 20 });
     overlay.update(.1, camera, 800, 800, false);
     assert.equal(label.style.opacity, '0', 'off-screen target is not pinned to an unrelated screen location');
-    assert.equal(layer.children.length, 2, 'spawn/reset do not add DOM nodes');
+    assert.equal(layer.children.length, 3, 'spawn/reset do not add DOM nodes: one glyph sheet and two labels');
     overlay.dispose(); assert.equal(layer.removed, true);
   } finally {
     if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
     else Reflect.deleteProperty(globalThis, 'document');
+  }
+});
+
+test('glyph layout covers every combatNumber text, drops unknown characters and stays within the node budget', () => {
+  const state = createGame('trial');
+  const texts = [
+    combatNumber({ ...damage(1), kind: 'burst', value: 999_999_999 }, state)!.text,
+    combatNumber({ ...damage(2), kind: 'chain', value: 12_480 }, state)!.text,
+    combatNumber({ ...damage(3), kind: 'hit', actor: 1, value: 63 }, state)!.text,
+    combatNumber({ ...damage(4), kind: 'heal', actor: 4, target: 1, value: 999_999_999 }, state)!.text,
+    combatNumber({ ...damage(5), value: 7 }, state)!.text,
+  ];
+  assert.equal(texts[0], '✦ 999,999+');
+  for (const text of texts) {
+    const layout = layoutGlyphs(text);
+    const expected = Array.from(text).filter(character => character !== ' ').length;
+    assert.equal(layout.keys.length, expected, `every character of ${text} has an outline`);
+    assert.equal(layout.x.length, expected);
+    assert.ok(layout.keys.length <= MAX_GLYPHS_PER_NUMBER, 'fits the preallocated nodes');
+    for (let i = 1; i < layout.x.length; i++) assert.ok(layout.x[i] > layout.x[i - 1], 'advances monotonically');
+    assert.ok(layout.width > layout.x.at(-1)!, 'width covers the last glyph');
+    for (const key of layout.keys) assert.ok(key in GLYPHS);
+  }
+  assert.deepEqual(layoutGlyphs('✦ 1,0'), { keys: ['burst', 1, 'comma', 0], x: layoutGlyphs('✦ 1,0').x, width: layoutGlyphs('✦ 1,0').width });
+  assert.ok(layoutGlyphs('✦ 1').x[1] > layoutGlyphs('✦1').x[1], 'a space advances the pen');
+  assert.deepEqual(layoutGlyphs('§ 12 ¶').keys, [1, 2], 'unknown characters are dropped, never drawn as a wrong glyph');
+  assert.deepEqual(layoutGlyphs('').keys, []); assert.equal(layoutGlyphs('').width, 1);
+  assert.equal(layoutGlyphs('1234567890123').keys.length, MAX_GLYPHS_PER_NUMBER, 'overlong text is truncated at the budget, not grown');
+  for (const glyph of Object.values(GLYPHS)) {
+    assert.match(glyph.d, /^M[-\d.]/, 'absolute path data');
+    assert.ok(glyph.advance > 0 && glyph.advance < 1000);
   }
 });

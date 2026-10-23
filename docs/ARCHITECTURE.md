@@ -19,6 +19,7 @@ The foundation separates combat rules, player input, presentation and room autho
 | `components/game/CommandMenu.tsx`, `command-menu.ts` | Compact command folders, pure navigation and fresh action availability; combat continues during selection |
 | `components/game/Scene.tsx` | Three.js scene, follow camera, telegraphs, pooled effects and telemetry |
 | `components/game/world-feedback.ts`, `floating-feedback.ts`, `party-markers.ts` | Presentation event baselines, fixed number pools and role/selection/TP/low-HP markers |
+| `components/game/combat-glyphs.ts`, `icons.ts`, `Icon.tsx` | Vector outlines for floating numbers (pure layout) and HUD icons; one shared `<defs>` sheet per overlay, pooled `<use>` nodes, `currentColor` icons sized by font-size |
 | `components/game/actors.ts` | Procedural articulated rigs, reusable asset resources and animation adapter |
 | `lib/rooms.ts` | Request validation, room leases, server-time advancement, CAS and D1 repository |
 | `lib/local-save.ts` | Local save validation independent of the React HUD |

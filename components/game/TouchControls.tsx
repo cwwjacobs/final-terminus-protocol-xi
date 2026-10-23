@@ -3,6 +3,8 @@ import { useEffect, useLayoutEffect, useRef, type PointerEvent, type MouseEvent 
 import type { Action, GameState } from '../../game/types';
 import { canUseActionRole } from '../../game/content';
 import { abilities } from './catalog';
+import Icon from './Icon';
+import type { IconName } from './icons';
 import { abilityCue } from './combat-feedback';
 import { commandUnavailable } from './command-menu';
 import { resetTouchStick, touchAxes, type TouchStickState } from './touch-input';
@@ -17,12 +19,12 @@ interface Props {
 }
 
 const utility = [
-  { name: 'Revelry', glyph: '✦', color: 'gold', action: { type: 'revelry' } },
-  { name: 'Provoke', glyph: '♜', color: 'gold', action: { type: 'provoke' } },
-  { name: 'Mend', glyph: '✚', color: 'mint', action: { type: 'heal' } },
-  { name: 'Guard', glyph: '⬡', color: 'ice', action: { type: 'guard' } },
-  { name: 'Evade', glyph: '↗︎', color: 'mint', action: { type: 'dodge' } },
-] satisfies { name: string; glyph: string; color: string; action: Action }[];
+  { name: 'Revelry', icon: 'revelry', color: 'gold', action: { type: 'revelry' } },
+  { name: 'Provoke', icon: 'provoke', color: 'gold', action: { type: 'provoke' } },
+  { name: 'Mend', icon: 'mend', color: 'mint', action: { type: 'heal' } },
+  { name: 'Guard', icon: 'guard', color: 'ice', action: { type: 'guard' } },
+  { name: 'Evade', icon: 'evade', color: 'mint', action: { type: 'dodge' } },
+] satisfies { name: string; icon: IconName; color: string; action: Action }[];
 
 /** Each surface owns its pointer; an ability never releases the left stick. */
 export default function TouchControls({ state, slot, stick, blocked, onAction, onFocus }: Props) {
@@ -81,7 +83,7 @@ export default function TouchControls({ state, slot, stick, blocked, onAction, o
     <div className="touch-movement">
       <button className={`touch-engage ${player.engaged ? 'on' : ''}`} aria-pressed={player.engaged} disabled={!!commandUnavailable(state, slot, { type: 'engage' })} {...press(() => onAction({ type: 'engage' }))}>{player.engaged ? 'Disengage' : 'Engage'}</button>
       <div className="touch-stick" role="group" aria-label="Movement stick: drag to move" onPointerDown={begin} onPointerMove={update} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
-        <span className="touch-stick-cross" aria-hidden="true">＋</span><span className="touch-stick-knob" ref={knob} aria-hidden="true"/>
+        <span className="touch-stick-cross" aria-hidden="true"><Icon name="cross"/></span><span className="touch-stick-knob" ref={knob} aria-hidden="true"/>
       </div>
     </div>
     <div className="touch-action-cluster">
@@ -92,7 +94,7 @@ export default function TouchControls({ state, slot, stick, blocked, onAction, o
           const cooldown = Math.max(0, player.cooldowns[item.action.type] || 0);
           const detail = cooldown > 0 ? `${Math.ceil(cooldown)}s` : cue?.label ?? (reason || (item.action.type === 'weapon' ? '1000 TP' : item.action.type === 'magic' ? '70 MP' : item.action.type === 'revelry' ? '+1 party stack' : 'Ready'));
           return <button key={item.name} className={`ability touch-ability ${item.color} ${cue?.kind ?? ''}`} disabled={!!reason} aria-label={`${item.name}: ${detail}`} title={detail} {...press(() => onAction(item.action))}>
-            <span className="ability-icon" aria-hidden="true">{cooldown > 0 ? `${Math.ceil(cooldown)}s` : item.glyph}</span><strong>{item.name}</strong>
+            <span className="ability-icon" aria-hidden="true">{cooldown > 0 ? `${Math.ceil(cooldown)}s` : <Icon name={item.icon}/>}</span><strong>{item.name}</strong>
           </button>;
         })}
       </div>

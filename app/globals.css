@@ -163,3 +163,11 @@
 @media(forced-colors:active){.touch-stick,.touch-stick-knob,.touch-controls button{border:1px solid ButtonText}.touch-stick-knob{background:Highlight}.enemy-mark{color:CanvasText}}
 
 .collapse-clock{display:none}.game-shell[data-layout=touch] .boss-panel .collapse-clock{display:inline-block;margin-left:10px;color:#ffac95;font-size:10px}
+
+/* Vector HUD icons (components/game/icons.ts). They size from font-size and inherit color, so the glyph rules above still apply. */
+.ui-icon{display:inline-block;width:1em;height:1em;vertical-align:-.16em;flex-shrink:0;overflow:visible}
+.brand-sigil .ui-icon{vertical-align:-.2em}
+.portrait .ui-icon,.ability-icon .ui-icon{vertical-align:0}
+.loop-legend i .ui-icon{vertical-align:-.1em}
+.command-cursor .ui-icon,.command-row-tail .ui-icon{vertical-align:-.12em}
+.touch-stick-cross .ui-icon{display:block}

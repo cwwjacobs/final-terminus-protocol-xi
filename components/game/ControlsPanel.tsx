@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { COMMANDS, bindButton, bindKey, buttonLabel, defaults, keyboardEventBinding, keyLabel, type Command, type ControlSettings } from './control-settings';
+import Icon from './Icon';
 
 interface Props { value: ControlSettings; onChange: (value: ControlSettings) => void; onRecenter: () => void }
 export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
@@ -55,7 +56,7 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
       <div className="binding-head" aria-hidden="true"><span>Action</span><span>Keyboard</span><span>Controller</span></div>
       {COMMANDS.filter(c => c.group === group).map(command => <div className="binding-row" key={command.id}>
         <span>{command.label}</span>
-        <div className="key-binding"><button className={capturing === command.id ? 'listening' : ''} aria-label={`Rebind ${command.label}`} onClick={e => { captureButton.current = e.currentTarget; setCapturing(command.id); }}>{capturing === command.id ? 'Press a key…' : keyLabel(value.keys[command.id]) || 'Unbound'}</button><button className="unbind" aria-label={`Clear key for ${command.label}`} onClick={() => { onChange(bindKey(value,command.id,'')); setNotice(`${command.label} keyboard binding cleared.`); }}>×</button></div>
+        <div className="key-binding"><button className={capturing === command.id ? 'listening' : ''} aria-label={`Rebind ${command.label}`} onClick={e => { captureButton.current = e.currentTarget; setCapturing(command.id); }}>{capturing === command.id ? 'Press a key…' : keyLabel(value.keys[command.id]) || 'Unbound'}</button><button className="unbind" aria-label={`Clear key for ${command.label}`} onClick={() => { onChange(bindKey(value,command.id,'')); setNotice(`${command.label} keyboard binding cleared.`); }}><Icon name="close"/></button></div>
         <select aria-label={`Controller button for ${command.label}`} value={value.buttons[command.id] ?? ''} onChange={e => { onChange(bindButton(value,command.id,e.target.value === '' ? undefined : Number(e.target.value))); setNotice('Controller mapping updated; conflicting buttons are swapped or cleared.'); }}><option value="">Unbound</option>{Array.from({length:17},(_,button) => <option key={button} value={button}>{buttonLabel(button)}</option>)}</select>
       </div>)}
     </details>)}
