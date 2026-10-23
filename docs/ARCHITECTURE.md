@@ -16,7 +16,9 @@ The foundation separates combat rules, player input, presentation and room autho
 | `components/game/input.ts` | Keyboard, mouse and browser Gamepad API translated into combat or local camera/target commands |
 | `components/game/camera.ts` | Bounded independent camera orbit, pitch, zoom and pure world-space pose |
 | `components/game/ControlsPanel.tsx`, `targeting.ts` | Remapping UI and client-only target cycling |
+| `components/game/CommandMenu.tsx`, `command-menu.ts` | Compact command folders, pure navigation and fresh action availability; combat continues during selection |
 | `components/game/Scene.tsx` | Three.js scene, follow camera, telegraphs, pooled effects and telemetry |
+| `components/game/world-feedback.ts`, `floating-feedback.ts`, `party-markers.ts` | Presentation event baselines, fixed number pools and role/selection/TP/low-HP markers |
 | `components/game/actors.ts` | Procedural articulated rigs, reusable asset resources and animation adapter |
 | `lib/rooms.ts` | Request validation, room leases, server-time advancement, CAS and D1 repository |
 | `lib/local-save.ts` | Local save validation independent of the React HUD |
@@ -32,7 +34,7 @@ Actors hold HP, MP, TP, engagement, cooldowns, position/facing, cumulative enmit
 
 The chain opener, chain window and burst window are explicit state. The sequence requires a distinct second actor; merely repeating a weaponskill on the same actor does not close the chain. Weaponskills require at least 1,000 TP, consume all TP and apply a damage multiplier for the amount spent. Boss circle, cone and raid telegraphs are also state, so rendering and collision checks use the same attack description. The renderer imports the kernel's arena radius and cone angle.
 
-The event list is bounded to 60 entries, with monotonic event IDs. Presentation consumes these events for attack motion and effects; animations do not decide whether damage happened.
+The event list is bounded to 60 entries, with monotonic event IDs. Presentation consumes these events for attack motion and effects; animations do not decide whether damage happened. Heal events optionally identify the recipient party slot independently of the caster. Older events remain valid. A local presentation epoch on encounter/session replacement baselines history and clears effects; it is not sent as a combat action or stored as server authority.
 
 `combatTime` starts at engagement and advances only during combat, separately from total simulation time. God mode warns at 420 combat seconds, begins the ten-second Coherence Collapse cast at 440, and defeats the party at 450 if the boss remains alive. This prevents an indefinitely sustained encounter; guard and evade cannot bypass that deadline.
 
@@ -102,7 +104,7 @@ A continuous room process could own ticking and use D1 for checkpoints rather th
 
 The scripted encounter test controls one actor programmatically while four trusts run their normal logic. The player moves, avoids telegraphs, guards and selects weaponskills; trusts supply their role-specific support. Current diagnostics report trial victory at 116.50 seconds and god victory at 363.85 seconds, with chains, bursts and all three phases. A separate idle-leader god scenario loses at the 450-second deadline. Those results establish the loop and participation requirement under those test policies; they do not establish difficulty, enjoyment, accessibility or human fight duration.
 
-The gamepad mapping is implemented through the browser Gamepad API, including dead zones and button-edge detection. Physical controller hardware is unverified. Controller menu navigation is absent; keyboard/action-button remapping and optional inversion are implemented. The renderer has a WebGL failure message, but that is not a substitute for browser/GPU testing.
+The gamepad mapping is implemented through the browser Gamepad API, including dead zones and button-edge detection. Physical controller hardware is unverified. Commands provides fixed D-pad/A/B navigation with a remappable opener; settings dialogs retain native keyboard/Tab behavior. Keyboard/action-button remapping and optional inversion are implemented. The renderer has a WebGL failure message, but that is not a substitute for browser/GPU testing.
 
 Tests, TypeScript checks and a production build should remain separate from browser gameplay, multi-client deployment and physical-device checks. These documents make no claim that those latter gates have passed. Publication, access-policy changes and source synchronization are separate milestone operations.
 

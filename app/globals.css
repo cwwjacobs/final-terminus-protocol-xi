@@ -32,3 +32,33 @@
 @keyframes burst-ready-glow{50%{box-shadow:0 0 6px currentColor}}@keyframes burst-hit{from{opacity:.4;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
 @media(max-width:760px){.chain-feedback{width:min(270px,calc(100vw - 28px));left:auto;right:12px;transform:none;padding:8px 10px}.chain-feedback-title strong{font-size:12px}.chain-feedback.opener .chain-feedback-title strong{font-size:10px}.chain-feedback-title>span{font-size:23px}.chain-feedback-heading{font-size:7px;letter-spacing:.7px}.chain-feedback p{font-size:8px}.burst-landed{font-size:9px}.burst-landed b{font-size:9px;float:none;display:block;margin-top:3px}}
 @media(prefers-reduced-motion:reduce){.ability.burst-ready,.burst-landed{animation:none}.chain-countdown i{transition:none}}
+
+/* Compact commands preserve the battlefield; expanded choices occupy one side. */
+.game-shell{width:100%;min-height:0;outline:none}
+.player-console{max-width:calc(100% - 24px);padding:10px 14px 8px}
+.player-status{padding-bottom:8px;gap:14px}.player-status>*{min-width:0}.player-status .resource{min-width:68px}
+.player-console .revelry-panel{min-height:31px;padding-top:5px}
+.command-toolbar{display:flex;align-items:center;gap:12px;margin-top:7px}
+.command-menu{display:flex;align-items:center;gap:12px;position:relative;flex:1;min-width:0}
+.command-toggle{display:flex;align-items:center;gap:24px;justify-content:space-between;min-width:170px;padding:7px 10px;border-color:#d2b47a70;font-size:12px}
+.command-toggle kbd{font-size:10px;color:var(--gold)}
+.command-live-note{font-size:9px;color:var(--muted)}
+.hotbar-toggle{padding:7px 9px;font-size:10px;white-space:nowrap}
+.command-popover{position:absolute;right:0;bottom:calc(100% + 10px);width:280px;max-width:calc(100vw - 36px);max-height:min(370px,58dvh);overflow-y:auto;padding:8px;background:#100d1dfa;border:1px solid #d2b47a85;box-shadow:0 10px 35px #0009;z-index:12;scrollbar-width:thin}
+.command-caption{display:flex;align-items:center;justify-content:space-between;gap:5px;min-height:26px;font-size:10px;color:var(--gold);padding:0 3px 5px;letter-spacing:.25px}
+.command-caption button{padding:2px 8px;font-size:16px;line-height:20px}
+.command-row{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:7px 9px;border:1px solid transparent;border-radius:0;background:transparent;font-size:13px;min-height:32px}
+.command-row .command-row-tail{margin-left:auto;color:var(--gold)}
+.command-cursor{width:10px;color:var(--gold);opacity:0}
+.command-row.is-current{background:#d2b47a15;border-color:#d2b47a90}.command-row.is-current .command-cursor{opacity:1}
+.command-row[aria-disabled=true]{color:#a69caf}.command-row[aria-disabled=true] .command-row-tail{color:#a69caf}
+.command-row:focus-visible{outline:2px solid var(--mint);outline-offset:-2px}
+.command-detail{min-height:34px;border-top:1px solid var(--line);padding:8px 4px 3px;margin-top:5px;font-size:10px;line-height:1.4;color:var(--ink)}
+.command-nav-hint{padding:5px 4px 2px;font-size:9px;line-height:1.4;color:var(--muted)}
+.player-console .hotbar{flex-wrap:wrap}.player-console .loop-legend{margin-top:7px;flex-wrap:wrap}
+@media(max-height:780px){.party-panel{max-height:calc(100dvh - 310px)}.entry-card{top:35%}.command-popover{max-height:53dvh}}
+@media(max-width:760px){.game-shell{min-height:0}.player-console{max-width:calc(100% - 20px);padding:8px 10px}.player-status{gap:8px}.command-live-note{display:none}.command-toggle{min-width:135px;gap:10px}.command-toolbar{gap:7px}.command-popover{left:0;right:auto;width:min(260px,calc(100vw - 40px))}.party-panel{max-height:calc(100dvh - 390px);min-height:90px;overflow-y:auto}.player-console .loop-legend{gap:5px}.hotbar-toggle{font-size:9px;padding:7px}.command-row{font-size:12px}}
+@media(forced-colors:active){.command-popover,.command-row.is-current{border-color:Highlight}.command-cursor,.command-toggle kbd{color:ButtonText}.command-row[aria-disabled=true]{color:GrayText}}
+
+/* The objective remains in the field guide; active battle gives the feed room. */
+.game-shell[data-status=fighting] .encounter-note{display:none}

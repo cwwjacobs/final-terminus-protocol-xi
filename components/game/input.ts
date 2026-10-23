@@ -1,6 +1,7 @@
 import type { Action } from '../../game/types.ts';
 import { COMMANDS, keyboardEventBinding, normalizeControls } from './control-settings.ts';
 import type { Command, ControlSettings } from './control-settings.ts';
+import type { MenuIntent } from './command-menu.ts';
 
 export const deadzone = (n: number, threshold = 0.18) => !Number.isFinite(n) || Math.abs(n) <= threshold ? 0 : Math.sign(n) * Math.min(1, (Math.abs(n) - threshold) / (1 - threshold));
 /** Positive local x is screen-right; positive local z is camera-forward. */
@@ -16,6 +17,7 @@ export interface InputOptions {
   onCommand: (command: Command) => void;
   onLook: (dx: number, dy: number) => void;
   onZoom: (delta: number) => void;
+  commandMenu?: { isOpen: () => boolean; onInput: (intent: MenuIntent) => void };
 }
 
 const combat: Partial<Record<Command, Action>> = {
@@ -30,22 +32,26 @@ const modifier = (code: string) => code === 'ShiftLeft' || code === 'ShiftRight'
 const bounded = (n: number, maximum: number) => Number.isFinite(n) ? Math.max(-maximum, Math.min(maximum, n)) : 0;
 
 export function bindInput(options: InputOptions): () => void {
-  const { send, getFacing, getCameraYaw, getSettings, onPad, enabled, onCommand, onLook, onZoom } = options;
+  const { send, getFacing, getCameraYaw, getSettings, onPad, enabled, onCommand, onLook, onZoom, commandMenu } = options;
   const held = new Set<Command>();
   const pendingModifiers = new Map<string, Command>();
   let settings = normalizeControls(getSettings()), signature = JSON.stringify(getSettings());
   let last = performance.now(), lastMove = 0, frame = 0, dragging = false;
   let focused = document.hasFocus(), wasPlayable = false, padPresent = false, padArmed = false;
   let previousButtons: boolean[] = [], padId: number | null = null;
+  let menuWasOpen = false, menuPadArmed = false, menuDirection = -1, menuRepeatAt = 0;
 
   const editable = () => {
     const element = document.activeElement as HTMLElement | null;
     return !!element && (/^(INPUT|SELECT|TEXTAREA|BUTTON|A|SUMMARY)$/.test(element.tagName) || element.isContentEditable || !!element.closest?.('[role="dialog"], [role="button"], [role="menu"], [role="textbox"], [role="link"]'));
   };
-  const playable = () => focused && !document.hidden && enabled() && !editable();
+  const menuOpen = () => !!commandMenu?.isOpen();
+  const available = () => focused && !document.hidden && enabled();
+  const menuPlayable = () => available() && (!editable() || !!(document.activeElement as HTMLElement | null)?.closest?.('[data-command-menu]'));
+  const playable = () => available() && !menuOpen() && !editable();
   const stop = () => send({ type: 'move', x: 0, z: 0, facing: getFacing() });
   function clearHeld() {
-    held.clear(); pendingModifiers.clear(); dragging = false; padArmed = false;
+    held.clear(); pendingModifiers.clear(); dragging = false; padArmed = false; menuPadArmed = false; menuDirection = -1;
     stop();
   }
   function refreshSettings() {
@@ -53,12 +59,25 @@ export function bindInput(options: InputOptions): () => void {
     if (next !== signature) { signature = next; settings = normalizeControls(raw); clearHeld(); }
   }
   function fire(command: Command) {
+    if (command === 'commandMenu' && commandMenu) { clearHeld(); commandMenu.onInput('open'); return; }
     const action = combat[command];
     if (action) send(action);
     else if (!continuous.has(command)) onCommand(command);
   }
   function down(event: KeyboardEvent) {
     refreshSettings();
+    if (menuOpen()) {
+      if (!menuPlayable() || event.ctrlKey || event.altKey || event.metaKey) return;
+      if ((event.code === 'Enter' || event.code === 'NumpadEnter') && (document.activeElement as HTMLElement | null)?.closest?.('[data-command-native]')) return;
+      const intent = ({ ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'confirm', NumpadEnter: 'confirm', Escape: 'back' } as const)[event.code as 'ArrowUp'];
+      if (intent) {
+        event.preventDefault();
+        if (!event.repeat || intent === 'up' || intent === 'down') commandMenu!.onInput(intent);
+      }
+      // Tab and native form controls stay native. Every gameplay shortcut is
+      // suppressed while this menu owns input, including pending modifiers.
+      return;
+    }
     if (!playable()) return;
     const key = keyboardEventBinding(event);
     if (!key) return;
@@ -84,7 +103,7 @@ export function bindInput(options: InputOptions): () => void {
   function visibility() { if (document.hidden) clearHeld(); }
   function mouseDown(event: MouseEvent) {
     refreshSettings();
-    if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || (event.button !== 0 && event.button !== 2) || !focused || document.hidden || !enabled()) return;
+    if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || (event.button !== 0 && event.button !== 2) || !available() || menuOpen()) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     if (!playable()) return;
     event.preventDefault(); dragging = true;
@@ -110,17 +129,41 @@ export function bindInput(options: InputOptions): () => void {
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.05)); last = now;
     const pad = Array.from(navigator.getGamepads?.() ?? []).find(candidate => candidate?.connected);
     if (!!pad !== padPresent) { padPresent = !!pad; onPad(padPresent); }
-    if ((pad?.index ?? null) !== padId) { padId = pad?.index ?? null; padArmed = false; previousButtons = pad?.buttons.map(button => button.pressed) ?? []; }
+    if ((pad?.index ?? null) !== padId) { padId = pad?.index ?? null; padArmed = false; menuPadArmed = false; previousButtons = pad?.buttons.map(button => button.pressed) ?? []; }
+    const navigating = menuOpen();
+    if (navigating !== menuWasOpen) { clearHeld(); menuWasOpen = navigating; }
     const active = playable();
     if (!active && (wasPlayable || held.size || dragging || pendingModifiers.size)) clearHeld();
     wasPlayable = active;
     const buttons = pad?.buttons.map(button => button.pressed) ?? [];
+    const neutral = !buttons.some(Boolean) && (!pad || pad.axes.slice(0, 4).every(axis => deadzone(axis) === 0));
+    if (!navigating || !menuPlayable()) { menuPadArmed = false; menuDirection = -1; }
+    else if (pad && !menuPadArmed && neutral) menuPadArmed = true;
+    if (navigating && menuPlayable() && menuPadArmed) {
+      // Navigation is a fixed, separate context. A/B never fall through into
+      // engage/evade; held confirm/back buttons must be released to act again.
+      if (buttons[1] && !previousButtons[1]) commandMenu!.onInput('back');
+      else if (buttons[0] && !previousButtons[0]) commandMenu!.onInput('confirm');
+      else {
+        const direction = [12, 13, 14, 15].find(button => buttons[button]) ?? -1;
+        if (direction !== menuDirection) {
+          menuDirection = direction; menuRepeatAt = now + 360;
+          if (direction >= 0) commandMenu!.onInput(({ 12: 'up', 13: 'down', 14: 'left', 15: 'right' } as const)[direction as 12]);
+        } else if ((direction === 12 || direction === 13) && now >= menuRepeatAt) {
+          menuRepeatAt = now + 120; commandMenu!.onInput(direction === 12 ? 'up' : 'down');
+        }
+      }
+    }
     if (!active) padArmed = false;
-    else if (pad && !padArmed && !buttons.some(Boolean) && pad.axes.slice(0, 4).every(axis => deadzone(axis) === 0)) padArmed = true;
+    else if (pad && !padArmed && neutral) padArmed = true;
     const buttonHeld = (command: Command) => padArmed && settings.buttons[command] !== undefined && !!buttons[settings.buttons[command]!];
     const pressing = (command: Command) => held.has(command) || buttonHeld(command) ? 1 : 0;
     let x = 0, z = 0;
     if (active) {
+      const opener = settings.buttons.commandMenu;
+      if (padArmed && opener !== undefined && buttons[opener] && !previousButtons[opener]) fire('commandMenu');
+    }
+    if (active && playable()) {
       x = pressing('right') - pressing('left');
       z = pressing('forward') - pressing('backward');
       let lookX = (pressing('cameraLeft') - pressing('cameraRight')) * 2.1 * dt;
@@ -131,7 +174,7 @@ export function bindInput(options: InputOptions): () => void {
         lookY += deadzone(pad.axes[3] ?? 0) * dt * 2.5 * settings.stickSensitivity * (settings.invertPadY ? -1 : 1);
         for (const command of COMMANDS) {
           const button = settings.buttons[command.id];
-          if (button !== undefined && !continuous.has(command.id) && buttons[button] && !previousButtons[button]) fire(command.id);
+          if (command.id !== 'commandMenu' && button !== undefined && !continuous.has(command.id) && buttons[button] && !previousButtons[button]) fire(command.id);
         }
       }
       if (lookX || lookY) onLook(lookX, lookY);

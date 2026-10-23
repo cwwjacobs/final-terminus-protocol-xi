@@ -39,7 +39,7 @@ Open the URL printed by the server. For a local preview of the built Worker, use
 
 ## Play the loop
 
-1. Choose **Enter the encounter**, or engage with Space/controller A. Move within weapon range and stay engaged to auto attack.
+1. Choose **Enter the encounter**, use Space, or open **Commands → Attack**. Move within weapon range and stay engaged to auto attack. Enter/controller A opens Commands; a separate press confirms the highlighted choice.
 2. At **1,000 TP**, choose a weaponskill. It spends all accumulated TP; higher TP increases its damage.
 3. A **different party member** uses the matching follow-up weaponskill **1.5–8 seconds** after the opener.
 4. Cast the matching element during the resulting **8-second Magic Burst window**. Trusts coordinate their own chains, bursts, healing and enmity management.
@@ -68,7 +68,10 @@ Open **Settings → Controls & camera** to remap keyboard keys and controller bu
 | Zoom | Mouse wheel; Page Up / Page Down | Assign buttons in Controls & camera |
 | Recenter behind character | V | Right-stick click |
 | Cycle enemy target | Tab; Shift + Tab reverses | Left-stick click |
-| Engage / disengage | Space | A |
+| Open Commands | Enter | A |
+| Navigate Commands | Arrow keys | D-pad |
+| Select / back in Commands | Enter / Escape | A / B |
+| Engage / disengage | Space; Commands → Attack / Disengage | Commands → Attack / Disengage |
 | Arc Cleave / Vector Pierce / Resonance | 1 / 2 / 3 | X / Y / RB |
 | Fire / Ice / Lightning | 4 / 5 / 6 | D-pad Up / Down / Left |
 | Provoke | R | RT |
@@ -76,13 +79,17 @@ Open **Settings → Controls & camera** to remap keyboard keys and controller bu
 | Guard | Left Shift (release) | LT |
 | Evade | C | B |
 
-The camera can orbit independently while standing still. Mouse-right looks right; mouse-up looks up. The same default convention applies to the right stick. Camera height adjusts the vertical anchor, shoulder offset shifts the view sideways, and distance controls depth/zoom. Movement uses the camera's forward/right basis; moving right no longer moves left on screen. Recenter restores the view behind the character while preserving zoom.
+While disengaged, the camera can orbit independently while standing still. Engagement locks the view toward the living enemy; zoom remains available. Mouse-right looks right; mouse-up looks up. The same default convention applies to the right stick. Camera height adjusts the vertical anchor, shoulder offset shifts the view sideways, and distance controls depth/zoom. Movement uses the camera's forward/right basis. Recenter restores the view behind the character while preserving zoom.
 
 Tab always selects/cycles the available enemy, including when Crown Resonance is the only target; every press pulses its world-space marker. This is enemy selection, separate from the boss's enmity target. Starting an attack also selects the current boss automatically. This encounter still contains one enemy; cycling supports a target list for future encounters without inventing additional enemies now.
 
 Click a key binding and press a replacement; Escape cancels. Conflicts swap the previous key/button where possible or clear the displaced binding. Ctrl/Meta/Alt/browser shortcuts remain reserved. Modifier-only combat keys activate on release so Shift + Tab does not also trigger Guard. Menus preserve normal Tab navigation and suppress gameplay; wheel zoom applies only on the battlefield. Lost focus clears held input.
 
-Controller labels use the standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical hardware remains unverified. Left/right stick axes are fixed, while action buttons and their inversion/sensitivity settings are configurable. Controller menu navigation is not implemented.
+Controller labels use the standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical hardware remains unverified. Left/right stick axes are fixed, while action buttons and their inversion/sensitivity settings are configurable. Within Commands, arrows/D-pad navigate, Enter/A selects, and Escape/B goes back; these navigation controls are fixed. Settings dialogs retain normal keyboard and Tab navigation. The menu opener is remappable; older saved default A-to-engage bindings migrate to A-to-Commands.
+
+The compact console keeps resources and Revelry visible; **Show quick actions** expands the hotbar. Commands has Attack, Spells → Allies / Adversaries, Abilities, Weapon Abilities, Items and Disengage. Available actions follow the controlled role. Mend retains its existing lowest-health-ally targeting. Items is explicitly unavailable until inventory exists. Combat continues while choosing; movement, camera and combat shortcuts are suppressed while Commands owns input.
+
+World feedback shows damage and healing at their targets, with separate chain/burst labels. Ground markers distinguish role and selection; gold TP cues apply to living weapon users, while low HP has a steady warning. Feedback pools are bounded, and reduced-motion preferences suppress number lift and decorative expansion. See [docs/QOL-PORT.md](docs/QOL-PORT.md).
 
 Buttons in the HUD also perform combat actions. Bacchus, Heracles and Dolos use weaponskills; Hecate casts magic; Ariadne heals; Heracles provokes. Everyone can engage, move, guard and evade.
 

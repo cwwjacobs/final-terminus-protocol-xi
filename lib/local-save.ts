@@ -69,6 +69,7 @@ export function validSave(raw: unknown): raw is GameState {
     ) && !!state.boss && [state.boss.x, state.boss.z, state.boss.hp, state.boss.maxHp].every(Number.isFinite) &&
     Array.isArray(state.events) && state.events.length <= 100 && state.events.every((event) =>
       !!event && typeof event === 'object' && Number.isFinite(event.id) && Number.isFinite(event.time) &&
-      typeof event.text === 'string' && typeof event.kind === 'string',
+      typeof event.text === 'string' && typeof event.kind === 'string' &&
+      (event.target === undefined || (Number.isInteger(event.target) && event.target >= 0 && event.target < 5)),
     );
 }

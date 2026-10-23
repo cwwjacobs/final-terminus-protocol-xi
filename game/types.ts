@@ -78,7 +78,7 @@ export interface GameState {
   };
   chain: null | { property: string; opener: number; remaining: number; weapon: WeaponId; openedAt: number };
   burst: null | { element: Element; remaining: number };
-  events: { id: number; time: number; kind: string; text: string; actor?: number; value?: number }[];
+  events: { id: number; time: number; kind: string; text: string; actor?: number; value?: number; target?: number }[];
 }
 
 export interface ActionResult { ok: boolean; error?: string }

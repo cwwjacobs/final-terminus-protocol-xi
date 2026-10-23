@@ -7,8 +7,8 @@ const distance = (a: { x: number; z: number }, b: { x: number; z: number }) => M
 const angleDifference = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
-function event(state: GameState, kind: string, text: string, actor?: number, value?: number) {
-  state.events.push({ id: ++state.eventSeq, time: state.combatTime, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }) });
+function event(state: GameState, kind: string, text: string, actor?: number, value?: number, target?: number) {
+  state.events.push({ id: ++state.eventSeq, time: state.combatTime, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }), ...(target === undefined ? {} : { target }) });
   if (state.events.length > 60) state.events.splice(0, state.events.length - 60);
 }
 
@@ -212,7 +212,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     actor.mp -= 70;
     actor.cooldowns.heal = 5;
     threat(actor, restored * 0.16, restored * 0.4);
-    event(state, 'heal', `${actor.name} restores ${target.p.name} · +${Math.round(restored)}`, slot, restored);
+    event(state, 'heal', `${actor.name} restores ${target.p.name} · +${Math.round(restored)}`, slot, restored, target.i);
     return { ok: true };
   }
   if (action.type === 'guard') {

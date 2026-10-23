@@ -12,7 +12,7 @@ export const COMMANDS = [
   { id: 'recenter', label: 'Recenter camera', group: 'Camera', defaultKey: 'KeyV', defaultButton: 11 },
   { id: 'targetNext', label: 'Next target', group: 'Targeting', defaultKey: 'Tab', defaultButton: 10 },
   { id: 'targetPrevious', label: 'Previous target', group: 'Targeting', defaultKey: 'Shift+Tab' },
-  { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space', defaultButton: 0 },
+  { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space' },
   { id: 'cleave', label: 'Arc Cleave', group: 'Combat', defaultKey: 'Digit1', defaultButton: 2 },
   { id: 'pierce', label: 'Vector Pierce', group: 'Combat', defaultKey: 'Digit2', defaultButton: 3 },
   { id: 'resonance', label: 'Q Resonance', group: 'Combat', defaultKey: 'Digit3', defaultButton: 5 },
@@ -24,11 +24,12 @@ export const COMMANDS = [
   { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 6 },
   { id: 'dodge', label: 'Evade', group: 'Combat', defaultKey: 'KeyC', defaultButton: 1 },
   { id: 'revelry', label: 'Revelry', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 15 },
+  { id: 'commandMenu', label: 'Open command menu', group: 'Menus', defaultKey: 'Enter', defaultButton: 0 },
 ] as const;
 
 export type Command = (typeof COMMANDS)[number]['id'];
 export interface ControlSettings {
-  version: 2;
+  version: 3;
   keys: Record<Command, string>;
   buttons: Partial<Record<Command, number>>;
   mouseSensitivity: number;
@@ -52,7 +53,7 @@ const safeButton = (value: unknown): value is number => typeof value === 'number
 
 export function defaults(): ControlSettings {
   return {
-    version: 2,
+    version: 3,
     keys: Object.fromEntries(COMMANDS.map(command => [command.id, command.defaultKey])) as Record<Command, string>,
     buttons: Object.fromEntries(COMMANDS.flatMap(command => 'defaultButton' in command ? [[command.id, command.defaultButton]] : [])),
     mouseSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
@@ -67,7 +68,7 @@ const object = (value: unknown): value is Record<string, unknown> => !!value && 
 /** Saved bindings are data: discard unknown fields, bound numbers and remove conflicts. */
 export function normalizeControls(value: unknown): ControlSettings {
   const result = defaults();
-  if (!object(value) || (value.version !== undefined && value.version !== 1 && value.version !== 2)) return result;
+  if (!object(value) || (value.version !== undefined && value.version !== 1 && value.version !== 2 && value.version !== 3)) return result;
   if (object(value.keys)) for (const command of COMMANDS) {
     const key = value.keys[command.id];
     if (safeKey(key)) result.keys[command.id] = key;
@@ -81,8 +82,14 @@ export function normalizeControls(value: unknown): ControlSettings {
     }
     // Older preferences never contained Revelry. Add its new default only if it
     // does not displace an existing binding; v2 omissions remain deliberate unbinds.
-    if (value.version !== 2 && !Object.hasOwn(value.buttons, 'revelry') &&
+    if (value.version !== 2 && value.version !== 3 && !Object.hasOwn(value.buttons, 'revelry') &&
         !Object.values(result.buttons).includes(15)) result.buttons.revelry = 15;
+    // The old default A engaged immediately. Move that one legacy binding to
+    // Commands, while preserving other custom buttons and all v3 choices.
+    if (value.version !== 3 && !Object.hasOwn(value.buttons, 'commandMenu')) {
+      if (result.buttons.engage === 0) delete result.buttons.engage;
+      if (!Object.values(result.buttons).includes(0)) result.buttons.commandMenu = 0;
+    }
   }
   const usedKeys = new Set<string>(), usedButtons = new Set<number>();
   for (const command of COMMANDS) {

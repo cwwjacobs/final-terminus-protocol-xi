@@ -7,6 +7,9 @@ import { ARENA_RADIUS, BURST_WINDOW, CONE_HALF_ANGLE, MAGIC } from '@/game/conte
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { activeBurst } from './combat-feedback';
+import { combatNumber, partyFeedback, PresentationEvents } from './world-feedback';
+import { FloatingFeedback } from './floating-feedback';
+import { createPartyMarker, ROLE_MARKERS } from './party-markers';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
 
 export interface SceneProps {
@@ -20,6 +23,8 @@ export interface SceneProps {
   shoulderOffset: number;
   selectedTarget: string | null;
   targetPulse: number;
+  /** Changes when the client replaces an encounter/session, even at equal clocks. */
+  presentationEpoch?: number;
   onIntent: (action: Action) => void;
   onTelemetry?: (data: { fps: number; drawCalls: number; triangles: number }) => void;
   onGamepad?: (connected: boolean) => void;
@@ -149,18 +154,19 @@ interface Effect {
   life: number;
   duration: number;
   size: number;
+  calm: boolean;
 }
 
-function createEffects(scene: THREE.Scene): Effect[] {
+function createEffects(scene: THREE.Scene, quality: 'low' | 'high'): Effect[] {
   const effects: Effect[] = [];
   const ringGeometry = new THREE.RingGeometry(.72, 1, 40);
   const beamGeometry = new THREE.CylinderGeometry(.025, .08, 1, 5, 1, true);
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < (quality === 'high' ? 18 : 10); i++) {
     const root = new THREE.Group(); root.visible = false;
     const paint = new THREE.MeshBasicMaterial({ color: '#e8c786', transparent: true, opacity: 1, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false });
     const effectRing = new THREE.Mesh(ringGeometry, paint); effectRing.rotation.x = floorRotation;
     const beam = new THREE.Mesh(beamGeometry, paint); root.add(effectRing, beam); scene.add(root);
-    effects.push({ root, ring: effectRing, beam, life: 0, duration: 1, size: 1 });
+    effects.push({ root, ring: effectRing, beam, life: 0, duration: 1, size: 1, calm: false });
   }
   return effects;
 }
@@ -212,6 +218,10 @@ export default function Scene(props: SceneProps) {
       rig.root.position.set(actor.x, 0, actor.z); rig.root.rotation.y = actor.facing;
       scene.add(rig.root); return rig;
     });
+    const partyMarkers = latest.current.state.party.map((actor, i) => {
+      const marker = createPartyMarker(actor.role, actor.color, props.quality);
+      rigs[i].root.add(marker.root); rigs[i].marker.visible = false; return marker;
+    });
     const heroCache = new HeroAssetCache();
     const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
@@ -230,7 +240,12 @@ export default function Scene(props: SceneProps) {
     const coneWarn = mesh(scene, sectorGeometry(CONE_HALF_ANGLE), warnMaterial, 0, .055);
     const warningEdge = ring(scene, .985, 1, '#ffc28a', .85, .06);
     circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
-    const effects = createEffects(scene);
+    const effects = createEffects(scene, props.quality);
+    const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
+    const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let reducedMotion = motionPreference.matches;
+    const onMotionPreference = () => { reducedMotion = motionPreference.matches; };
+    motionPreference.addEventListener('change', onMotionPreference);
 
     let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0, animationTime = 0;
     let loadedModels = 0, failedModels = 0;
@@ -254,7 +269,7 @@ export default function Scene(props: SceneProps) {
         });
       });
     }
-    let lastEvent = latest.current.state.events.at(-1)?.id ?? 0;
+    const eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let lastWireframe = !latest.current.wireframe;
     let initializedCamera = false;
@@ -293,24 +308,40 @@ export default function Scene(props: SceneProps) {
     if (actionDock) observer.observe(actionDock);
     resize();
     const onContextLost = (event: Event) => {
-      event.preventDefault(); stopped = true; cancelAnimationFrame(frame);
+      event.preventDefault(); stopped = true; cancelAnimationFrame(frame); numbers.reset();
       setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
       if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost'].includes(event.kind)) return;
+      const feedback = combatNumber(event, state);
+      if (feedback) {
+        const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
+        const height = feedback.target === 'boss' ? 3.4 : heroVisuals[feedback.target]?.labelHeight ?? 2.4;
+        numbers.spawn(feedback, { x: target.root.position.x, y: height + .2, z: target.root.position.z });
+      }
+      // Old saves have no heal recipient. Skip its target effect rather than
+      // suggesting that the caster was healed or parsing a human-readable log.
+      if (event.kind === 'heal' && !feedback) return;
       const index = effects.findIndex(effect => effect.life <= 0), effect = effects[index < 0 ? event.id % effects.length : index];
       const source = typeof event.actor === 'number' ? state.party[event.actor] : undefined;
       const support = ['heal', 'guard', 'dodge', 'provoke', 'hit', 'revelry', 'revelry_lost'].includes(event.kind);
-      const targetX = support && source ? source.x : state.boss.x;
-      const targetZ = support && source ? source.z : state.boss.z;
+      const recipient = event.kind === 'heal' && typeof event.target === 'number' ? state.party[event.target] : source;
+      const targetX = support && recipient ? recipient.x : state.boss.x;
+      const targetZ = support && recipient ? recipient.z : state.boss.z;
       effect.root.position.set(targetX, .1, targetZ); effect.root.visible = true;
-      effect.duration = ['chain', 'burst', 'revelry'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
+      effect.calm = event.kind === 'heal';
+      effect.duration = reducedMotion ? .35 : effect.calm ? .9 : ['chain', 'burst', 'revelry'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
       effect.size = event.kind === 'burst' ? 4.8 : ['chain', 'revelry'].includes(event.kind) ? 3.8 : event.kind === 'weapon' ? 2.8 : 1;
-      effect.ring.material.color.set(event.kind === 'heal' ? '#a2f6df' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' ? '#d8abff' : ['hit', 'revelry_lost'].includes(event.kind) ? '#ff996d' : '#ffe0a1');
+      effect.ring.material.color.set(effect.calm ? '#bcffdf' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' || event.kind === 'magic' ? '#d8abff' : ['hit', 'revelry_lost'].includes(event.kind) ? '#ff996d' : '#ffe0a1');
       effect.beam.visible = Boolean(source && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind));
-      if (source && effect.beam.visible) {
+      if (effect.calm) {
+        // A quiet, vertical light shaft distinguishes healing from quantum impact.
+        effect.beam.visible = true; effect.beam.position.set(0, 1, 0);
+        effect.beam.scale.set(5, 2, 5); effect.beam.quaternion.identity();
+      }
+      if (source && effect.beam.visible && !effect.calm) {
         beamDirection.set(source.x - targetX, -1, source.z - targetZ);
         const distance = beamDirection.length();
         effect.beam.position.set(beamDirection.x / 2, 1.5, beamDirection.z / 2);
@@ -325,26 +356,30 @@ export default function Scene(props: SceneProps) {
       if (stopped) return;
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
       animationTime += dt;
-      const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, targetPulse } = latest.current;
+      const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, targetPulse, presentationEpoch } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
-      if (state.time < lastTime) {
-        lastEvent = 0; initializedCamera = false; pendingImpacts.length = 0;
+      const incoming = eventFeed.read(state, presentationEpoch);
+      if (state.time < lastTime) initializedCamera = false;
+      lastTime = state.time;
+      if (incoming.reset) {
+        pendingImpacts.length = 0; numbers.reset();
         heroVisuals.forEach(visual => visual?.resetCombat());
         effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
       }
-      lastTime = state.time;
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
         heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
         lastWireframe = wireframe;
       }
-      for (const event of state.events) if (event.id > lastEvent) {
+      for (const event of incoming.events) {
         const source = typeof event.actor === 'number' ? event.actor : -1;
         const delay = state.party[source]?.hp > 0 ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
-        if (delay > 0) pendingImpacts.push({ event, at: animationTime + delay });
+        if (delay > 0) {
+          if (pendingImpacts.length >= effects.length) pendingImpacts.shift();
+          pendingImpacts.push({ event, at: animationTime + delay });
+        }
         else spawnEffect(event, state);
-        lastEvent = Math.max(lastEvent, event.id);
       }
       for (let i = 0; i < rigs.length; i++) {
         const actor = state.party[i], rig = rigs[i];
@@ -360,8 +395,7 @@ export default function Scene(props: SceneProps) {
           rig.attack = Math.max(0, rig.attack - dt * 2.5);
           visual.update(dt, speed, actor.hp > 0, rig.attack);
         } else animateActor(rig, dt, now / 1000, speed, actor.hp > 0);
-        rig.marker.scale.setScalar(i === slot ? 1.65 : 1.1);
-        rig.marker.visible = actor.hp > 0 && (i === slot || actor.engaged);
+        partyMarkers[i].update(actor, i === slot);
       }
       bossRig.root.position.x = THREE.MathUtils.damp(bossRig.root.position.x, state.boss.x, 9, dt);
       bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
@@ -376,11 +410,11 @@ export default function Scene(props: SceneProps) {
       const bossSelected = (selectedTarget === 'boss' || !!lockedTarget) && state.boss.hp > 0;
       targetRing.position.set(state.boss.x, .045, state.boss.z);
       targetRing.visible = targetReticle.visible = bossSelected;
-      targetRing.scale.setScalar(1 + pulse * .18);
+      targetRing.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .18));
       targetMaterial.color.setRGB(.86 + pulse * .14, .69 + pulse * .31, .4 + pulse * .6);
       targetMaterial.opacity = .65 + pulse * .35;
       targetReticle.position.set(bossRig.root.position.x, 3.8, bossRig.root.position.z);
-      targetReticle.scale.setScalar(1 + pulse * .5);
+      targetReticle.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .5));
       reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
       const burst = activeBurst(state);
       burstRing.visible = !!burst;
@@ -400,7 +434,7 @@ export default function Scene(props: SceneProps) {
         circleWarn.position.set(x, .055, z); circleWarn.scale.set(radius, radius, 1);
         coneWarn.position.set(cast.x, .055, cast.z); coneWarn.scale.set(cast.radius, 1, cast.radius); coneWarn.rotation.y = cast.angle;
         warningEdge.position.set(x, .06, z); warningEdge.scale.setScalar(radius);
-        warnMaterial.opacity = .15 + .15 * (1 - cast.remaining / cast.total) + Math.sin(now * .008) * .035;
+        warnMaterial.opacity = .15 + .15 * (1 - cast.remaining / cast.total) + (reducedMotion ? 0 : Math.sin(now * .008) * .035);
         warnMaterial.color.set(cast.kind === 'raid' ? '#9994ff' : '#f4a575');
       }
       for (let i = pendingImpacts.length - 1; i >= 0; i--) {
@@ -412,12 +446,15 @@ export default function Scene(props: SceneProps) {
       for (const effect of effects) {
         if (effect.life <= 0) continue;
         effect.life = Math.max(0, effect.life - dt); const progress = 1 - effect.life / effect.duration;
-        effect.root.visible = effect.life > 0; effect.ring.scale.setScalar((.25 + progress) * effect.size);
-        effect.ring.material.opacity = (1 - progress) * .85;
-        effect.beam.visible = effect.beam.visible && progress < .28;
+        effect.root.visible = effect.life > 0;
+        effect.ring.scale.setScalar((reducedMotion ? .85 : effect.calm ? .8 + progress * .2 : .25 + progress) * effect.size);
+        effect.ring.material.opacity = (1 - progress) * (effect.calm ? .55 : .85);
+        effect.beam.visible = effect.beam.visible && (effect.calm || progress < .28);
       }
-      world.shards.rotation.y = Math.sin(now * .000015) * .018;
-      world.stars.rotation.y = now * .000001;
+      if (!reducedMotion) {
+        world.shards.rotation.y = Math.sin(now * .000015) * .018;
+        world.stars.rotation.y = now * .000001;
+      }
       // Engaging locks the view toward the living enemy; disengaging leaves this
       // heading in place for free orbit. Input reads the same yaw for movement.
       const orbit = cameraState ?? fallbackCamera;
@@ -430,6 +467,7 @@ export default function Scene(props: SceneProps) {
       camera.lookAt(smoothedLook);
       camera.updateMatrixWorld();
       targetReticle.quaternion.copy(camera.quaternion);
+      numbers.update(dt, camera, size.x, size.y, reducedMotion);
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
@@ -450,6 +488,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
       // Detach them before generic arena cleanup to avoid disposing them twice.
@@ -470,10 +509,17 @@ export default function Scene(props: SceneProps) {
   }, [props.quality, props.characterStyle]);
 
   return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
-    {props.state.party.map((actor, index) => <div key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
-      <span style={{ color: actor.color, marginRight: 6 }}>◇</span>{actor.name.toUpperCase()}
-      <span style={{ opacity: .55, fontSize: 8, marginLeft: 7 }}>{actor.human ? 'PLAYER' : 'TRUST'}</span>
-    </div>)}
+    {props.state.party.map((actor, index) => {
+      const cue = partyFeedback(actor), role = ROLE_MARKERS[actor.role];
+      return <div key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
+        <span style={{ color: actor.color, marginRight: 6 }}>{role.glyph}</span>{actor.name.toUpperCase()}
+        <span style={{ opacity: .7, fontSize: 8, marginLeft: 7 }}>{role.label} · {actor.human ? 'PLAYER' : 'TRUST'}</span>
+        {(cue.lowHp || cue.tpReady) && <div style={{ marginTop: 4, fontSize: 9, letterSpacing: '.1em' }}>
+          {cue.lowHp && <span style={{ color: '#ffac9b', marginRight: 8 }}>LOW HP</span>}
+          {cue.tpReady && <span style={{ color: '#ffe5a0' }}>TP READY</span>}
+        </div>}
+      </div>;
+    })}
     {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
   </div>;
 }

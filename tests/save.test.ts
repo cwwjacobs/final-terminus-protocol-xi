@@ -49,6 +49,17 @@ test('malformed event entries reject the save without throwing', () => {
   }
 });
 
+test('healing target metadata is optional for legacy saves and bounded to a party slot', () => {
+  const event = { id: 1, time: 0, kind: 'heal', text: 'Mend', actor: 4, value: 690 };
+  assert.equal(validSave({ ...createGame(), events: [event] }), true);
+  for (const target of [0, 1, 4]) {
+    assert.equal(validSave({ ...createGame(), events: [{ ...event, target }] }), true);
+  }
+  for (const target of [-1, 5, 0.5, NaN, Infinity, '1', null]) {
+    assert.equal(validSave({ ...createGame(), events: [{ ...event, target }] }), false, String(target));
+  }
+});
+
 test('finite but unsafe clocks and remainder cannot drive an unbounded restore loop', () => {
   for (const field of ['tick', 'eventSeq'] as const) {
     for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {

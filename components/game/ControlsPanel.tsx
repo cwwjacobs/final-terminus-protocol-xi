@@ -57,7 +57,7 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
         <select aria-label={`Controller button for ${command.label}`} value={value.buttons[command.id] ?? ''} onChange={e => { onChange(bindButton(value,command.id,e.target.value === '' ? undefined : Number(e.target.value))); setNotice('Controller mapping updated; conflicting buttons are swapped or cleared.'); }}><option value="">Unbound</option>{Array.from({length:17},(_,button) => <option key={button} value={button}>{buttonLabel(button)}</option>)}</select>
       </div>)}
     </details>)}
-    <p className="muted">Left stick moves; right stick looks. Button mappings above are configurable. Controller menu navigation is still separate work. Keyboard modifier-only combat keys, such as Shift for Guard, activate on release so Shift + Tab can target safely.</p>
+    <p className="muted">Left stick moves; right stick looks. Button mappings above are configurable. Open Commands is remappable (Enter / A by default). Within Commands, arrows / D-pad navigate, Enter / A selects, and Escape / B goes back; these navigation controls are fixed. Combat continues while you choose. Settings dialogs keep normal keyboard and Tab navigation. Keyboard modifier-only combat keys, such as Shift for Guard, activate on release so Shift + Tab can target safely.</p>
     <button onClick={() => { setCapturing(null); onChange(defaults()); setNotice('Default bindings, camera settings and non-inverted controls restored.'); }}>Restore default controls</button>
   </div>;
 }

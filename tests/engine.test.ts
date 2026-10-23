@@ -165,6 +165,10 @@ test('healing prioritizes low health, generates hate, costs MP and cannot resurr
   assert.equal(state.party[1].hp, 890);
   assert.equal(state.party[2].hp, 0);
   assert.equal(state.party[4].mp, mp - 70);
+  const healed = state.events.findLast(event => event.kind === 'heal');
+  assert.equal(healed?.actor, 4);
+  assert.equal(healed?.target, 1, 'presentation identifies the healed ally separately from the caster');
+  assert.equal(healed?.value, 690);
   assert.ok(state.party[4].ce > 0 && state.party[4].ve > 0);
   assert.equal(applyAction(state, 4, { type: 'heal' }).ok, false);
 });

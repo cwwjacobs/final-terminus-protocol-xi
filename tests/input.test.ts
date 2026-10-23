@@ -4,6 +4,7 @@ import { bindInput, deadzone, movement } from '../components/game/input.ts';
 import { bindButton, bindKey, buttonLabel, COMMANDS, defaults, keyboardEventBinding, keyLabel, normalizeControls } from '../components/game/control-settings.ts';
 import type { Command, ControlSettings } from '../components/game/control-settings.ts';
 import type { Action } from '../game/types.ts';
+import type { MenuIntent } from '../components/game/command-menu.ts';
 
 test('controller deadzone suppresses drift, bounds malformed axes and preserves full travel', () => {
   assert.equal(deadzone(0.1), 0); assert.equal(deadzone(-0.18), 0);
@@ -55,12 +56,12 @@ test('saved settings normalize bounds, invalid types and duplicate key/button bi
   const settings = normalizeControls({ version: 1, keys: { forward: 'KeyD', backward: 'Escape', cameraUp: 'Ctrl+KeyR' }, buttons: { forward: 4, backward: 4, heal: 500, engage: NaN }, mouseSensitivity: Infinity, stickSensitivity: 80, zoomSensitivity: -2, cameraHeight: 100, shoulderOffset: -50, defaultDistance: 0, invertMouseX: true, invertMouseY: 'true', extra: 'discard' });
   assert.equal(settings.keys.forward, 'KeyD'); assert.equal(settings.keys.right, '');
   assert.equal(settings.keys.backward, 'KeyS'); assert.equal(settings.keys.cameraUp, 'ArrowUp');
-  assert.deepEqual(settings.buttons, { forward: 4, revelry: 15 });
+  assert.deepEqual(settings.buttons, { forward: 4, revelry: 15, commandMenu: 0 });
   assert.equal(settings.mouseSensitivity, 1); assert.equal(settings.stickSensitivity, 3); assert.equal(settings.zoomSensitivity, 0.1);
   assert.equal(settings.cameraHeight, 5); assert.equal(settings.shoulderOffset, -3); assert.equal(settings.defaultDistance, 4);
   assert.equal(settings.invertMouseX, true); assert.equal(settings.invertMouseY, false);
   assert.equal('extra' in settings, false);
-  for (const bad of [null, [], 'bad', { version: 3 }]) assert.deepEqual(normalizeControls(bad), defaults());
+  for (const bad of [null, [], 'bad', { version: 4 }]) assert.deepEqual(normalizeControls(bad), defaults());
   const unbound = bindButton(bindKey(defaults(), 'engage', ''), 'engage', undefined);
   assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(unbound))), unbound);
 });
@@ -74,7 +75,7 @@ test('rebinding swaps a conflict or unbinds it, leaves source settings intact an
   assert.equal(next.keys.forward, 'KeyS'); assert.equal(next.keys.backward, '');
   for (const reserved of ['Escape', 'Ctrl+KeyR', 'Meta+KeyW', 'Alt+F4', 'F5']) assert.deepEqual(bindKey(original, 'engage', reserved), original);
   let buttons = bindButton(original, 'engage', 1);
-  assert.equal(buttons.buttons.engage, 1); assert.equal(buttons.buttons.dodge, 0);
+  assert.equal(buttons.buttons.engage, 1); assert.equal(buttons.buttons.dodge, undefined);
   buttons = bindButton(bindButton(buttons, 'targetPrevious', undefined), 'targetPrevious', 1);
   assert.equal(buttons.buttons.targetPrevious, 1); assert.equal(buttons.buttons.engage, undefined);
   assert.deepEqual(bindButton(original, 'engage', -1), original);
@@ -86,7 +87,7 @@ test('legacy controls gain Revelry without displacing saved bindings or resurrec
   delete legacy.keys.revelry;
   delete legacy.buttons.revelry;
   const migrated = normalizeControls(legacy);
-  assert.equal(migrated.version, 2);
+  assert.equal(migrated.version, 3);
   assert.equal(migrated.keys.revelry, 'KeyQ');
   assert.equal(migrated.buttons.revelry, 15);
   legacy.keys.forward = 'KeyQ'; legacy.buttons.targetPrevious = 15;
@@ -107,6 +108,23 @@ test('keyboard capture and labels agree for Shift+Tab, modifier release and rese
   assert.equal(buttonLabel(10), 'L3'); assert.equal(buttonLabel(15), 'D-pad →');
 });
 
+test('legacy default A migrates from engage to Commands without losing unrelated remaps', () => {
+  assert.equal(defaults().keys.commandMenu, 'Enter');
+  assert.equal(defaults().buttons.commandMenu, 0); assert.equal(defaults().buttons.engage, undefined);
+  const old = { ...defaults(), version: 2, keys: { ...defaults().keys }, buttons: { ...defaults().buttons, engage: 0, heal: 8 } };
+  Reflect.deleteProperty(old.keys, 'commandMenu'); Reflect.deleteProperty(old.buttons, 'commandMenu');
+  const migrated = normalizeControls(old);
+  assert.equal(migrated.buttons.commandMenu, 0); assert.equal(migrated.buttons.engage, undefined);
+  assert.equal(migrated.buttons.heal, 8);
+  old.buttons.engage = 9; old.buttons.heal = 0; old.keys.heal = 'Enter';
+  const custom = normalizeControls(old);
+  assert.equal(custom.buttons.engage, 9); assert.equal(custom.buttons.heal, 0); assert.equal(custom.buttons.commandMenu, undefined);
+  assert.equal(custom.keys.heal, 'Enter'); assert.equal(custom.keys.commandMenu, '');
+  const explicit = bindButton(bindKey(migrated, 'commandMenu', ''), 'engage', 0);
+  assert.equal(explicit.buttons.engage, 0); assert.equal(explicit.buttons.commandMenu, undefined);
+  assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(explicit))), explicit, 'v3 choices and unbinds survive reload');
+});
+
 type FakeEvent = { prevented: boolean; preventDefault: () => void } & Record<string, unknown>;
 function surface() {
   const listeners = new Map<string, Set<(event: FakeEvent) => void>>();
@@ -123,17 +141,18 @@ function surface() {
 }
 
 function harness(initialSettings: ControlSettings = defaults()) {
-  const win = surface(), doc = { ...surface(), activeElement: { tagName: 'BODY', isContentEditable: false, closest: () => null }, hidden: false, hasFocus: () => true };
+  const win = surface(), doc = { ...surface(), activeElement: { tagName: 'BODY', isContentEditable: false, closest: (() => null) as (selector?: string) => object | null }, hidden: false, hasFocus: () => true };
   const pad = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
-  const state = { settings: initialSettings, enabled: true, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const state = { settings: initialSettings, enabled: true, commandOpen: false, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const menuInputs: MenuIntent[] = [];
   const sent: Action[] = [], commands: Command[] = [], looks: number[][] = [], zooms: number[] = [], connections: boolean[] = [];
   let callback: FrameRequestCallback | null = null, now = performance.now() + 100;
   const replacements = { window: win, document: doc, navigator: { getGamepads: () => state.pad ? [state.pad] : [] }, requestAnimationFrame: (fn: FrameRequestCallback) => { callback = fn; return 1; }, cancelAnimationFrame: () => { callback = null; } };
   const descriptors = Object.fromEntries(Object.keys(replacements).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(replacements)) Object.defineProperty(globalThis, key, { value, configurable: true });
-  const cleanup = bindInput({ send: action => sent.push(action), getFacing: () => state.facing, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => commands.push(command), onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
+  const cleanup = bindInput({ send: action => sent.push(action), getFacing: () => state.facing, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => commands.push(command), commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
   return {
-    state, sent, commands, looks, zooms, connections, win, doc, pad,
+    state, sent, commands, looks, zooms, connections, menuInputs, win, doc, pad,
     frame() { now += 60; assert.ok(callback); callback(now); },
     key(code: string, type = 'keydown', extra: Record<string, unknown> = {}) { return win.emit(type, { code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, repeat: false, ...extra }); },
     move() { const action = sent.filter((action): action is Extract<Action, { type: 'move' }> => action.type === 'move').at(-1); assert.ok(action); return action; },
@@ -283,5 +302,77 @@ test('right-stick axes, mapped held camera/movement buttons and zoom are indepen
     assert.ok(h.move().z < -0.99); assert.ok(h.looks.at(-1)![1] < 0); assert.ok(h.zooms.at(-1)! > 0);
     h.pad.buttons[10].pressed = true; h.frame(); assert.equal(h.commands.at(-1), 'targetNext');
     assert.ok(h.sent.every(action => ['move', 'engage', 'weapon', 'magic', 'provoke', 'heal', 'guard', 'dodge', 'start'].includes(action.type)));
+  } finally { h.close(); }
+});
+
+test('Enter opens Commands on its own press and menu navigation suppresses combat, movement and camera', () => {
+  const h = harness();
+  try {
+    h.key('KeyW'); h.frame(); assert.ok(h.move().z < -.99);
+    h.key('ShiftLeft', 'keydown', { shiftKey: true });
+    h.key('Enter'); assert.equal(h.state.commandOpen, true); assert.deepEqual(h.menuInputs, ['open']);
+    assert.equal(h.move().z, 0, 'opening immediately stops held movement');
+    h.key('Enter', 'keydown', { repeat: true }); h.key('Enter', 'keyup');
+    assert.deepEqual(h.menuInputs, ['open']);
+    h.key('ArrowDown'); h.key('ArrowDown', 'keydown', { repeat: true });
+    h.key('Digit1'); h.key('KeyQ'); h.key('Space'); h.key('KeyW'); h.key('ShiftLeft', 'keyup');
+    h.win.emit('mousedown', { target: { tagName: 'CANVAS' }, button: 0 });
+    h.win.emit('mousemove', { movementX: 10, movementY: 10 });
+    assert.equal(h.win.emit('wheel', { target: { tagName: 'CANVAS' }, deltaY: 100 }).prevented, false);
+    h.frame(); assert.equal(h.move().z, 0); assert.equal(h.looks.length, 0); assert.equal(h.zooms.length, 0);
+    assert.deepEqual(h.menuInputs, ['open', 'down', 'down']);
+    assert.ok(h.sent.every(action => action.type === 'move'));
+    assert.equal(h.key('Tab').prevented, false);
+    h.key('Enter'); h.key('Enter', 'keydown', { repeat: true });
+    assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 1);
+    h.key('Escape'); assert.equal(h.state.commandOpen, false); h.frame();
+    h.key('KeyW', 'keydown', { repeat: true }); h.frame(); assert.equal(h.move().z, 0);
+    h.key('KeyW', 'keyup'); h.key('KeyW'); h.frame(); assert.ok(h.move().z < -.99);
+  } finally { h.close(); }
+});
+
+test('A opens the menu without engaging, held navigation repeats, and B cannot leak into Evade', () => {
+  const h = harness();
+  try {
+    h.state.pad = h.pad; h.frame();
+    h.pad.buttons[0].pressed = true; h.frame(); h.frame();
+    assert.deepEqual(h.menuInputs, ['open']); assert.equal(h.sent.filter(action => action.type !== 'move').length, 0);
+    h.pad.buttons[0].pressed = false; h.frame();
+    h.pad.buttons[13].pressed = true; h.frame();
+    assert.deepEqual(h.menuInputs, ['open', 'down']);
+    h.frame(); h.frame(); h.frame(); assert.equal(h.menuInputs.length, 2, 'repeat has an initial delay');
+    h.frame(); h.frame(); h.frame(); assert.equal(h.menuInputs.length, 3);
+    h.frame(); h.frame(); assert.equal(h.menuInputs.length, 4);
+    h.pad.buttons[13].pressed = false; h.frame();
+    h.pad.buttons[0].pressed = true; h.frame(); h.frame();
+    assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 1);
+    h.pad.buttons[0].pressed = false; h.frame();
+    h.pad.buttons[1].pressed = true; h.frame(); h.frame();
+    assert.equal(h.state.commandOpen, false); assert.equal(h.sent.some(action => action.type === 'dodge'), false);
+    h.pad.buttons[1].pressed = false; h.frame();
+    h.pad.buttons[1].pressed = true; h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'dodge').length, 1, 'fresh press uses the normal closed-menu mapping');
+  } finally { h.close(); }
+});
+
+test('menu focus works on its rows; settings dialogs keep native navigation and held pad presses never replay', () => {
+  const h = harness();
+  try {
+    h.key('Enter'); h.frame();
+    h.doc.activeElement.tagName = 'BUTTON';
+    h.doc.activeElement.closest = selector => selector === '[data-command-menu]' ? {} : null;
+    assert.equal(h.key('ArrowDown').prevented, true);
+    h.state.enabled = false;
+    assert.equal(h.key('Enter').prevented, false); assert.equal(h.key('Escape').prevented, false);
+    assert.equal(h.key('ArrowDown').prevented, false); assert.equal(h.key('Tab').prevented, false);
+    h.state.pad = h.pad; h.pad.buttons[0].pressed = true; h.frame();
+    h.state.enabled = true; h.frame();
+    assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 0);
+    h.pad.buttons[0].pressed = false; h.frame(); h.pad.buttons[0].pressed = true; h.frame();
+    assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 1);
+    h.win.emit('blur'); h.win.emit('focus'); h.frame();
+    assert.equal(h.menuInputs.filter(intent => intent === 'confirm').length, 1);
+    h.doc.activeElement.closest = selector => selector === '[data-command-menu]' || selector === '[data-command-native]' ? {} : null;
+    assert.equal(h.key('Enter').prevented, false, 'native close/back buttons remain keyboard accessible');
   } finally { h.close(); }
 });
