@@ -220,3 +220,28 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .touch-stick-knob{box-shadow:inset 0 2px 0 #ffffff33,inset 0 -3px 0 #0008,0 6px 14px #0009,0 0 14px #8f6bff44}
 @media(prefers-reduced-motion:reduce){button,.party-member,.command-row,.ability::before{transition:none}button:hover:not(:disabled),.party-member:hover:not(:disabled),.party-member.selected,.command-row.is-current,.ability::before{transform:none}.boss-panel,.party-panel,.player-console{transition:none}:root{--px:0px;--py:0px}}
 @media(forced-colors:active){button,.ability,.party-member,.command-row,.player-console,.command-popover,.modal,.portrait,.touch-stick-knob,.resource>div,.boss-hp,.mini-track{box-shadow:none;filter:none;backdrop-filter:none;background:Canvas}.ability::before{display:none}}
+/* ── Parallel projection (ported from the Game Menu and UI System depth look) ──
+   One upper-left key light. Every pane keeps its face front-on; its exposed
+   right and bottom faces are drawn in the same down-right projection, with
+   extrusion and shadow reach proportional to elevation. Elevation is layout
+   hierarchy (console 1 → tiles 2 → command list 3 → modal 4), never a value. */
+:root{--ext-step:3px;--face-side:#6a56a6aa;--face-bottom:#1d1433ee;--key-lit:#ffffff38}
+.player-console,.command-popover,.modal,.party-member.selected,.ability,.command-row.is-current,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.target-select,.revelry-action{border-top-color:var(--key-lit);border-left-color:var(--key-lit);border-right-color:var(--face-side);border-bottom-color:var(--face-bottom)}
+/* True side faces on the console (no overflow clipping there). */
+.player-console{--ext:calc(var(--ext-step) * 2);isolation:isolate}
+.player-console::before,.player-console::after{content:'';position:absolute;pointer-events:none;z-index:-1}
+.player-console::before{top:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);width:var(--ext);background:var(--face-side);clip-path:polygon(0 0,100% var(--ext),100% 100%,0 calc(100% - var(--ext)))}
+.player-console::after{left:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);height:var(--ext);background:var(--face-bottom);clip-path:polygon(0 0,calc(100% - var(--ext)) 0,100% 100%,var(--ext) 100%)}
+.game-shell[data-layout=touch] .player-console::before,.game-shell[data-layout=touch] .player-console::after{display:none}
+/* Stepped faces (hard shadows) where overflow would clip pseudo-elements. */
+.ability{box-shadow:inset 0 1px 0 var(--glass-lit),inset 1px 0 0 #ffffff10,calc(var(--ext-step) * 1) calc(var(--ext-step) * 1) 0 var(--face-side),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-bottom),calc(var(--ext-step) * 3) calc(var(--ext-step) * 4) 14px #0008}
+.ability:hover:not(:disabled){transform:translate(-1px,-2px);box-shadow:inset 0 1px 0 #ffffff40,calc(var(--ext-step) * 1) calc(var(--ext-step) * 1) 0 var(--face-side),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-bottom),calc(var(--ext-step) * 4) calc(var(--ext-step) * 5) 18px #0009,0 0 22px #8f6bff44}
+.ability:active:not(:disabled){transform:translate(1px,2px);box-shadow:inset 0 2px 10px var(--press),0 0 18px #8f6bff66}
+.command-popover{box-shadow:inset 0 1px 0 var(--glass-lit),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-side),calc(var(--ext-step) * 3) calc(var(--ext-step) * 3) 0 var(--face-bottom),calc(var(--ext-step) * 4) calc(var(--ext-step) * 6) 36px #000a}
+.command-row.is-current{translate:-1px -1px;box-shadow:inset 0 1px 0 #ffffff30,var(--ext-step) var(--ext-step) 0 var(--face-side),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-bottom),calc(var(--ext-step) * 3) calc(var(--ext-step) * 4) 12px #0009,0 0 14px #8f6bff33}
+.modal{box-shadow:inset 0 1px 0 var(--glass-lit),calc(var(--ext-step) * 3) calc(var(--ext-step) * 3) 0 var(--face-side),calc(var(--ext-step) * 5) calc(var(--ext-step) * 5) 0 var(--face-bottom),calc(var(--ext-step) * 6) calc(var(--ext-step) * 9) 60px #000b}
+.party-member.selected{box-shadow:inset 0 1px 0 #ffffff40,inset 4px 0 0 var(--gold),var(--ext-step) var(--ext-step) 0 var(--face-side),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-bottom),calc(var(--ext-step) * 3) calc(var(--ext-step) * 4) 18px #0009,0 0 24px #8f6bff44}
+.portrait{box-shadow:inset 1px 1px 0 var(--key-lit),var(--ext-step) var(--ext-step) 0 var(--face-bottom)}
+.resource>div,.mini-track,.boss-hp,.threat-track{box-shadow:inset 1px 1px 2px #000b,0 1px 0 #ffffff14}
+@media(prefers-reduced-motion:reduce){.command-row.is-current{translate:none}.ability:hover:not(:disabled){transform:none}}
+@media(forced-colors:active){.player-console::before,.player-console::after{display:none}.ability,.command-popover,.command-row.is-current,.modal,.party-member.selected,.portrait{box-shadow:none;translate:none;border-color:ButtonText}}
