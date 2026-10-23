@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
+import { bacchusLocomotionClip, createBacchusCombat, type CombatCue } from './bacchus-combat.ts';
 
 export const HERO_ASSET_MANIFEST = Object.freeze({
   bacchus: '/assets/models/bacchus.glb',
@@ -15,6 +16,9 @@ export interface HeroVisual {
   readonly object: THREE.Object3D;
   readonly labelHeight: number;
   update(dt: number, speed: number, alive: boolean, attack: number): void;
+  /** Returns the presentation-only delay until a strike's visual impact. */
+  playCombat(cue: CombatCue): number;
+  resetCombat(): void;
   setWireframe(value: boolean): void;
   dispose(): void;
 }
@@ -115,6 +119,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   const materials = new Map<THREE.Material, THREE.Material>();
   const skeletons = new Set<THREE.Skeleton>();
   let mixer: THREE.AnimationMixer | undefined;
+  let combat: ReturnType<typeof createBacchusCombat> = null;
   let disposed = false;
   let aliveBefore = true;
   let moving = false;
@@ -133,6 +138,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       if (disposed || !Number.isFinite(dt) || dt <= 0) return;
       const delta = Math.min(dt, .25);
       if (!alive) {
+        if (aliveBefore) combat?.stop();
         // Freeze the imported pose; do not write over authored bone channels.
         aliveBefore = false;
         motion.rotation.x = 0;
@@ -142,26 +148,34 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, 0, 8, delta);
       const velocity = Number.isFinite(speed) ? Math.max(0, speed) : 0;
       moving = moving ? velocity > .08 : velocity > .2;
-      if (!aliveBefore) { resetActions(); aliveBefore = true; }
+      if (!aliveBefore) { resetActions(); combat?.reset(); aliveBefore = true; }
       const targetWeight = moving && walk ? 1 : 0;
       walkWeight = THREE.MathUtils.damp(walkWeight, targetWeight, 12, delta);
       idle?.setEffectiveWeight(walk ? 1 - walkWeight : 1);
       walk?.setEffectiveWeight(idle ? walkWeight : 1);
       walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / 3, .65, 1.65));
+      combat?.beforeUpdate(delta);
       mixer?.update(delta);
+      combat?.afterUpdate(delta);
       // A small group-level accent, not an authored strike or weapon animation.
       const pulse = Number.isFinite(attack) ? THREE.MathUtils.clamp(attack, 0, 1) : 0;
-      motion.rotation.x = -.045 * Math.sin(pulse * Math.PI);
+      motion.rotation.x = combat ? 0 : -.045 * Math.sin(pulse * Math.PI);
     },
+    playCombat(cue) {
+      return !disposed && aliveBefore ? combat?.play(cue) ?? 0 : 0;
+    },
+    resetCombat() { if (!disposed) combat?.reset(); },
     setWireframe(value) {
       if (disposed) return;
       materials.forEach(material => {
         if ('wireframe' in material) (material as THREE.MeshStandardMaterial).wireframe = value;
       });
+      combat?.setWireframe(value);
     },
     dispose() {
       if (disposed) return;
       disposed = true;
+      combat?.dispose();
       mixer?.stopAllAction();
       mixer?.uncacheRoot(model);
       object.removeFromParent();
@@ -193,8 +207,10 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     const labelHeight = Number.isFinite(bounds.max.y) ? Math.max(.25, bounds.max.y + .25) : 2.05;
     Object.defineProperty(visual, 'labelHeight', { value: labelHeight, enumerable: true });
     mixer = new THREE.AnimationMixer(model);
-    const idleClip = asset.animations.find(clip => clip.name.toLowerCase() === 'idle');
-    const walkClip = asset.animations.find(clip => clip.name.toLowerCase() === 'walk');
+    if (id === 'bacchus') combat = createBacchusCombat(model, object, mixer, asset.animations.find(clip => clip.name.toLowerCase() === 'idle'));
+    const locomotion = combat ? asset.animations.map(bacchusLocomotionClip) : asset.animations;
+    const idleClip = locomotion.find(clip => clip.name.toLowerCase() === 'idle');
+    const walkClip = locomotion.find(clip => clip.name.toLowerCase() === 'walk');
     idle = idleClip ? mixer.clipAction(idleClip) : undefined;
     walk = walkClip ? mixer.clipAction(walkClip) : undefined;
     resetActions();

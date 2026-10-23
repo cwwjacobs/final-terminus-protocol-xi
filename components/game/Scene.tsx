@@ -228,7 +228,7 @@ export default function Scene(props: SceneProps) {
     circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
     const effects = createEffects(scene);
 
-    let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0;
+    let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0, animationTime = 0;
     let loadedModels = 0, failedModels = 0;
     renderer.domElement.dataset.characterStyle = props.characterStyle;
     renderer.domElement.dataset.characterModels = '0';
@@ -251,6 +251,7 @@ export default function Scene(props: SceneProps) {
       });
     }
     let lastEvent = latest.current.state.events.at(-1)?.id ?? 0;
+    const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let lastWireframe = !latest.current.wireframe;
     let initializedCamera = false;
     let lastTime = latest.current.state.time;
@@ -319,15 +320,27 @@ export default function Scene(props: SceneProps) {
     const render = (now: number) => {
       if (stopped) return;
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
+      animationTime += dt;
       const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, targetPulse } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
-      if (state.time < lastTime) { lastEvent = 0; initializedCamera = false; }
+      if (state.time < lastTime) {
+        lastEvent = 0; initializedCamera = false; pendingImpacts.length = 0;
+        heroVisuals.forEach(visual => visual?.resetCombat());
+        effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
+      }
       lastTime = state.time;
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
         heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
         lastWireframe = wireframe;
+      }
+      for (const event of state.events) if (event.id > lastEvent) {
+        const source = typeof event.actor === 'number' ? event.actor : -1;
+        const delay = state.party[source]?.hp > 0 ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
+        if (delay > 0) pendingImpacts.push({ event, at: animationTime + delay });
+        else spawnEffect(event, state);
+        lastEvent = Math.max(lastEvent, event.id);
       }
       for (let i = 0; i < rigs.length; i++) {
         const actor = state.party[i], rig = rigs[i];
@@ -377,7 +390,12 @@ export default function Scene(props: SceneProps) {
         warnMaterial.opacity = .15 + .15 * (1 - cast.remaining / cast.total) + Math.sin(now * .008) * .035;
         warnMaterial.color.set(cast.kind === 'raid' ? '#9994ff' : '#f4a575');
       }
-      for (const event of state.events) if (event.id > lastEvent) { spawnEffect(event, state); lastEvent = Math.max(lastEvent, event.id); }
+      for (let i = pendingImpacts.length - 1; i >= 0; i--) {
+        const impact = pendingImpacts[i];
+        if (impact.at > animationTime) continue;
+        if (typeof impact.event.actor === 'number' && state.party[impact.event.actor]?.hp > 0) spawnEffect(impact.event, state);
+        pendingImpacts.splice(i, 1);
+      }
       for (const effect of effects) {
         if (effect.life <= 0) continue;
         effect.life = Math.max(0, effect.life - dt); const progress = 1 - effect.life / effect.duration;
