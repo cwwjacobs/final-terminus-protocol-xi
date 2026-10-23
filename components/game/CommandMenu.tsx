@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef } from 'react';
 import { commandPageTitle, type CommandEntry, type CommandMenuState, type MenuIntent } from './command-menu';
+import Icon from './Icon';
 
 interface Props {
   state: CommandMenuState;
@@ -26,19 +27,19 @@ export default function CommandMenu({ state, rows, actorName, hint, disabled, on
   return <div className="command-menu" data-command-menu="true">
     <button className="command-toggle" data-command-native="true" disabled={disabled}
       aria-expanded={state.open} aria-label={state.open ? 'Collapse command menu' : 'Open command menu'} aria-controls="battle-commands" onClick={e => { onInput(state.open ? 'close' : 'open'); e.currentTarget.blur(); }}>
-      <span>▸ {state.open ? commandPageTitle[state.page] : 'Commands'}</span><kbd>{hint}</kbd>
+      <span><Icon name="cursor"/> {state.open ? commandPageTitle[state.page] : 'Commands'}</span><kbd>{hint}</kbd>
     </button>
     <span className="command-live-note">Combat continues while choosing</span>
     {state.open && <div id="battle-commands" className="command-popover" ref={panel} tabIndex={-1}>
       <div className="command-caption"><span>{actorName} · {commandPageTitle[state.page]}</span>
-        <button data-command-native="true" onClick={() => onInput('back')} aria-label={state.page === 'root' ? 'Close command menu' : 'Back one command level'}>{state.page === 'root' ? '×' : '←'}</button>
+        <button data-command-native="true" onClick={() => onInput('back')} aria-label={state.page === 'root' ? 'Close command menu' : 'Back one command level'}><Icon name={state.page === 'root' ? 'close' : 'arrowBack'}/></button>
       </div>
       <div role="menu" aria-label={commandPageTitle[state.page]}>
         {rows.map((row, index) => <button key={row.id} role="menuitem" aria-current={index === state.index ? 'true' : undefined}
           aria-disabled={row.disabled || disabled} tabIndex={index === state.index ? 0 : -1}
           className={`command-row ${index === state.index ? 'is-current' : ''}`} title={row.detail}
           onFocus={() => { if (index !== state.index) onHighlight(index); }} onClick={() => { if (!disabled) onChoose(index); }}>
-          <span aria-hidden="true" className="command-cursor">▸</span><span>{row.label}</span><span className="command-row-tail" aria-hidden="true">{row.page ? '›' : row.disabled ? '—' : ''}</span>
+          <span aria-hidden="true" className="command-cursor"><Icon name="cursor"/></span><span>{row.label}</span><span className="command-row-tail" aria-hidden="true">{row.page ? <Icon name="chevron"/> : row.disabled ? '—' : ''}</span>
         </button>)}
       </div>
       <p className="command-detail" role="status">{selected?.detail ?? 'No commands in this category for this role.'}</p>

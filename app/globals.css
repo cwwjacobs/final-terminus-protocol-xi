@@ -163,3 +163,52 @@
 @media(forced-colors:active){.touch-stick,.touch-stick-knob,.touch-controls button{border:1px solid ButtonText}.touch-stick-knob{background:Highlight}.enemy-mark{color:CanvasText}}
 
 .collapse-clock{display:none}.game-shell[data-layout=touch] .boss-panel .collapse-clock{display:inline-block;margin-left:10px;color:#ffac95;font-size:10px}
+
+/* Vector HUD icons (components/game/icons.ts). They size from font-size and inherit color, so the glyph rules above still apply. */
+.ui-icon{display:inline-block;width:1em;height:1em;vertical-align:-.16em;flex-shrink:0;overflow:visible}
+.brand-sigil .ui-icon{vertical-align:-.2em}
+.portrait .ui-icon,.ability-icon .ui-icon{vertical-align:0}
+.loop-legend i .ui-icon{vertical-align:-.1em}
+.command-cursor .ui-icon,.command-row-tail .ui-icon{vertical-align:-.12em}
+.touch-stick-cross .ui-icon{display:block}
+
+/* ── Plate depth for the interactive HUD ─────────────────────────────────
+   One treatment for every control: a lit top edge, a dark bottom lip and a
+   drop shadow make a button a slab; hover lifts it, press pushes it in.
+   All vector (shadows, gradients, clip-path), no images, no new nodes. */
+:root{--plate-lit:#ffffff16;--plate-lip:#06040c;--plate-shade:#0008;--press:#000c}
+:where(button:not(.command-row):not(.modal-close):not(.unbind)){box-shadow:inset 0 1px 0 var(--plate-lit),inset 0 -2px 0 var(--plate-shade),0 2px 0 var(--plate-lip),0 4px 10px var(--plate-shade);transition:border-color .16s,background .16s,transform .12s,box-shadow .12s}
+:where(button:hover:not(:disabled):not(.command-row)){transform:translateY(-1px);box-shadow:inset 0 1px 0 var(--plate-lit),inset 0 -2px 0 var(--plate-shade),0 3px 0 var(--plate-lip),0 7px 14px var(--plate-shade)}
+:where(button:active:not(:disabled):not(.command-row),.touch-controls button:active:not(:disabled)){transform:translateY(1px);box-shadow:inset 0 2px 5px var(--press),0 0 0 var(--plate-lip)}
+button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff08,0 1px 0 var(--plate-lip)}
+.primary{box-shadow:inset 0 1px 0 #fff6,inset 0 -2px 0 #7a5c2c,0 2px 0 #3a2a10,0 4px 12px #d2b47a40}
+.primary:hover:not(:disabled){box-shadow:inset 0 1px 0 #fff8,inset 0 -2px 0 #7a5c2c,0 3px 0 #3a2a10,0 8px 18px #d2b47a55}
+/* Ability tiles: a cut corner echoes the portrait plate; the icon well is recessed. */
+.ability{clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));box-shadow:inset 0 1px 0 var(--plate-lit),inset 0 -3px 0 var(--plate-shade),inset 0 0 0 1px #ccb16e18}
+.ability:hover:not(:disabled){box-shadow:inset 0 1px 0 #ffffff22,inset 0 -3px 0 var(--plate-shade),inset 0 0 0 1px #d2b47a55}
+.ability:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 3px 8px var(--press),inset 0 0 0 1px #d2b47a55}
+.ability-icon{filter:drop-shadow(0 2px 0 #06040c) drop-shadow(0 0 6px #00000080)}
+.ability.burst-ready .ability-icon{filter:drop-shadow(0 2px 0 #06040c) drop-shadow(0 0 8px currentColor)}
+/* Party roster: the selected member steps forward on a gold spine. */
+.party-member{transition:transform .16s,background .16s,border-color .16s,box-shadow .16s}
+.party-member.selected{transform:translateX(4px);border-left-width:3px;box-shadow:inset 0 1px 0 var(--plate-lit),-3px 0 10px #d2b47a33,0 3px 0 var(--plate-lip),0 6px 12px var(--plate-shade)}
+.party-member:hover:not(:disabled){transform:translateX(2px)}
+.party-member.selected:hover:not(:disabled){transform:translateX(4px)}
+.portrait{box-shadow:inset 0 1px 0 #ffffff1a,inset 0 -2px 0 #0009}
+/* Console and command popover: a slab with corner brackets drawn from gradients. */
+.player-console,.command-popover{box-shadow:inset 0 1px 0 #ffffff10,0 2px 0 var(--plate-lip),0 14px 40px #0008}
+.player-console::after{content:'';position:absolute;inset:-4px;pointer-events:none;--c:#d2b47a99;background:linear-gradient(var(--c),var(--c)) top left/14px 1px,linear-gradient(var(--c),var(--c)) top left/1px 14px,linear-gradient(var(--c),var(--c)) top right/14px 1px,linear-gradient(var(--c),var(--c)) top right/1px 14px,linear-gradient(var(--c),var(--c)) bottom left/14px 1px,linear-gradient(var(--c),var(--c)) bottom left/1px 14px,linear-gradient(var(--c),var(--c)) bottom right/14px 1px,linear-gradient(var(--c),var(--c)) bottom right/1px 14px;background-repeat:no-repeat}
+.game-shell[data-layout=touch] .player-console{box-shadow:none}
+.game-shell[data-layout=touch] .player-console::after{display:none}
+/* Resource bars read as grooves with a lit fill. */
+.resource>div,.mini-track,.boss-hp{box-shadow:inset 0 1px 2px #000a,inset 0 -1px 0 #ffffff0a}
+.resource i,.boss-hp i{box-shadow:inset 0 1px 0 #ffffff55}
+/* Command rows: current row lifts; the cursor casts a shadow. */
+.command-row.is-current{box-shadow:inset 0 1px 0 var(--plate-lit),0 2px 0 var(--plate-lip),0 4px 8px var(--plate-shade);transform:translateX(2px)}
+.command-row{transition:transform .12s,box-shadow .12s,background .12s,border-color .12s}
+.command-cursor{filter:drop-shadow(0 1px 0 #06040c)}
+/* Touch tiles keep their rounded shape; the slab still presses. */
+.touch-controls .touch-ability{clip-path:none;box-shadow:inset 0 1px 0 var(--plate-lit),inset 0 -2px 0 var(--plate-shade),0 2px 0 var(--plate-lip),0 4px 10px var(--plate-shade)}
+.touch-stick-knob{box-shadow:inset 0 2px 0 #ffffff33,inset 0 -3px 0 #0008,0 3px 0 #06040c,0 5px 10px #0009}
+@media(prefers-reduced-motion:reduce){button,.party-member,.command-row{transition:none!important}button:hover:not(:disabled),button:active:not(:disabled),.party-member:hover:not(:disabled),.party-member.selected,.command-row.is-current{transform:none!important}}
+@media(forced-colors:active){button,.ability,.ability-icon,.party-member,.command-row,.command-cursor,.player-console,.portrait,.touch-stick-knob,.resource>div,.boss-hp,.mini-track{box-shadow:none!important;filter:none!important}.player-console::after{display:none}}
