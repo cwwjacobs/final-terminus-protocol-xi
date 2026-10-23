@@ -7,9 +7,10 @@ import { ARENA_RADIUS, BURST_WINDOW, CONE_HALF_ANGLE, MAGIC } from '@/game/conte
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { activeBurst } from './combat-feedback';
-import { combatNumber, partyFeedback, PresentationEvents } from './world-feedback';
+import EnemyMark from './EnemyMark';
+import { combatNumber, PresentationEvents } from './world-feedback';
 import { FloatingFeedback } from './floating-feedback';
-import { createPartyMarker, ROLE_MARKERS } from './party-markers';
+import { createPartyMarker } from './party-markers';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
 
 export interface SceneProps {
@@ -174,6 +175,7 @@ function createEffects(scene: THREE.Scene, quality: 'low' | 'high'): Effect[] {
 export default function Scene(props: SceneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const enemyMarkRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { latest.current = props; });
@@ -298,7 +300,7 @@ export default function Scene(props: SceneProps) {
       framingCamera.aspect = width / height; framingCamera.updateProjectionMatrix();
       framingPoint.set(0, 0, 0).project(framingCamera);
       const footY = (-framingPoint.y * .5 + .5) * height;
-      const dockTop = actionDock ? actionDock.getBoundingClientRect().top - host.getBoundingClientRect().top : height;
+      const dockTop = actionDock && host.parentElement?.dataset.layout !== 'touch' ? actionDock.getBoundingClientRect().top - host.getBoundingClientRect().top : height;
       const offset = calculateCameraViewOffset(height, footY, dockTop);
       if (offset > 0) camera.setViewOffset(width, height, 0, offset, width, height);
       else camera.clearViewOffset();
@@ -468,6 +470,16 @@ export default function Scene(props: SceneProps) {
       camera.updateMatrixWorld();
       targetReticle.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);
+      // One enemy-attached sigil: no screen-centered announcement panel.
+      const mark = enemyMarkRef.current;
+      if (mark) {
+        projected.copy(bossRig.root.position); projected.y += 3.15;
+        ray.copy(projected).sub(camera.position);
+        const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
+        projected.project(camera);
+        mark.style.opacity = inFront && projected.z < 1 && Math.abs(projected.x) < .96 && Math.abs(projected.y) < .94 ? '1' : '0';
+        mark.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-50%)`;
+      }
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
@@ -510,16 +522,11 @@ export default function Scene(props: SceneProps) {
 
   return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
     {props.state.party.map((actor, index) => {
-      const cue = partyFeedback(actor), role = ROLE_MARKERS[actor.role];
-      return <div key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
-        <span style={{ color: actor.color, marginRight: 6 }}>{role.glyph}</span>{actor.name.toUpperCase()}
-        <span style={{ opacity: .7, fontSize: 8, marginLeft: 7 }}>{role.label} · {actor.human ? 'PLAYER' : 'TRUST'}</span>
-        {(cue.lowHp || cue.tpReady) && <div style={{ marginTop: 4, fontSize: 9, letterSpacing: '.1em' }}>
-          {cue.lowHp && <span style={{ color: '#ffac9b', marginRight: 8 }}>LOW HP</span>}
-          {cue.tpReady && <span style={{ color: '#ffe5a0' }}>TP READY</span>}
-        </div>}
+      return <div className="party-world-label" key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
+        <span style={{ color: actor.color }}>{actor.name}</span>
       </div>;
     })}
+    <EnemyMark state={props.state} anchor={enemyMarkRef}/>
     {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
   </div>;
 }

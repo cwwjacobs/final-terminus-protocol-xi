@@ -63,103 +63,103 @@
 /* The objective remains in the field guide; active battle gives the feed room. */
 .game-shell[data-status=fighting] .encounter-note{display:none}
 
-/* Input-aware mobile HUD: independent thumb zones and a clear battlefield. */
-.touch-controls{position:absolute;inset:0;pointer-events:none;z-index:20;--touch-bottom:calc(22px + env(safe-area-inset-bottom,0px));user-select:none;-webkit-user-select:none}
+/* Combat information belongs to its target; timing is a shape, not a paragraph. */
+.enemy-mark-anchor{position:absolute;left:0;top:0;pointer-events:none;will-change:transform;z-index:4}
+.enemy-mark{width:52px;height:52px;color:var(--mark-color);filter:drop-shadow(0 0 7px #000)}
+.enemy-mark svg{display:block;width:100%;height:100%;overflow:visible}
+.mark-back{fill:#080e20ad;stroke:currentColor;stroke-width:1;opacity:.7}
+.mark-timer{stroke:currentColor;stroke-width:3;stroke-linecap:round}
+.mark-symbol{stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.enemy-mark.ready .mark-symbol{filter:drop-shadow(0 0 3px currentColor)}
+.enemy-mark.preparing{opacity:.6}.enemy-mark.preparing .mark-timer{stroke-width:1.5}
+.enemy-mark.burst .mark-back{stroke-width:2}
+.touch-menu-toggle,.touch-menu-links{display:none}
+.party-world-label{font-size:10px!important;letter-spacing:.03em!important}
+/* Keep the enemy bar on the upper edge on every platform. */
+.game-shell[data-layout=desktop] .boss-panel{top:18px;width:min(410px,36vw);z-index:3}
+.game-shell[data-layout=desktop] .boss-panel h1{font-size:18px;margin:0 0 8px}
+.game-shell[data-layout=desktop] .boss-panel .eyebrow{display:none}
+.game-shell[data-layout=desktop] .boss-detail{margin-top:8px;font-size:8px}
+.game-shell[data-layout=desktop] .boss-panel .target-select{position:absolute;top:49px;left:50%;transform:translateX(-50%);margin:0}
+.game-shell[data-layout=desktop] .location{display:none}
+
+/* Two small thumb zones. Detailed commands, party and camera tools open on demand. */
+.touch-controls{position:absolute;inset:0;pointer-events:none;z-index:20;user-select:none;-webkit-user-select:none}
 .touch-controls[hidden]{display:none}
-.touch-movement{position:absolute;left:max(14px,env(safe-area-inset-left,0px));bottom:var(--touch-bottom);width:132px;display:flex;align-items:center;flex-direction:column;gap:8px}
-.touch-stick{width:124px;height:124px;position:relative;display:grid;place-items:center;border-radius:50%;border:1px solid #d2b47a70;background:radial-gradient(circle,#191529aa 0 35%,#100d1d80 36% 68%,#d2b47a17 69%);box-shadow:inset 0 0 20px #05040b66,0 5px 25px #0005;pointer-events:auto;touch-action:none}
-.touch-stick-cross{color:#d2b47a35;font-size:64px;font-weight:100;line-height:1;pointer-events:none}
-.touch-stick-knob{position:absolute;width:49px;height:49px;border:1px solid #f1d59ab3;border-radius:50%;background:radial-gradient(circle at 35% 25%,#bfa77ad9,#6c5979df);box-shadow:0 3px 14px #0008;pointer-events:none;will-change:transform}
-.touch-move-label{font-size:6px;letter-spacing:.5px;white-space:nowrap;color:#cec2dc;text-shadow:0 1px 4px #000}
-.touch-camera-tools{display:flex;gap:4px;pointer-events:auto}
-.touch-controls button{touch-action:none;min-height:44px;padding:6px;border-color:#d2b47a65;background:#141120e8;box-shadow:0 3px 12px #0004}
-.touch-camera-tools button{width:42px;min-width:42px;font-size:20px}
-.touch-action-cluster{position:absolute;right:max(14px,env(safe-area-inset-right,0px));bottom:var(--touch-bottom);width:228px;pointer-events:auto}
-.touch-battle-tools{display:grid;grid-template-columns:1fr 1.3fr;gap:6px;margin-bottom:6px}
-.touch-battle-tools button{font-size:11px;font-weight:600;letter-spacing:.2px}
-.touch-battle-tools .touch-engage{color:#f3d394;border-color:#e1c07ca6;background:#473424e8}
-.touch-battle-tools .touch-engage.on{background:#263f37ed;color:#a9edd0;border-color:#89d0af99}
-.touch-ability-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-.touch-controls .touch-ability{height:72px;min-width:0;width:100%;margin:0;border-radius:10px;padding:4px;overflow:hidden}
-.touch-ability .ability-icon{height:23px;font-size:23px;line-height:23px}
-.touch-ability strong{white-space:normal;font-size:10px;line-height:12px;margin-top:4px;font-weight:600}
-.touch-ability small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:8px;line-height:11px;margin-top:3px}
-.touch-controls button:active:not(:disabled){transform:scale(.96);background:#393049;border-color:#f4dfb2}
-.touch-controls button:disabled{opacity:.52}
-.game-shell[data-layout=touch]{overscroll-behavior:none}
-.game-shell[data-layout=touch][data-status=ready] .player-console{visibility:hidden}
-.game-shell[data-layout=touch] .topbar{height:56px;padding:8px max(14px,env(safe-area-inset-right,0px)) 8px max(14px,env(safe-area-inset-left,0px));gap:8px}
-.game-shell[data-layout=touch] .brand{font-size:16px;letter-spacing:2px;gap:8px}
-.game-shell[data-layout=touch] .brand-sigil{font-size:28px}
-.game-shell[data-layout=touch] .brand small{font-size:6px;letter-spacing:3px}
-.game-shell[data-layout=touch] .location,.game-shell[data-layout=touch] .topbar nav button span{display:none}
-.game-shell[data-layout=touch] .topbar nav{gap:5px}
-.game-shell[data-layout=touch] .topbar nav button{min-width:44px;min-height:44px;padding:8px;font-size:16px}
-.game-shell[data-layout=touch] .topbar nav em{font-size:9px;margin-left:5px}
-.game-shell[data-layout=touch] .boss-panel{top:69px;width:min(440px,calc(100% - 32px))}
-.game-shell[data-layout=touch] .boss-panel h1{font-size:21px;margin:8px 0}
-.game-shell[data-layout=touch] .boss-panel .eyebrow{font-size:7px;letter-spacing:1.3px}
-.game-shell[data-layout=touch] .boss-detail{font-size:8px;margin-top:8px}
-.game-shell[data-layout=touch] .boss-detail small{display:none}
-.game-shell[data-layout=touch] .boss-panel .target-select{display:none}
-.game-shell[data-layout=touch] .cast{margin-top:7px}
-.game-shell[data-layout=touch] .party-panel{top:177px;left:50%;transform:translateX(-50%);width:min(440px,calc(100% - 24px));display:flex;gap:4px;max-height:none;min-height:0;overflow:visible}
-.game-shell[data-layout=touch] .party-panel .panel-caption,.game-shell[data-layout=touch] .party-member .portrait,.game-shell[data-layout=touch] .party-member .member-role,.game-shell[data-layout=touch] .party-member .tp-line,.game-shell[data-layout=touch] .member-name small{display:none}
-.game-shell[data-layout=touch] .party-member{min-height:44px;padding:7px 5px;margin:0;flex:1;min-width:0;border:1px solid #c1acd42d;border-radius:5px;background:#100d1db3}
-.game-shell[data-layout=touch] .party-member.selected{border-color:var(--gold)}
-.game-shell[data-layout=touch] .member-name{display:block;font-size:9px;letter-spacing:0;text-align:center;line-height:12px}
-.game-shell[data-layout=touch] .mini-track{margin-top:6px;height:3px}
-.game-shell[data-layout=touch] .encounter-note,.game-shell[data-layout=touch] .combat-log{display:none}
-.game-shell[data-layout=touch] .player-console{bottom:calc(234px + env(safe-area-inset-bottom,0px));width:min(510px,calc(100% - 24px));padding:8px 10px;z-index:21;background:linear-gradient(130deg,#0e0c19ed,#100d1dd9);border-radius:8px;pointer-events:none}
-.game-shell[data-layout=touch] .player-status{gap:10px;flex-wrap:nowrap;padding-bottom:6px}
-.game-shell[data-layout=touch] .player-name{font-size:13px;min-width:55px}
-.game-shell[data-layout=touch] .player-name small{font-size:6px}
-.game-shell[data-layout=touch] .player-status .resource{min-width:0}
-.game-shell[data-layout=touch] .resource label{font-size:7px}
+.touch-movement{position:absolute;left:max(18px,env(safe-area-inset-left,0px));bottom:max(18px,env(safe-area-inset-bottom,0px));width:104px;display:flex;align-items:center;flex-direction:column;gap:9px}
+.touch-stick{width:104px;height:104px;position:relative;display:grid;place-items:center;border-radius:50%;border:1px solid #d2b47a50;background:radial-gradient(circle,#19152955 0 34%,#100d1d38 35% 68%,#d2b47a12 69%);pointer-events:auto;touch-action:none}
+.touch-stick-cross{color:#d2b47a30;font-size:50px;line-height:1;pointer-events:none}
+.touch-stick-knob{position:absolute;width:40px;height:40px;border:1px solid #f1d59a90;border-radius:50%;background:radial-gradient(circle at 35% 25%,#bfa77ab3,#6c5979c0);pointer-events:none;will-change:transform}
+.touch-controls button{touch-action:none;min-height:44px;padding:4px;border-color:#d2b47a50;background:#1411209c;box-shadow:none;pointer-events:auto}
+.touch-movement .touch-engage{font-size:10px;border-radius:22px;width:94px;min-height:44px;color:#f3d394}
+.touch-movement .touch-engage.on{color:#a9edd0;border-color:#89d0af70;background:#18332d88}
+.touch-action-cluster{position:absolute;right:max(18px,env(safe-area-inset-right,0px));bottom:max(18px,env(safe-area-inset-bottom,0px));width:184px;pointer-events:auto}
+.touch-ability-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.touch-controls .touch-ability{height:57px;min-width:0;width:100%;margin:0;border-radius:16px;padding:4px 2px;overflow:hidden;flex:none}
+.touch-ability .ability-icon{height:24px;font-size:24px;line-height:24px}
+.touch-ability strong{white-space:normal;font-size:9px;line-height:10px;margin-top:4px;font-weight:500;letter-spacing:0}
+.touch-controls button:active:not(:disabled){transform:scale(.95);background:#393049;border-color:#f4dfb2}
+.touch-controls button:disabled{opacity:.44}
+.touch-controls .chain-ready{border-color:#e2c88b;box-shadow:inset 0 0 13px #e2c88b25}
+.touch-controls .burst-ready{border-color:#ccb1ff;box-shadow:inset 0 0 13px #ccb1ff38}
+.game-shell[data-layout=touch]{overscroll-behavior:none;min-height:0;height:100dvh}
+.game-shell[data-layout=touch] .topbar{top:env(safe-area-inset-top,0px);height:56px;padding:6px max(12px,env(safe-area-inset-right,0px));background:none;border:0;pointer-events:none;z-index:23}
+.game-shell[data-layout=touch] .brand,.game-shell[data-layout=touch] .location,.game-shell[data-layout=touch] .topbar nav>button:not(.touch-menu-toggle){display:none}
+.game-shell[data-layout=touch] .topbar nav{margin-left:auto;pointer-events:auto}
+.game-shell[data-layout=touch] .touch-menu-toggle{display:block;width:44px;height:44px;padding:8px;font-size:21px;border-radius:50%;background:#100d1d99}
+.game-shell[data-layout=touch] .boss-panel{top:calc(12px + env(safe-area-inset-top,0px));left:14px;transform:none;width:calc(100% - 84px);z-index:22;pointer-events:none}
+.game-shell[data-layout=touch] .boss-panel h1{font:14px Arial,sans-serif;letter-spacing:.4px;margin:0 0 9px;align-items:center}
+.game-shell[data-layout=touch] .boss-panel h1>span{font:11px Arial,sans-serif}
+.game-shell[data-layout=touch] .boss-panel .eyebrow,.game-shell[data-layout=touch] .boss-detail,.game-shell[data-layout=touch] .target-select{display:none}
+.game-shell[data-layout=touch] .boss-hp{height:4px;outline-offset:2px}
+.game-shell[data-layout=touch] .cast{height:17px;margin-top:9px;font-size:9px;padding:2px 4px}
+.game-shell[data-layout=touch] .player-console{top:calc(76px + env(safe-area-inset-top,0px));left:14px;bottom:auto;transform:none;width:min(340px,calc(100% - 28px));padding:0;background:none;box-shadow:none;border:0;pointer-events:none;z-index:21}
+.game-shell[data-layout=touch] .player-status{gap:10px;padding:0;border:0}
+.game-shell[data-layout=touch] .player-name{font-size:11px;min-width:48px}
+.game-shell[data-layout=touch] .player-name small,.game-shell[data-layout=touch] .resource b small{display:none}
+.game-shell[data-layout=touch] .resource{min-width:0}
+.game-shell[data-layout=touch] .resource label{font-size:7px;margin-bottom:4px}
 .game-shell[data-layout=touch] .resource b{font-size:9px}
-.game-shell[data-layout=touch] .resource b small,.game-shell[data-layout=touch] .player-status .engage,.game-shell[data-layout=touch] .revelry-action,.game-shell[data-layout=touch] .revelry-values small,.game-shell[data-layout=touch] .hotbar-toggle,.game-shell[data-layout=touch] .player-console .hotbar,.game-shell[data-layout=touch] .loop-legend,.game-shell[data-layout=touch] .command-live-note{display:none}
-.game-shell[data-layout=touch] .revelry-panel{min-height:23px;padding:3px 0}
-.game-shell[data-layout=touch] .revelry-values{font-size:8px;gap:10px}
-.game-shell[data-layout=touch] .revelry-values .revelry-badge{font-size:8px}
-.game-shell[data-layout=touch] .command-toolbar{margin-top:3px;pointer-events:auto}
-.game-shell[data-layout=touch] .command-toggle{min-height:44px;width:100%;font-size:11px;padding:9px 10px}
-.game-shell[data-layout=touch] .command-menu{display:block}
-.game-shell[data-layout=touch] .command-popover{left:auto;right:0;bottom:calc(100% + 8px);width:min(290px,calc(100vw - 50px));max-height:55dvh}
-.game-shell[data-layout=touch] .command-row{min-height:44px;font-size:13px}
+.game-shell[data-layout=touch] .resource>div{height:3px}
+.game-shell[data-layout=touch] .player-status .engage,.game-shell[data-layout=touch] .revelry-panel,.game-shell[data-layout=touch] .hotbar-toggle,.game-shell[data-layout=touch] .player-console .hotbar,.game-shell[data-layout=touch] .loop-legend,.game-shell[data-layout=touch] .command-live-note{display:none}
+.game-shell[data-layout=touch] .command-toolbar{margin:0}
+.game-shell[data-layout=touch] .command-toggle{display:none}
+.game-shell[data-layout=touch] .command-popover{position:fixed;left:14px;right:auto;top:calc(108px + env(safe-area-inset-top,0px));bottom:auto;width:min(290px,calc(100vw - 28px));max-height:calc(100dvh - 130px);pointer-events:auto;overflow:auto}
+.game-shell[data-layout=touch] .command-row{min-height:44px;font-size:12px}
 .game-shell[data-layout=touch] .command-caption button{min-height:44px;min-width:44px}
-.game-shell[data-layout=touch] .command-nav-hint{display:none}
-.game-shell[data-layout=touch] .entry-card{left:50%;top:31%;transform:translate(-50%,0);padding:12px;width:min(330px,calc(100% - 40px));z-index:22}
+.game-shell[data-layout=touch] .command-nav-hint,.game-shell[data-layout=touch] .party-panel,.game-shell[data-layout=touch] .party-world-label,.game-shell[data-layout=touch] .encounter-note,.game-shell[data-layout=touch] .combat-log,.game-shell[data-layout=touch] .statusbar{display:none}
+.game-shell[data-layout=touch][data-status=ready] .player-console{visibility:hidden}
+.game-shell[data-layout=touch] .entry-card{left:50%;top:38%;transform:translate(-50%,-20%);padding:12px;width:min(330px,calc(100% - 40px));z-index:22}
 .game-shell[data-layout=touch] .entry-card h2{font-size:31px;margin-top:6px}
-.game-shell[data-layout=touch] .entry-card p{font-size:10px;margin:9px 0 12px}
+.game-shell[data-layout=touch] .entry-card p{font-size:11px;margin:9px 0 12px}
 .game-shell[data-layout=touch] .entry-card .primary{min-height:48px;width:100%;font-size:12px}
-.game-shell[data-layout=touch] .entry-card>small{font-size:8px;line-height:1.5;margin-top:8px}
-.game-shell[data-layout=touch] .chain-feedback{top:236px;left:auto;right:14px;width:min(270px,calc(100% - 28px));min-width:0;transform:none;z-index:5}
-.game-shell[data-layout=touch] .toast{bottom:calc(365px + env(safe-area-inset-bottom,0px));width:calc(100% - 30px);font-size:11px;z-index:30}
-.game-shell[data-layout=touch] .statusbar{height:16px;bottom:env(safe-area-inset-bottom,0px);padding:3px 14px;font-size:6px;letter-spacing:.2px}
-.game-shell[data-layout=touch] .debug-stats,.game-shell[data-layout=touch] .footer-save{display:none}
-.game-shell[data-layout=touch] .modal{max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+.game-shell[data-layout=touch] .entry-card>small{font-size:9px;line-height:1.5;margin-top:8px}
+.game-shell[data-layout=touch] .toast{bottom:156px;width:min(330px,calc(100% - 30px));font-size:11px;z-index:30}
+.game-shell[data-layout=touch] .modal{max-height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));overflow:auto}
 .game-shell[data-layout=touch] .modal button,.game-shell[data-layout=touch] .modal select{min-height:44px}
-.touch-party-choices{display:flex;flex-wrap:wrap;gap:6px}
-.touch-party-choices button{flex:1;min-width:90px;margin:0;font-size:12px}
-.touch-party-choices small{display:block;margin-top:4px;color:var(--muted);font-size:9px}
-.touch-party-choices button[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
-@media(max-width:390px){.touch-movement{left:max(8px,env(safe-area-inset-left,0px));width:108px}.touch-stick{width:104px;height:104px}.touch-stick-knob{width:44px;height:44px}.touch-camera-tools button{width:34px;min-width:34px}.touch-move-label{font-size:5px}.touch-action-cluster{right:max(8px,env(safe-area-inset-right,0px));width:204px}.touch-ability-grid{gap:4px}.touch-controls .touch-ability{height:70px}.touch-ability strong{font-size:9px}.touch-ability small{font-size:7px}}
-@media(orientation:landscape) and (max-height:600px){
- .game-shell[data-layout=touch] .topbar{height:48px}.game-shell[data-layout=touch] .topbar nav button{min-height:40px}
- .game-shell[data-layout=touch] .boss-panel{top:55px;width:min(340px,40vw);left:53%}.game-shell[data-layout=touch] .boss-panel h1{font-size:17px;margin:5px 0}.game-shell[data-layout=touch] .boss-detail{font-size:7px;gap:8px}
- .game-shell[data-layout=touch] .party-panel{display:none}
- .game-shell[data-layout=touch] .player-console{left:max(12px,env(safe-area-inset-left,0px));top:57px;bottom:auto;transform:none;width:224px;padding:6px 8px}
- .game-shell[data-layout=touch] .player-name{display:none}.game-shell[data-layout=touch] .player-status{gap:8px;padding-bottom:4px}.game-shell[data-layout=touch] .revelry-panel{min-height:18px}.game-shell[data-layout=touch] .command-toggle{min-height:40px}
- .game-shell[data-layout=touch] .command-popover{left:0;right:auto;top:calc(100% + 6px);bottom:auto;max-height:calc(100dvh - 180px)}
- .touch-movement{width:116px;bottom:calc(18px + env(safe-area-inset-bottom,0px))}.touch-stick{width:104px;height:104px}.touch-stick-knob{width:43px;height:43px}.touch-movement{gap:5px}.touch-camera-tools button{min-height:40px}
- .touch-action-cluster{width:222px;bottom:calc(18px + env(safe-area-inset-bottom,0px))}.touch-controls .touch-ability{height:63px}.touch-battle-tools{margin-bottom:5px}.touch-battle-tools button{min-height:40px}
- .game-shell[data-layout=touch] .entry-card{top:49%;transform:translate(-50%,-40%);width:min(310px,42vw);padding:8px 12px}.game-shell[data-layout=touch] .entry-card h2{font-size:24px}.game-shell[data-layout=touch] .entry-card p{font-size:9px;margin:5px 0 8px}.game-shell[data-layout=touch] .entry-card>small{font-size:7px;margin-top:5px}
- .game-shell[data-layout=touch] .chain-feedback{left:50%;right:auto;top:143px;transform:translateX(-50%);width:245px;padding:6px 9px}.game-shell[data-layout=touch] .chain-feedback-title{margin:2px 0}.game-shell[data-layout=touch] .chain-feedback p{font-size:8px}
- .game-shell[data-layout=touch] .toast{bottom:30px;width:min(320px,42vw)}
+.game-shell[data-layout=touch] .touch-menu-links{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:16px 0}
+.touch-menu-links button{margin:0!important;font-size:12px}
+.touch-party-choices{display:flex;flex-wrap:wrap;gap:6px}.touch-party-choices button{flex:1;min-width:90px;margin:0;font-size:12px}.touch-party-choices small{display:block;margin-top:4px;color:var(--muted);font-size:9px}.touch-party-choices button[aria-pressed=true]{border-color:var(--gold);color:var(--gold)}
+@media(orientation:landscape){
+ .game-shell[data-layout=touch] .boss-panel{top:calc(12px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:clamp(180px,35vw,380px)}
+ .game-shell[data-layout=touch] .player-console{top:calc(14px + env(safe-area-inset-top,0px));left:max(14px,env(safe-area-inset-left,0px));width:170px}
+ .game-shell[data-layout=touch] .player-name{display:none}
+ .game-shell[data-layout=touch] .command-popover{top:64px;max-height:calc(100dvh - 80px)}
+ .game-shell[data-layout=touch] .entry-card{top:48%;transform:translate(-50%,-35%);width:min(330px,60vw)}
+ .game-shell[data-layout=touch] .entry-card h2{font-size:25px}
+ .game-shell[data-layout=touch] .entry-card p{font-size:10px;margin:6px 0 9px}
+ .game-shell[data-layout=touch] .toast{bottom:24px;width:32vw;font-size:10px}
 }
-@media(max-width:600px) and (max-height:740px) and (orientation:portrait){.game-shell[data-layout=touch] .entry-card{top:32%;width:280px;padding:8px}.game-shell[data-layout=touch] .entry-card h2{font-size:24px}.game-shell[data-layout=touch] .entry-card p{display:none}.game-shell[data-layout=touch] .entry-card>small{font-size:7px}.game-shell[data-layout=touch] .player-console{bottom:calc(224px + env(safe-area-inset-bottom,0px))}.game-shell[data-layout=touch] .party-panel{top:166px}.game-shell[data-layout=touch] .chain-feedback{top:220px}}
-@media(forced-colors:active){.touch-stick,.touch-stick-knob,.touch-controls button{border:1px solid ButtonText}.touch-stick-knob{background:Highlight}}
-@media(max-width:350px){.touch-action-cluster{width:180px}.touch-movement{width:96px}.touch-stick{width:94px;height:94px}.touch-camera-tools{gap:2px}.touch-camera-tools button{width:30px;min-width:30px}.touch-ability strong{font-size:8px}.touch-ability small{font-size:6px}}
-@media(orientation:landscape) and (max-height:350px){.game-shell[data-layout=touch] .player-console{top:51px}.game-shell[data-layout=touch] .player-console .revelry-panel{display:none}}
-.game-shell[data-layout=touch] .topbar{top:env(safe-area-inset-top,0px)}
-@media(orientation:portrait){.game-shell[data-layout=touch] .boss-panel{top:calc(69px + env(safe-area-inset-top,0px))}.game-shell[data-layout=touch] .party-panel{top:calc(177px + env(safe-area-inset-top,0px))}}
+@media(orientation:landscape) and (max-height:420px){
+ .touch-movement{bottom:max(12px,env(safe-area-inset-bottom,0px));width:90px;gap:7px}
+ .touch-stick{width:90px;height:90px}.touch-stick-knob{width:36px;height:36px}
+ .touch-action-cluster{bottom:max(12px,env(safe-area-inset-bottom,0px));width:172px}
+ .touch-controls .touch-ability{height:51px;border-radius:14px}.touch-ability .ability-icon{font-size:21px;height:21px;line-height:21px}.touch-ability strong{font-size:8px;line-height:9px;margin-top:3px}
+ .game-shell[data-layout=touch] .entry-card .eyebrow,.game-shell[data-layout=touch] .entry-card p{display:none}
+ .game-shell[data-layout=touch] .entry-card h2{font-size:24px;margin:0 0 12px}
+ .enemy-mark{width:44px;height:44px}
+}
+@media(max-width:350px) and (orientation:portrait){.touch-movement{left:10px;width:90px}.touch-stick{width:90px;height:90px}.touch-action-cluster{right:10px;width:172px}.touch-ability-grid{gap:5px}}
+@media(forced-colors:active){.touch-stick,.touch-stick-knob,.touch-controls button{border:1px solid ButtonText}.touch-stick-knob{background:Highlight}.enemy-mark{color:CanvasText}}
+
+.collapse-clock{display:none}.game-shell[data-layout=touch] .boss-panel .collapse-clock{display:inline-block;margin-left:10px;color:#ffac95;font-size:10px}

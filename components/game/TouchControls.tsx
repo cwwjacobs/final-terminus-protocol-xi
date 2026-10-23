@@ -13,9 +13,6 @@ interface Props {
   stick: TouchStickState;
   blocked: boolean;
   onAction: (action: Action) => void;
-  onTarget: () => void;
-  onRecenter: () => void;
-  onZoom: (delta: number) => void;
   onFocus: () => void;
 }
 
@@ -24,11 +21,11 @@ const utility = [
   { name: 'Provoke', glyph: '♜', color: 'gold', action: { type: 'provoke' } },
   { name: 'Mend', glyph: '✚', color: 'mint', action: { type: 'heal' } },
   { name: 'Guard', glyph: '⬡', color: 'ice', action: { type: 'guard' } },
-  { name: 'Evade', glyph: '↗', color: 'mint', action: { type: 'dodge' } },
+  { name: 'Evade', glyph: '↗︎', color: 'mint', action: { type: 'dodge' } },
 ] satisfies { name: string; glyph: string; color: string; action: Action }[];
 
 /** Each surface owns its pointer; an ability never releases the left stick. */
-export default function TouchControls({ state, slot, stick, blocked, onAction, onTarget, onRecenter, onZoom, onFocus }: Props) {
+export default function TouchControls({ state, slot, stick, blocked, onAction, onFocus }: Props) {
   const knob = useRef<HTMLSpanElement>(null);
   const origin = useRef({ x: 0, y: 0, radius: 1 });
   const reset = () => {
@@ -82,21 +79,12 @@ export default function TouchControls({ state, slot, stick, blocked, onAction, o
   const choices = [...abilities, ...utility].filter(item => canUseActionRole(player.role, item.action.type));
   return <div className="touch-controls" hidden={blocked} aria-label="Touch controls" onContextMenu={event => event.preventDefault()}>
     <div className="touch-movement">
-      <div className="touch-camera-tools" aria-label="Camera controls">
-        <button aria-label="Zoom camera in" {...press(() => onZoom(-1.5))}>＋</button>
-        <button aria-label="Recenter camera" {...press(onRecenter)}>⌖</button>
-        <button aria-label="Zoom camera out" {...press(() => onZoom(1.5))}>−</button>
-      </div>
+      <button className={`touch-engage ${player.engaged ? 'on' : ''}`} aria-pressed={player.engaged} disabled={!!commandUnavailable(state, slot, { type: 'engage' })} {...press(() => onAction({ type: 'engage' }))}>{player.engaged ? 'Disengage' : 'Engage'}</button>
       <div className="touch-stick" role="group" aria-label="Movement stick: drag to move" onPointerDown={begin} onPointerMove={update} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
         <span className="touch-stick-cross" aria-hidden="true">＋</span><span className="touch-stick-knob" ref={knob} aria-hidden="true"/>
       </div>
-      <span className="touch-move-label">MOVE · SWIPE FIELD TO LOOK</span>
     </div>
     <div className="touch-action-cluster">
-      <div className="touch-battle-tools">
-        <button aria-label="Select enemy target" {...press(onTarget)}>⌖ Target</button>
-        <button className={`touch-engage ${player.engaged ? 'on' : ''}`} aria-pressed={player.engaged} disabled={!!commandUnavailable(state, slot, { type: 'engage' })} {...press(() => onAction({ type: 'engage' }))}>{player.engaged ? 'Disengage' : 'Engage'}</button>
-      </div>
       <div className="touch-ability-grid" aria-label={`${player.name} abilities`}>
         {choices.map(item => {
           const reason = commandUnavailable(state, slot, item.action);
@@ -104,7 +92,7 @@ export default function TouchControls({ state, slot, stick, blocked, onAction, o
           const cooldown = Math.max(0, player.cooldowns[item.action.type] || 0);
           const detail = cooldown > 0 ? `${Math.ceil(cooldown)}s` : cue?.label ?? (reason || (item.action.type === 'weapon' ? '1000 TP' : item.action.type === 'magic' ? '70 MP' : item.action.type === 'revelry' ? '+1 party stack' : 'Ready'));
           return <button key={item.name} className={`ability touch-ability ${item.color} ${cue?.kind ?? ''}`} disabled={!!reason} aria-label={`${item.name}: ${detail}`} title={detail} {...press(() => onAction(item.action))}>
-            <span className="ability-icon" aria-hidden="true">{cooldown > 0 ? `${Math.ceil(cooldown)}s` : item.glyph}</span><strong>{item.name}</strong><small>{detail}</small>
+            <span className="ability-icon" aria-hidden="true">{cooldown > 0 ? `${Math.ceil(cooldown)}s` : item.glyph}</span><strong>{item.name}</strong>
           </button>;
         })}
       </div>
