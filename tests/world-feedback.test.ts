@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createGame } from '../game/engine.ts';
 import { combatNumber, CombatNumberPool, partyFeedback, PresentationEvents, type CombatEvent, type CombatNumber } from '../components/game/world-feedback.ts';
-import { FloatingFeedback } from '../components/game/floating-feedback.ts';
+import { FloatingFeedback, depthScale, punchScale } from '../components/game/floating-feedback.ts';
 import { GLYPHS, MAX_GLYPHS_PER_NUMBER, layoutGlyphs } from '../components/game/combat-glyphs.ts';
 
 function damage(id: number, time = 0): CombatEvent {
@@ -129,10 +129,16 @@ test('number overlay stays still with reduced motion, clips behind camera and re
     const still = label.style.transform;
     assert.equal(sheet.children[0].children.length, Object.keys(GLYPHS).length, 'one shared outline per glyph');
     assert.equal(label.dataset.value, '+640'); assert.equal(label.style.opacity, '1');
-    const drawn = label.children.filter(use => use.style.display !== 'none');
+    const [depth, face] = label.children;
+    assert.deepEqual([depth.dataset.layer, face.dataset.layer], ['depth', 'face']);
+    const drawn = face.children.filter(use => use.style.display !== 'none');
     assert.deepEqual(drawn.map(use => use.attributes.href.split('-').at(-1)), ['plus', '6', '4', '0'], 'outlines are referenced, not text');
-    assert.equal(label.children.length, MAX_GLYPHS_PER_NUMBER, 'glyph nodes are preallocated');
-    assert.equal(label.attributes.viewBox.split(' ')[2], String(layoutGlyphs('+640').width));
+    assert.deepEqual(depth.children.filter(use => use.style.display !== 'none').map(use => use.attributes.x), drawn.map(use => use.attributes.x), 'the depth slab mirrors the face');
+    assert.notEqual(depth.children[0].style.fill, face.children[0].style.fill, 'depth layer is a darker tone');
+    assert.equal(face.children.length, MAX_GLYPHS_PER_NUMBER, 'glyph nodes are preallocated');
+    assert.equal(depth.children.length, MAX_GLYPHS_PER_NUMBER);
+    assert.ok(Number(label.attributes.viewBox.split(' ')[2]) > layoutGlyphs('+640').width, 'viewBox leaves room for the depth offset');
+    assert.match(still, /rotateX\(0\.000rad\) scale\(1\.200\)$/, 'reduced motion: no tilt, no punch; only the 10 m depth scale remains');
     overlay.update(.2, camera, 800, 800, true);
     assert.equal(label.style.transform, still, 'reduced motion fades in place without lift');
     overlay.update(.1, camera, 800, 800, false);
@@ -177,5 +183,56 @@ test('glyph layout covers every combatNumber text, drops unknown characters and 
   for (const glyph of Object.values(GLYPHS)) {
     assert.match(glyph.d, /^M[-\d.]/, 'absolute path data');
     assert.ok(glyph.advance > 0 && glyph.advance < 1000);
+  }
+});
+
+test('depth scale and spawn punch are bounded, monotonic and off under reduced motion', () => {
+  assert.equal(depthScale(12), 1, 'default follow distance is the base size');
+  assert.ok(depthScale(6) > depthScale(12) && depthScale(12) > depthScale(24), 'nearer reads larger');
+  assert.equal(depthScale(1), 1.4); assert.equal(depthScale(1000), .7);
+  for (const bad of [0, -1, NaN, Infinity]) assert.equal(depthScale(bad), 1, 'malformed distance never hides a number');
+  assert.ok(punchScale(0, 'damage', false) > 1 && punchScale(0, 'burst', false) > punchScale(0, 'damage', false));
+  assert.ok(punchScale(.05, 'damage', false) > punchScale(.1, 'damage', false), 'settles');
+  assert.equal(punchScale(.18, 'damage', false), 1); assert.equal(punchScale(5, 'burst', false), 1);
+  assert.equal(punchScale(0, 'burst', true), 1, 'reduced motion lands at rest');
+  assert.equal(punchScale(NaN, 'heal', false), 1);
+});
+
+test('tilt and scale are applied per frame without adding nodes', () => {
+  class Element {
+    children: Element[] = []; style: Record<string, string> = {}; dataset: Record<string, string> = {};
+    attributes: Record<string, string> = {}; removed = false; tag: string;
+    constructor(tag = 'div') { this.tag = tag; }
+    setAttribute(name: string, value: string) { this.attributes[name] = value; }
+    appendChild(child: Element) { this.children.push(child); }
+    remove() { this.removed = true; }
+  }
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'document');
+  Object.defineProperty(globalThis, 'document', { configurable: true, value: { createElement: (tag: string) => new Element(tag), createElementNS: (_ns: string, tag: string) => new Element(tag) } });
+  try {
+    const host = new Element();
+    const overlay = new FloatingFeedback(host as unknown as HTMLElement, 1);
+    const camera = new THREE.PerspectiveCamera(58, 1, .1, 100);
+    camera.position.set(0, 6, 10); camera.lookAt(0, 1, 0); camera.updateMatrixWorld();
+    const label = host.children[0].children[1];
+    const count = () => label.children.reduce((n, group) => n + group.children.length, 0);
+    const before = count();
+    overlay.spawn({ id: 1, target: 'boss', tone: 'burst', text: '✦ 12,480' }, { x: 0, y: 2, z: 0 });
+    overlay.update(.01, camera, 800, 800, false);
+    const near = label.style.transform;
+    assert.match(near, /rotateX\(-?0\.[1-9]\d*rad\)/, 'a pitched camera tilts the number');
+    const scaleAt = (transform: string) => Number(/scale\(([\d.]+)\)/.exec(transform)![1]);
+    assert.ok(scaleAt(near) > 1.2, 'burst punches in large');
+    overlay.update(.3, camera, 800, 800, false);
+    assert.ok(scaleAt(label.style.transform) < scaleAt(near), 'punch settles');
+    const settled = scaleAt(label.style.transform);
+    camera.position.set(0, 12, 20); camera.lookAt(0, 1, 0); camera.updateMatrixWorld();
+    overlay.update(.01, camera, 800, 800, false);
+    assert.ok(scaleAt(label.style.transform) < settled, 'farther camera draws it smaller');
+    assert.equal(count(), before, 'no nodes added per frame');
+    overlay.dispose();
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'document', descriptor);
+    else Reflect.deleteProperty(globalThis, 'document');
   }
 });
