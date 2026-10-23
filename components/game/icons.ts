@@ -20,6 +20,16 @@ export const ABILITY_MARKS = {
   lightning: [stroke('m36 17-16 18h11l-3 13 16-20H33Z')],
 } as const satisfies Record<string, IconShape[]>;
 
+
+/** Pictorial role emblems in the 64-unit box: what each role does, not a shape. */
+export const ROLE_EMBLEMS = {
+  vanguard: [stroke('M32 26v30'), stroke('M25 56h14'), stroke('M32 6c6 2 10 8 10 14 0 5-4 9-10 10-6-1-10-5-10-10 0-6 4-12 10-14z'), stroke('M26 13l6 4 6-4M24 20l8 5 8-5M28 27l4 2 4-2', 1.8), stroke('M32 10v18', 1.4), fill('M32 34c-8 0-11 6-8 12 6 0 9-5 8-12z'), stroke('M32 42c7-1 9 4 6 9', 1.8)],
+  warden: [stroke('M32 6l20 6v16c0 14-9 23-20 29C21 51 12 42 12 28V12z'), stroke('M32 12l14 4v12c0 10-6 17-14 22-8-5-14-12-14-22V16z', 1.6), fill('M32 22l4 4h5l-3 4 1 6-7-3-7 3 1-6-3-4h5z'), stroke('M26 38h12')],
+  hunter: [stroke('M16 6c18 7 18 45 0 52'), stroke('M16 6v52', 1.3), stroke('M8 32h46'), fill('M58 32l-10-6v12z'), stroke('M9 32l5-6M9 32l5 6', 2), fill('M14 29h4v6h-4z')],
+  arcanist: [stroke('M32 12c11 0 20 9 20 20s-9 20-20 20-20-9-20-20 9-20 20-20z', 1.6), stroke('M14 24c9-9 27-9 36 0M50 40c-9 9-27 9-36 0', 1.6), fill('M32 20l4 8 8 4-8 4-4 8-4-8-8-4 8-4z'), fill('M52 32a2 2 0 1 0 4 0 2 2 0 1 0-4 0M8 32a2 2 0 1 0 4 0 2 2 0 1 0-4 0')],
+  luminary: [stroke('M32 4v10M32 50v10M4 32h10M50 32h10', 1.4), fill('M32 14l5 13 13 5-13 5-5 13-5-13-13-5 13-5z'), stroke('M32 12c11 0 20 9 20 20s-9 20-20 20S12 43 12 32c0-6 3-12 8-16', 1.8), fill('M20 16a2.6 2.6 0 1 0 0 .1')],
+} as const satisfies Record<string, IconShape[]>;
+
 const mark = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stroke: 3, shapes: [...shapes] });
 const icon = (...shapes: IconShape[]): IconDefinition => ({ box: 24, stroke: 1.8, shapes });
 
@@ -30,12 +40,15 @@ export const ICONS = {
   guide: icon(stroke('M9.3 9.2a2.7 2.7 0 1 1 4 2.5c-1 .6-1.3 1.2-1.3 2.3'), fill('M12 17a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z')),
   settings: icon(stroke('M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'), stroke('M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1', 2.2)),
   menu: icon(stroke('M4 7h16M4 12h16M4 17h16', 2)),
-  // Party roles: the same shapes as the floor rings in party-markers.ts
-  vanguard: icon(stroke('M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z')),
-  warden: icon(stroke('M12 3l9 9-9 9-9-9z')),
-  hunter: icon(stroke('M12 4l9 15H3z')),
-  arcanist: icon(fill('M12 2.5l1.6 6.1 5.4-3.2-3.2 5.4 6.1 1.6-6.1 1.6 3.2 5.4-5.4-3.2L12 21.5l-1.6-6.1-5.4 3.2 3.2-5.4L2.5 12.4l6.1-1.6-3.2-5.4 5.4 3.2z')),
-  luminary: icon(stroke('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z'), fill('M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z')),
+  // Party roles, pictorial: thyrsus, shield, bow, orbit, thread-and-star
+  vanguard: mark(ROLE_EMBLEMS.vanguard), warden: mark(ROLE_EMBLEMS.warden), hunter: mark(ROLE_EMBLEMS.hunter),
+  arcanist: mark(ROLE_EMBLEMS.arcanist), luminary: mark(ROLE_EMBLEMS.luminary),
+  // Party roles, geometric: the same shapes as the floor rings in party-markers.ts
+  vanguardShape: icon(stroke('M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z')),
+  wardenShape: icon(stroke('M12 3l9 9-9 9-9-9z')),
+  hunterShape: icon(stroke('M12 4l9 15H3z')),
+  arcanistShape: icon(fill('M12 2.5l1.6 6.1 5.4-3.2-3.2 5.4 6.1 1.6-6.1 1.6 3.2 5.4-5.4-3.2L12 21.5l-1.6-6.1-5.4 3.2 3.2-5.4L2.5 12.4l6.1-1.6-3.2-5.4 5.4 3.2z')),
+  luminaryShape: icon(stroke('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z'), fill('M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z')),
   // Ability marks
   cleave: mark(ABILITY_MARKS.cleave), pierce: mark(ABILITY_MARKS.pierce), resonance: mark(ABILITY_MARKS.resonance),
   fire: mark(ABILITY_MARKS.fire), ice: mark(ABILITY_MARKS.ice), lightning: mark(ABILITY_MARKS.lightning),
@@ -62,7 +75,7 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
-/** Party portrait icon for a role; falls back to the vanguard hexagon so an
+/** Party portrait emblem for a role; falls back to the vanguard thyrsus so an
  * unknown role still renders rather than throwing in the HUD. */
 export function roleIcon(role: string): IconName {
   return role in ICONS && ['vanguard', 'warden', 'hunter', 'arcanist', 'luminary'].includes(role) ? role as IconName : 'vanguard';

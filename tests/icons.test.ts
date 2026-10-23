@@ -9,7 +9,11 @@ const PATH = /^[MmLlHhVvCcSsQqTtAaZz][-\d.,\s MmLlHhVvCcSsQqTtAaZz]*$/;
 
 test('every HUD consumer names a registered outline', () => {
   for (const ability of abilities) assert.ok(ability.icon in ICONS, `${ability.name} icon ${ability.icon}`);
-  for (const role of Object.keys(ROLE_MARKERS)) assert.equal(roleIcon(role), role, 'portraits use the floor-ring shape of the same role');
+  for (const role of Object.keys(ROLE_MARKERS)) {
+    assert.equal(roleIcon(role), role, 'every role has a pictorial emblem');
+    assert.equal(ICONS[roleIcon(role)].box, 64, 'emblems are 64-box marks');
+    assert.ok(`${role}Shape` in ICONS, 'and keeps its floor-ring shape');
+  }
   assert.equal(roleIcon('not-a-role'), 'vanguard', 'unknown role falls back instead of throwing in render');
   for (const weapon of Object.keys(WEAPONS)) assert.ok(weapon in ABILITY_MARKS, `enemy mark for ${weapon}`);
   for (const element of Object.keys(MAGIC)) assert.ok(element in ABILITY_MARKS, `enemy mark for ${element}`);
