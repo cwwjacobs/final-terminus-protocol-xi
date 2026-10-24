@@ -1,0 +1,202 @@
+{
+  "generated": "2026-10-24T01:01:00Z",
+  "target": "bacchus.glb",
+  "fps": 30,
+  "method": "world-rotation delta vs T-pose reference; hips vertical only",
+  "clips": [
+    {
+      "name": "Cheering",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Cheering",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Death_A",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Death_A",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Dodge_Backward",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Dodge_Backward",
+      "frames": 19,
+      "seconds": 0.6,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Dodge_Right",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Dodge_Right",
+      "frames": 19,
+      "seconds": 0.6,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Hit_A",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Hit_A",
+      "frames": 16,
+      "seconds": 0.5,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Melee_2H_Attack_Slice",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Melee_2H_Attack_Slice",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Melee_2H_Attack_Spin",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Melee_2H_Attack_Spin",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Melee_2H_Attack_Stab",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Melee_2H_Attack_Stab",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Melee_Block",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Melee_Block",
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Melee_Blocking",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Melee_Blocking",
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Ranged_Bow_Draw",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Ranged_Bow_Draw",
+      "frames": 28,
+      "seconds": 0.9,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Ranged_Bow_Release",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Ranged_Bow_Release",
+      "frames": 28,
+      "seconds": 0.9,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Ranged_Magic_Raise",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Ranged_Magic_Raise",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Ranged_Magic_Shoot",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Ranged_Magic_Shoot",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Ranged_Magic_Spellcasting_Long",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Ranged_Magic_Spellcasting_Long",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Running_A",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Running_A",
+      "frames": 22,
+      "seconds": 0.7,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Running_Strafe_Left",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Running_Strafe_Left",
+      "frames": 22,
+      "seconds": 0.7,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Running_Strafe_Right",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Running_Strafe_Right",
+      "frames": 22,
+      "seconds": 0.7,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    },
+    {
+      "name": "Spell_Simple_Shoot",
+      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "sourceClip": "Spell_Simple_Shoot",
+      "frames": 31,
+      "seconds": 1.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "TPose"
+    }
+  ],
+  "placeholder": true,
+  "file": "hero-animations.glb",
+  "bytes": 178772,
+  "sha256": "66e823f9cbfd5d42216f39262bb16523e1f4325803326025fe5d4f22bf4c116f"
+}

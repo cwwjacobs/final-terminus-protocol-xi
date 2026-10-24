@@ -1,7 +1,11 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
-import { bacchusLocomotionClip, createBacchusCombat, type CombatCue } from './bacchus-combat.ts';
+import { bacchusLocomotionClip, BACCHUS_POSE_BONES, bacchusStrike, createBacchusCombat, type CombatCue } from './bacchus-combat.ts';
+import { ActionLayer } from './action-layer.ts';
+import { createHeroProps, type HeroProps } from './hero-props.ts';
+import { PARTY } from '../../game/content.ts';
+import type { Role } from '../../game/types.ts';
 
 export const HERO_ASSET_MANIFEST = Object.freeze({
   bacchus: '/assets/models/bacchus.glb',
@@ -10,6 +14,12 @@ export const HERO_ASSET_MANIFEST = Object.freeze({
   hecate: '/assets/models/hecate.glb',
   ariadne: '/assets/models/ariadne.glb',
 });
+/** One armature-only GLB of retargeted clips shared by every hero (all five
+ * rigs are the same 22-joint skeleton). Built by scripts/animation/retarget.py.
+ * Missing or failing to load leaves heroes on their own idle/walk. */
+export const HERO_ANIMATION_LIBRARY = '/assets/animations/hero-animations.glb';
+export type AnimationLibrary = ReadonlyMap<string, THREE.AnimationClip>;
+const EMPTY_LIBRARY: AnimationLibrary = new Map();
 
 export interface HeroVisual {
   /** Scene owns this wrapper's position and facing. Source scale/forward stay intact. */
@@ -108,7 +118,8 @@ class AssetResources {
 }
 
 function createVisual(id: string, asset: HeroAssetSource, resources: AssetResources,
-  onDispose: (visual: HeroVisual) => void): HeroVisual {
+  onDispose: (visual: HeroVisual) => void, library: AnimationLibrary = EMPTY_LIBRARY): HeroVisual {
+  const role: Role = PARTY.find(member => member.id === id)?.role ?? 'vanguard';
   const object = new THREE.Group();
   object.name = `hero:${id}`;
   const motion = new THREE.Group();
@@ -120,6 +131,8 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   const skeletons = new Set<THREE.Skeleton>();
   let mixer: THREE.AnimationMixer | undefined;
   let combat: ReturnType<typeof createBacchusCombat> = null;
+  let layer: ActionLayer | undefined;
+  let props: HeroProps | null = null;
   let disposed = false;
   let aliveBefore = true;
   let moving = false;
@@ -139,21 +152,30 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       const delta = Math.min(dt, .25);
       if (!alive) {
         if (aliveBefore) combat?.stop();
-        // Freeze the imported pose; do not write over authored bone channels.
         aliveBefore = false;
         motion.rotation.x = 0;
+        if (layer?.holding) {
+          // An authored death clip plays out and holds its last frame.
+          layer.update(delta, 0, false); mixer?.update(delta);
+          motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, 0, 8, delta);
+          return;
+        }
+        // Freeze the imported pose; do not write over authored bone channels.
         motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, Math.PI * .46, 8, delta);
         return;
       }
       motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, 0, 8, delta);
       const velocity = Number.isFinite(speed) ? Math.max(0, speed) : 0;
       moving = moving ? velocity > .08 : velocity > .2;
-      if (!aliveBefore) { resetActions(); combat?.reset(); aliveBefore = true; }
-      const targetWeight = moving && walk ? 1 : 0;
-      walkWeight = THREE.MathUtils.damp(walkWeight, targetWeight, 12, delta);
-      idle?.setEffectiveWeight(walk ? 1 - walkWeight : 1);
-      walk?.setEffectiveWeight(idle ? walkWeight : 1);
-      walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / 3, .65, 1.65));
+      if (!aliveBefore) { resetActions(); combat?.reset(); layer?.reset(); aliveBefore = true; }
+      if (layer) layer.update(delta, velocity, moving);
+      else {
+        const targetWeight = moving && walk ? 1 : 0;
+        walkWeight = THREE.MathUtils.damp(walkWeight, targetWeight, 12, delta);
+        idle?.setEffectiveWeight(walk ? 1 - walkWeight : 1);
+        walk?.setEffectiveWeight(idle ? walkWeight : 1);
+        walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / 3, .65, 1.65));
+      }
       combat?.beforeUpdate(delta);
       mixer?.update(delta);
       combat?.afterUpdate(delta);
@@ -162,20 +184,24 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       motion.rotation.x = combat ? 0 : -.045 * Math.sin(pulse * Math.PI);
     },
     playCombat(cue) {
-      return !disposed && aliveBefore ? combat?.play(cue) ?? 0 : 0;
+      if (disposed) return 0;
+      // The death clip is the one action a fallen actor still plays.
+      if (!aliveBefore && cue.kind !== 'down') return 0;
+      if (combat && bacchusStrike(cue)) return combat.play(cue);
+      return layer?.play(cue) ?? 0;
     },
-    resetCombat() { if (!disposed) combat?.reset(); },
+    resetCombat() { if (!disposed) { combat?.reset(); layer?.reset(); } },
     setWireframe(value) {
       if (disposed) return;
       materials.forEach(material => {
         if ('wireframe' in material) (material as THREE.MeshStandardMaterial).wireframe = value;
       });
-      combat?.setWireframe(value);
+      combat?.setWireframe(value); props?.setWireframe(value);
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      combat?.dispose();
+      combat?.dispose(); layer?.dispose(); props?.dispose();
       mixer?.stopAllAction();
       mixer?.uncacheRoot(model);
       object.removeFromParent();
@@ -208,12 +234,19 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     Object.defineProperty(visual, 'labelHeight', { value: labelHeight, enumerable: true });
     mixer = new THREE.AnimationMixer(model);
     if (id === 'bacchus') combat = createBacchusCombat(model, object, mixer, asset.animations.find(clip => clip.name.toLowerCase() === 'idle'));
-    const locomotion = combat ? asset.animations.map(bacchusLocomotionClip) : asset.animations;
-    const idleClip = locomotion.find(clip => clip.name.toLowerCase() === 'idle');
-    const walkClip = locomotion.find(clip => clip.name.toLowerCase() === 'walk');
-    idle = idleClip ? mixer.clipAction(idleClip) : undefined;
-    walk = walkClip ? mixer.clipAction(walkClip) : undefined;
-    resetActions();
+    else props = createHeroProps(id, model);
+    if (library.size > 0) {
+      // The shared library owns locomotion blending and one-shot actions. Bacchus's
+      // polearm layer keeps its bones; the library may only move the rest of him.
+      layer = new ActionLayer(mixer, role, asset.animations, library, { reserved: combat ? BACCHUS_POSE_BONES : [] });
+    } else {
+      const locomotion = combat ? asset.animations.map(bacchusLocomotionClip) : asset.animations;
+      const idleClip = locomotion.find(clip => clip.name.toLowerCase() === 'idle');
+      const walkClip = locomotion.find(clip => clip.name.toLowerCase() === 'walk');
+      idle = idleClip ? mixer.clipAction(idleClip) : undefined;
+      walk = walkClip ? mixer.clipAction(walkClip) : undefined;
+      resetActions();
+    }
     return visual;
   } catch (error) {
     visual.dispose();
@@ -221,17 +254,53 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   }
 }
 
+export interface HeroAssetCacheOptions {
+  /** Loader for the shared animation library; `false` disables it. A custom hero
+   * loader without this option loads no library, so tests stay deterministic. */
+  library?: HeroAssetLoader | false;
+}
+
+/** Index a loaded library by clip name. Names are unique per file by construction.
+ * Exporters sample every channel; only rotations and the hips' vertical travel
+ * carry meaning here, so scale tracks and other translations are dropped. */
+export function indexLibrary(asset: HeroAssetSource): AnimationLibrary {
+  return new Map(asset.animations.map(clip => {
+    const tracks = clip.tracks.filter(track => track.name.endsWith('.quaternion') || track.name === 'hips.position');
+    return [clip.name, new THREE.AnimationClip(clip.name, clip.duration, tracks)];
+  }));
+}
+
 /** One cache per mounted scene. Rejected loads leave the caller's fallback intact. */
 export class HeroAssetCache {
   private readonly loader: HeroAssetLoader;
+  private readonly libraryLoader: HeroAssetLoader | null;
   private readonly requests = new Map<string, Promise<HeroAssetSource>>();
+  private library: Promise<AnimationLibrary> | null = null;
   private readonly visuals = new Set<HeroVisual>();
   private readonly resources = new AssetResources();
   private disposed = false;
 
-  constructor(loader?: HeroAssetLoader) {
-    const gltfLoader = loader ? undefined : new GLTFLoader();
+  constructor(loader?: HeroAssetLoader, options: HeroAssetCacheOptions = {}) {
+    const gltfLoader = loader && options.library ? undefined : new GLTFLoader();
     this.loader = loader ?? (url => gltfLoader!.loadAsync(url));
+    this.libraryLoader = options.library === false ? null
+      : options.library ?? (loader ? null : url => gltfLoader!.loadAsync(url));
+  }
+
+  /** Shared clips, loaded once. A missing or broken file is an empty library, not a failed hero. */
+  loadLibrary(): Promise<AnimationLibrary> {
+    if (!this.libraryLoader) return Promise.resolve(EMPTY_LIBRARY);
+    if (!this.library) {
+      this.library = this.libraryLoader(HERO_ANIMATION_LIBRARY).then(asset => {
+        this.resources.capture(asset);
+        if (this.disposed) { this.resources.dispose(); return EMPTY_LIBRARY; }
+        return indexLibrary(asset);
+      }).catch(error => {
+        console.warn('Hero animation library unavailable; heroes keep their own idle/walk.', error);
+        return EMPTY_LIBRARY;
+      });
+    }
+    return this.library;
   }
 
   async load(id: string): Promise<HeroVisual> {
@@ -253,10 +322,10 @@ export class HeroAssetCache {
         });
       this.requests.set(id, pending);
     }
-    const asset = await pending;
+    const [asset, library] = await Promise.all([pending, this.loadLibrary()]);
     if (this.disposed) throw new Error('Hero asset cache is disposed');
     try {
-      const visual = createVisual(id, asset, this.resources, instance => this.visuals.delete(instance));
+      const visual = createVisual(id, asset, this.resources, instance => this.visuals.delete(instance), library);
       this.visuals.add(visual);
       return visual;
     } catch (error) {
@@ -269,7 +338,7 @@ export class HeroAssetCache {
     if (this.disposed) return;
     this.disposed = true;
     this.visuals.forEach(visual => visual.dispose());
-    this.visuals.clear(); this.requests.clear();
+    this.visuals.clear(); this.requests.clear(); this.library = null;
     this.resources.dispose();
   }
 }
