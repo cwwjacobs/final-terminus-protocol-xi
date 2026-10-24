@@ -56,6 +56,15 @@ MIXAMO = {
     'thigh_R': 'RightUpLeg', 'shin_R': 'RightLeg', 'foot_R': 'RightFoot', 'toe_R': 'RightToeBase',
 }
 
+# Rigify deform bones (Quaternius Universal Animation Library uses these).
+RIGIFY = {
+    'hips': 'DEF-hips', 'spine': 'DEF-spine.001', 'chest': 'DEF-spine.002', 'upper_chest': 'DEF-spine.003', 'neck': 'DEF-neck', 'head': 'DEF-head',
+    'clavicle_L': 'DEF-shoulder.L', 'upper_arm_L': 'DEF-upper_arm.L', 'forearm_L': 'DEF-forearm.L', 'hand_L': 'DEF-hand.L',
+    'clavicle_R': 'DEF-shoulder.R', 'upper_arm_R': 'DEF-upper_arm.R', 'forearm_R': 'DEF-forearm.R', 'hand_R': 'DEF-hand.R',
+    'thigh_L': 'DEF-thigh.L', 'shin_L': 'DEF-shin.L', 'foot_L': 'DEF-foot.L', 'toe_L': 'DEF-toe.L',
+    'thigh_R': 'DEF-thigh.R', 'shin_R': 'DEF-shin.R', 'foot_R': 'DEF-foot.R', 'toe_R': 'DEF-toe.R',
+}
+
 # Synonyms for the heuristic matcher. Matching is done on a normalized name:
 # lowercase, prefixes like "mixamorig:" removed, separators removed, with the
 # side detected from l/r/left/right tokens. Unmatched bones are reported.
@@ -155,6 +164,9 @@ def auto_map(source_bones: list[str]) -> dict[str, str]:
 
 
 def build_map(kind: str, source_bones: list[str]) -> dict[str, str]:
+    if kind == 'rigify':
+        have = set(source_bones)
+        return {canon: name for canon, name in RIGIFY.items() if name in have}
     if kind == 'mixamo':
         names = {normalize(b): b for b in source_bones}
         out = {}
@@ -535,10 +547,11 @@ def main(argv):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--target', required=True, help='hero GLB whose armature is the canonical rig')
     p.add_argument('--source', action='append', default=[], help='library GLB/FBX (repeatable; pairs with --map/--clips/--reference-clip/--rename in order)')
-    p.add_argument('--map', action='append', default=[], choices=['auto', 'mixamo'], help='bone-map strategy per source')
+    p.add_argument('--map', action='append', default=[], choices=['auto', 'mixamo', 'rigify'], help='bone-map strategy per source')
     p.add_argument('--clips', action='append', default=[], help='comma list of source clip names per source (default: all)')
     p.add_argument('--reference-clip', action='append', default=[], help='name of a T-pose clip in that source, or "-" for armature rest')
     p.add_argument('--rename', action='append', default=[], help='comma list old=new clip renames per source')
+    p.add_argument('--interim', default='', help='comma list of OUTPUT clip names whose source motion is a stand-in from a real pack (e.g. a sword swing standing in for a bow release); recorded in the receipt')
     p.add_argument('--out', default='public/assets/animations/hero-animations.glb')
     p.add_argument('--receipt', default=None)
     p.add_argument('--fps', type=int, default=30)
@@ -584,6 +597,7 @@ def main(argv):
             bpy.ops.import_scene.fbx(filepath=source)
             src = [o for o in bpy.data.objects if o.type == 'ARMATURE' and o is not tgt][-1]
         src_actions = {a.name: a for a in bpy.data.actions if a not in before_actions}
+        source_sha = sha256(source)
         bone_map = build_map(kind, [b.name for b in src.data.bones])
         missing = [c for c in CANONICAL if c not in bone_map]
         log(f'{os.path.basename(source)}: {len(src_actions)} clips, {len(bone_map)}/22 bones mapped; unmapped canonical: {missing}')
@@ -599,7 +613,7 @@ def main(argv):
             action, frames = retarget_clip(scene, src, src_actions[name], tgt, bone_map, out_name, args.fps,
                                            reference_action=reference, keep_vertical=not args.no_vertical)
             made.append(action)
-            receipt['clips'].append({'name': out_name, 'source': os.path.basename(source), 'sourceClip': name,
+            receipt['clips'].append({'name': out_name, 'source': os.path.basename(source), 'sourceSha256': source_sha, 'sourceClip': name,
                                      'frames': frames, 'seconds': round((frames - 1) / args.fps, 4),
                                      'mappedBones': len(bone_map), 'unmappedCanonical': missing, 'reference': ref_name})
             log(f'  {name} -> {out_name}: {frames} frames')
@@ -609,6 +623,10 @@ def main(argv):
                 bpy.data.objects.remove(o, do_unlink=True)
     push_to_nla(tgt, made)
     export_armature(tgt, args.out)
+    interim = [n for n in args.interim.split(',') if n]
+    for entry in receipt['clips']:
+        entry['interim'] = entry['name'] in interim
+    receipt['interim'] = interim
     receipt['file'] = os.path.basename(args.out); receipt['bytes'] = os.path.getsize(args.out); receipt['sha256'] = sha256(args.out)
     receipt_path = args.receipt or os.path.splitext(args.out)[0] + '.json'
     with open(receipt_path, 'w') as f:

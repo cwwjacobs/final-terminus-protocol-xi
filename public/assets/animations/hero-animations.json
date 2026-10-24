@@ -1,202 +1,150 @@
 {
-  "generated": "2026-10-24T01:01:00Z",
+  "generated": "2026-10-24T04:55:34Z",
   "target": "bacchus.glb",
   "fps": 30,
   "method": "world-rotation delta vs T-pose reference; hips vertical only",
+  "placeholder": false,
   "clips": [
     {
-      "name": "Cheering",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Cheering",
+      "name": "Death01",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Death01",
+      "frames": 73,
+      "seconds": 2.4,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "A_TPose",
+      "interim": false
+    },
+    {
+      "name": "Hit_Chest",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Hit_Chest",
+      "frames": 11,
+      "seconds": 0.3333,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "A_TPose",
+      "interim": false
+    },
+    {
+      "name": "Interact",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Interact",
+      "frames": 61,
+      "seconds": 2.0,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "A_TPose",
+      "interim": true
+    },
+    {
+      "name": "Jog_Fwd_Loop",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Jog_Fwd_Loop",
+      "frames": 29,
+      "seconds": 0.9333,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "A_TPose",
+      "interim": false
+    },
+    {
+      "name": "Pistol_Shoot",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Pistol_Shoot",
+      "frames": 20,
+      "seconds": 0.6333,
+      "mappedBones": 22,
+      "unmappedCanonical": [],
+      "reference": "A_TPose",
+      "interim": true
+    },
+    {
+      "name": "Punch_Cross",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Punch_Cross",
       "frames": 31,
       "seconds": 1.0,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": true
     },
     {
-      "name": "Death_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Death_A",
-      "frames": 31,
-      "seconds": 1.0,
+      "name": "Punch_Enter",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Punch_Enter",
+      "frames": 27,
+      "seconds": 0.8667,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": true
     },
     {
-      "name": "Dodge_Backward",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Dodge_Backward",
-      "frames": 19,
-      "seconds": 0.6,
+      "name": "Roll",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Roll",
+      "frames": 45,
+      "seconds": 1.4667,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": false
     },
     {
-      "name": "Dodge_Right",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Dodge_Right",
-      "frames": 19,
-      "seconds": 0.6,
+      "name": "Spell_Simple_Enter",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Spell_Simple_Enter",
+      "frames": 17,
+      "seconds": 0.5333,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": false
     },
     {
-      "name": "Hit_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Hit_A",
+      "name": "Spell_Simple_Shoot",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Spell_Simple_Shoot",
       "frames": 16,
       "seconds": 0.5,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": false
     },
     {
-      "name": "Melee_2H_Attack_Slice",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Melee_2H_Attack_Slice",
-      "frames": 31,
-      "seconds": 1.0,
+      "name": "Sword_Attack",
+      "source": "AnimationLibrary_Godot_Standard.glb",
+      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
+      "sourceClip": "Sword_Attack",
+      "frames": 47,
+      "seconds": 1.5333,
       "mappedBones": 22,
       "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Melee_2H_Attack_Spin",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Melee_2H_Attack_Spin",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Melee_2H_Attack_Stab",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Melee_2H_Attack_Stab",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Melee_Block",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Melee_Block",
-      "frames": 25,
-      "seconds": 0.8,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Melee_Blocking",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Melee_Blocking",
-      "frames": 25,
-      "seconds": 0.8,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Bow_Draw",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Bow_Draw",
-      "frames": 28,
-      "seconds": 0.9,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Bow_Release",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Bow_Release",
-      "frames": 28,
-      "seconds": 0.9,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Magic_Raise",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Magic_Raise",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Magic_Shoot",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Magic_Shoot",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Magic_Spellcasting_Long",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Magic_Spellcasting_Long",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Running_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Running_A",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Running_Strafe_Left",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Running_Strafe_Left",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Running_Strafe_Right",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Running_Strafe_Right",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Spell_Simple_Shoot",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Spell_Simple_Shoot",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "reference": "A_TPose",
+      "interim": false
     }
   ],
-  "placeholder": true,
+  "interim": [
+    "Pistol_Shoot",
+    "Punch_Enter",
+    "Punch_Cross",
+    "Interact"
+  ],
   "file": "hero-animations.glb",
-  "bytes": 178772,
-  "sha256": "66e823f9cbfd5d42216f39262bb16523e1f4325803326025fe5d4f22bf4c116f"
+  "bytes": 286976,
+  "sha256": "7285b39cacfc5097b3a82ec2ad31c152bc03e8c87d10e9a7ed0ecdc1b3d7efc1"
 }

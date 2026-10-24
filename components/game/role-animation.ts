@@ -28,45 +28,52 @@ export interface ActionClip {
   rate?: number;
 }
 
+/** Clip names are the Quaternius Universal Animation Library (Standard, CC0)
+ * clips retargeted by scripts/animation/retarget.py; contact times were
+ * measured as the frame of peak hand reach on the retargeted hero rig.
+ * INTERIM marks clips standing in for motion the free library lacks (bow,
+ * two-handed polearm, a true block); the receipt carries the same list so a
+ * later pack can replace them without touching the kernel. */
+export const INTERIM_CLIPS = ['Pistol_Shoot', 'Punch_Enter', 'Punch_Cross', 'Interact'] as const;
+
 /** Shared defaults every role falls back to. */
 const SHARED: Partial<Record<ActionKey, ActionClip>> = {
-  hit: { clip: 'Hit_A', contact: 0, body: 'full' },
-  down: { clip: 'Death_A', contact: 0, body: 'full', hold: true },
-  dodge: { clip: 'Dodge_Backward', contact: 0, body: 'full', rate: 1.1 },
-  guard: { clip: 'Melee_Block', contact: 0, body: 'upper' },
-  provoke: { clip: 'Cheering', contact: .4, body: 'upper' },
-  revelry: { clip: 'Cheering', contact: .4, body: 'upper' },
+  hit: { clip: 'Hit_Chest', contact: 0, body: 'full' },
+  down: { clip: 'Death01', contact: 0, body: 'full', hold: true },
+  dodge: { clip: 'Roll', contact: 0, body: 'full', rate: 1.25 },
+  guard: { clip: 'Punch_Enter', contact: .2, body: 'upper' },
+  provoke: { clip: 'Interact', contact: .6, body: 'upper', rate: 1.4 },
+  revelry: { clip: 'Spell_Simple_Enter', contact: .45, body: 'upper' },
 };
 
 const TWO_HANDED: Partial<Record<ActionKey, ActionClip>> = {
-  auto: { clip: 'Melee_2H_Attack_Slice', contact: .32, body: 'upper', rate: 1.15 },
-  'weapon:cleave': { clip: 'Melee_2H_Attack_Spin', contact: .55, body: 'upper' },
-  'weapon:pierce': { clip: 'Melee_2H_Attack_Stab', contact: .36, body: 'upper' },
-  'weapon:resonance': { clip: 'Melee_2H_Attack_Slice', contact: .32, body: 'upper', rate: .85 },
+  auto: { clip: 'Sword_Attack', contact: .3, body: 'upper', rate: 1.35 },
+  'weapon:cleave': { clip: 'Sword_Attack', contact: .3, body: 'upper' },
+  'weapon:pierce': { clip: 'Punch_Cross', contact: .27, body: 'upper' },
+  'weapon:resonance': { clip: 'Sword_Attack', contact: .3, body: 'upper', rate: .8 },
 };
 
 export const ROLE_ACTIONS: Record<Role, Partial<Record<ActionKey, ActionClip>>> = {
   vanguard: { ...SHARED, ...TWO_HANDED },
-  warden: { ...SHARED, ...TWO_HANDED, guard: { clip: 'Melee_Blocking', contact: 0, body: 'upper' } },
+  warden: { ...SHARED, ...TWO_HANDED },
   hunter: {
     ...SHARED,
-    auto: { clip: 'Ranged_Bow_Release', contact: .18, body: 'upper' },
-    'weapon:cleave': { clip: 'Ranged_Bow_Release', contact: .18, body: 'upper', rate: .8 },
-    'weapon:pierce': { clip: 'Ranged_Bow_Draw', contact: .62, body: 'upper' },
-    'weapon:resonance': { clip: 'Ranged_Bow_Release', contact: .18, body: 'upper', rate: .7 },
-    dodge: { clip: 'Dodge_Right', contact: 0, body: 'full', rate: 1.15 },
+    auto: { clip: 'Pistol_Shoot', contact: .47, body: 'upper', rate: 1.3 },
+    'weapon:cleave': { clip: 'Pistol_Shoot', contact: .47, body: 'upper' },
+    'weapon:pierce': { clip: 'Pistol_Shoot', contact: .47, body: 'upper', rate: .8 },
+    'weapon:resonance': { clip: 'Pistol_Shoot', contact: .47, body: 'upper', rate: .9 },
   },
   arcanist: {
     ...SHARED,
-    auto: { clip: 'Ranged_Magic_Shoot', contact: .25, body: 'upper', rate: 1.2 },
-    magic: { clip: 'Spell_Simple_Shoot', contact: .38, body: 'upper' },
-    burst: { clip: 'Ranged_Magic_Spellcasting_Long', contact: .7, body: 'upper' },
+    auto: { clip: 'Spell_Simple_Shoot', contact: .15, body: 'upper', rate: 1.2 },
+    magic: { clip: 'Spell_Simple_Shoot', contact: .15, body: 'upper' },
+    burst: { clip: 'Spell_Simple_Shoot', contact: .15, body: 'upper', rate: .75 },
   },
   luminary: {
     ...SHARED,
-    auto: { clip: 'Ranged_Magic_Shoot', contact: .25, body: 'upper', rate: 1.2 },
-    heal: { clip: 'Ranged_Magic_Raise', contact: .55, body: 'upper' },
-    magic: { clip: 'Spell_Simple_Shoot', contact: .38, body: 'upper' },
+    auto: { clip: 'Spell_Simple_Shoot', contact: .15, body: 'upper', rate: 1.2 },
+    heal: { clip: 'Spell_Simple_Enter', contact: .5, body: 'upper' },
+    magic: { clip: 'Spell_Simple_Shoot', contact: .15, body: 'upper' },
   },
 };
 
@@ -74,8 +81,9 @@ export const ROLE_ACTIONS: Record<Role, Partial<Record<ActionKey, ActionClip>>> 
 export const UPPER_BODY_BONES = ['spine', 'chest', 'upper_chest', 'neck', 'head',
   'clavicle_L', 'upper_arm_L', 'forearm_L', 'hand_L', 'clavicle_R', 'upper_arm_R', 'forearm_R', 'hand_R'] as const;
 
-/** Locomotion clips the library may add on top of the hero file's own idle/walk. */
-export const LOCOMOTION = { run: 'Running_A', strafeLeft: 'Running_Strafe_Left', strafeRight: 'Running_Strafe_Right' } as const;
+/** Locomotion clips the library may add on top of the hero file's own idle/walk.
+ * Strafe clips are not in this library; the runtime only receives scalar speed today. */
+export const LOCOMOTION = { run: 'Jog_Fwd_Loop' } as const;
 /** Speed (m/s) above which the run loop takes over from the hero's walk. */
 export const RUN_SPEED = 2.2;
 

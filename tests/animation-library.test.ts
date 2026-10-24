@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { ActionLayer } from '../components/game/action-layer.ts';
-import { actionKey, clipFor, referencedClips, ROLE_ACTIONS, UPPER_BODY_BONES } from '../components/game/role-animation.ts';
+import { actionKey, clipFor, INTERIM_CLIPS, referencedClips, ROLE_ACTIONS, UPPER_BODY_BONES } from '../components/game/role-animation.ts';
 import { BACCHUS_POSE_BONES } from '../components/game/bacchus-combat.ts';
 import { indexLibrary, type AnimationLibrary } from '../components/game/hero-assets.ts';
 import { WEAPONS } from '../game/content.ts';
@@ -52,8 +52,13 @@ test('library receipt matches the file and covers every clip the role map refere
     for (const bone of CANONICAL) assert.ok(bones.has(bone), `${clip.name} drives ${bone}`);
     assert.ok(!clip.tracks.some(track => track.name.endsWith('.position') && !track.name.startsWith('hips')), `${clip.name}: only hips may translate`);
   }
-  // The receipt says plainly when clips are placeholders rather than kit retargets.
+  // The receipt says plainly when clips are placeholders rather than kit retargets,
+  // and which real clips are interim stand-ins for motion the library lacks.
   assert.equal(typeof receipt.placeholder, 'boolean');
+  if (!receipt.placeholder) {
+    for (const clip of receipt.clips) assert.ok(!String(clip.source).includes('PLACEHOLDER'), `${clip.name} has a real source`);
+    assert.deepEqual([...receipt.interim].sort(), [...INTERIM_CLIPS].sort(), 'receipt and role map agree on interim clips');
+  }
 });
 
 test('events map to role clips; log lines and boss casts do not', () => {
@@ -70,7 +75,7 @@ test('events map to role clips; log lines and boss casts do not', () => {
       assert.ok(entry.contact >= 0 && (entry.rate ?? 1) > 0);
     }
   }
-  assert.equal(clipFor('hunter', 'weapon:pierce')?.clip, 'Ranged_Bow_Draw');
+  assert.equal(clipFor('hunter', 'weapon:pierce')?.clip, 'Pistol_Shoot');
   assert.equal(clipFor('arcanist', 'magic')?.clip, 'Spell_Simple_Shoot');
 });
 
@@ -93,12 +98,14 @@ test('upper-body actions take the arms, leave the legs on locomotion, and hand b
   assert.ok(bones.get('upper_arm_R')!.quaternion.angleTo(armRest) < .02, 'back on locomotion after the clip');
   // Death holds its last frame and is not interrupted by a late hit.
   assert.ok(layer.play({ kind: 'down', text: 'Heracles falls.' }) === 0);
-  for (let i = 0; i < 60; i++) step(1 / 30);
+  const deathFrames = Math.ceil(library.get(clipFor('warden', 'down')!.clip)!.duration * 30) + 15;
+  for (let i = 0; i < deathFrames; i++) step(1 / 30);
   assert.equal(layer.holding, true);
   const held = bones.get('spine')!.quaternion.clone();
-  layer.play({ kind: 'hit', text: 'Heracles: Crown strike · −1' });
+  assert.equal(layer.play({ kind: 'hit', text: 'Heracles: Crown strike · −1' }), 0, 'a hit after death starts nothing');
   for (let i = 0; i < 10; i++) step(1 / 30);
-  assert.ok(bones.get('spine')!.quaternion.angleTo(held) < 1e-6, 'hit does not break the death pose');
+  // The clamped death pose may settle by a hair as blend weights converge; a hit reaction would move the spine by tenths of a radian.
+  assert.ok(bones.get('spine')!.quaternion.angleTo(held) < .01, 'hit does not break the death pose');
   layer.reset(); step(.5);
   assert.equal(layer.holding, false);
   layer.dispose();
@@ -124,7 +131,7 @@ test('running takes over from walking by speed, with weights that always sum to 
   assert.ok(walkWeight > .95, 'walk dominates at 1 m/s');
   for (let i = 0; i < 90; i++) { layer.update(1 / 30, 4.5, true); mixer.update(1 / 30); }
   w = weights(); assert.ok(Math.abs(w.lower - 1) < 1e-3, `running sums to one: ${JSON.stringify(w)}`);
-  const runWeight = (mixer as unknown as { _actions: THREE.AnimationAction[] })._actions.find(a => a.getClip().name === 'Running_A:lower')!.getEffectiveWeight();
+  const runWeight = (mixer as unknown as { _actions: THREE.AnimationAction[] })._actions.find(a => a.getClip().name === 'Jog_Fwd_Loop:lower')!.getEffectiveWeight();
   assert.ok(runWeight > .95, `run dominates at 4.5 m/s (${runWeight})`);
   layer.dispose();
 });

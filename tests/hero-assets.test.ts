@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { HERO_ANIMATION_LIBRARY, HERO_ASSET_MANIFEST, HeroAssetCache, type HeroAssetSource, type HeroVisual } from '../components/game/hero-assets.ts';
@@ -69,7 +70,7 @@ function animationFixture() {
   source.spine.add(hand);
   const library: HeroAssetSource = {
     scene: new THREE.Group(),
-    animations: [new THREE.AnimationClip('Melee_2H_Attack_Slice', 1, [
+    animations: [new THREE.AnimationClip('Sword_Attack', 1, [
       new THREE.QuaternionKeyframeTrack('hand_R.quaternion', [0, 1], [
         0, 0, 0, 1, 0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8),
       ]),
@@ -78,7 +79,8 @@ function animationFixture() {
   return { source, library };
 }
 
-test('the checked-in placeholder library and unfitted props stay disabled by default', async () => {
+test('the checked-in library is requested by default exactly when its receipt is not a placeholder', async () => {
+  const receipt = JSON.parse(readFileSync(new URL('../public/assets/animations/hero-animations.json', import.meta.url), 'utf8'));
   const { source, library } = animationFixture();
   let requests = 0;
   const cache = new HeroAssetCache(async () => source.asset, {
@@ -86,12 +88,18 @@ test('the checked-in placeholder library and unfitted props stay disabled by def
   });
   try {
     const hero = await cache.load('heracles');
-    assert.equal(requests, 0, 'the placeholder file is not requested');
-    assert.equal((await cache.loadLibrary()).size, 0);
-    assert.equal(hero.object.getObjectByName('prop:hand_R'), undefined);
-    assert.equal(hero.playCombat({ kind: 'auto', text: 'Strike' }), 0);
-    hero.update(.2, 3, true, 0);
-    assert.ok(spineOf(hero).position.x > .8, 'existing walk animation remains active');
+    if (receipt.placeholder) {
+      assert.equal(requests, 0, 'a placeholder file is not requested');
+      assert.equal((await cache.loadLibrary()).size, 0);
+      assert.equal(hero.object.getObjectByName('prop:hand_R'), undefined);
+      assert.equal(hero.playCombat({ kind: 'auto', text: 'Strike' }), 0);
+      hero.update(.2, 3, true, 0);
+      assert.ok(spineOf(hero).position.x > .8, 'existing walk animation remains active');
+    } else {
+      assert.equal(requests, 1, 'a real library is requested once');
+      assert.ok((await cache.loadLibrary()).size > 0);
+      assert.ok(hero.object.getObjectByName('prop:hand_R'), 'props ride along with a real library');
+    }
   } finally { cache.dispose(); }
 });
 
