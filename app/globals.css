@@ -177,7 +177,7 @@
    violet glow on state, a light sweep across ability tiles on hover, and a
    few pixels of pointer parallax (set by GameClient as --px/--py). All vector:
    gradients, blur, shadows, clip-path. No images, no new nodes. */
-:root{--glass-fill:linear-gradient(135deg,#3b2e5e66,#1a132e88);--glass-fill-hot:linear-gradient(135deg,#55458a88,#261c4499);--glass-rim:#c9b7ff33;--glass-rim-hot:#d9ccff88;--glass-lit:#ffffff2a;--glass-glow:#8f6bff;--press:#000a;--px:0px;--py:0px}
+:root{--glass-fill:linear-gradient(135deg,#4a3b7470,#1b142f96);--glass-fill-hot:linear-gradient(135deg,#5e4c9a90,#2a1f4ca8);--glass-rim:#c9b7ff44;--glass-rim-hot:#d9ccff99;--glass-lit:#ffffff38;--glass-glow:#8f6bff;--press:#000a;--px:0px;--py:0px}
 button:not(.command-row):not(.modal-close):not(.unbind):not(.primary){border-color:var(--glass-rim);background:var(--glass-fill);backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3);box-shadow:inset 0 1px 0 var(--glass-lit),inset 1px 0 0 #ffffff10,inset 0 -1px 0 #0006,0 8px 24px #0007,0 0 0 1px #0004;transition:border-color .16s,background .16s,transform .14s,box-shadow .16s}
 button:hover:not(:disabled):not(.command-row):not(.primary){border-color:var(--glass-rim-hot);background:var(--glass-fill-hot);transform:translateY(-2px) scale(1.02);box-shadow:inset 0 1px 0 #ffffff40,0 14px 34px #0009,0 0 22px #8f6bff44}
 button:active:not(:disabled):not(.command-row):not(.primary),.touch-controls button:active:not(:disabled){transform:translateY(1px) scale(.99);box-shadow:inset 0 2px 10px var(--press),0 0 18px #8f6bff66;background:var(--glass-fill-hot)}
@@ -187,8 +187,8 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .primary:active:not(:disabled){transform:translateY(1px);box-shadow:inset 0 2px 8px #0008}
 /* Ability tiles: rounded panes with a light sweep. */
 .ability{border-radius:8px;overflow:hidden;background:var(--glass-fill)}
-.ability::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,#ffffff22 0 30%,transparent 31% 60%,#ffffff10 61%);transform:translateX(-30%);transition:transform .5s}
-.ability:hover:not(:disabled)::before{transform:translateX(30%)}
+.ability::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(115deg,#ffffff1c,#ffffff00 42%,#ffffff00 58%,#ffffff0c);transform:translateX(-35%);transition:transform .5s,opacity .3s}
+.ability:hover:not(:disabled)::before{transform:translateX(35%);background:linear-gradient(115deg,#ffffff00 20%,#ffffff2e 45%,#ffffff00 70%)}
 .ability-icon{filter:drop-shadow(0 0 6px currentColor) drop-shadow(0 2px 0 #0008)}
 .ability.chain-ready{border-color:#e2c88b;box-shadow:inset 0 1px 0 #ffffff40,inset 0 0 17px #e2c88b22,0 0 18px #e2c88b44}
 .ability.burst-ready{border-width:1px;border-color:currentColor;background:var(--glass-fill-hot);box-shadow:inset 0 1px 0 #ffffff40,0 0 22px currentColor}
@@ -227,13 +227,13 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
    right and bottom faces are drawn in the same down-right projection, with
    extrusion and shadow reach proportional to elevation. Elevation is layout
    hierarchy (console 1 → tiles 2 → command list 3 → modal 4), never a value. */
-:root{--ext-step:3px;--face-side:#6a56a6aa;--face-bottom:#1d1433ee;--key-lit:#ffffff38}
+:root{--ext-step:4px;--face-side:#8b74d4d9;--face-bottom:#2a1e4df2;--key-lit:#ffffff5c;--face-edge:#d9ccff88}
 .player-console,.command-popover,.modal,.party-member.selected,.ability,.command-row.is-current,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.target-select,.revelry-action{border-top-color:var(--key-lit);border-left-color:var(--key-lit);border-right-color:var(--face-side);border-bottom-color:var(--face-bottom)}
 /* True side faces on the console (no overflow clipping there). */
 .player-console{--ext:calc(var(--ext-step) * 2);isolation:isolate}
 .player-console::before,.player-console::after{content:'';position:absolute;pointer-events:none;z-index:-1}
-.player-console::before{top:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);width:var(--ext);background:var(--face-side);clip-path:polygon(0 0,100% var(--ext),100% 100%,0 calc(100% - var(--ext)))}
-.player-console::after{left:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);height:var(--ext);background:var(--face-bottom);clip-path:polygon(0 0,calc(100% - var(--ext)) 0,100% 100%,var(--ext) 100%)}
+.player-console::before{top:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);width:var(--ext);background:linear-gradient(90deg,var(--face-side),var(--face-bottom));box-shadow:inset 1px 0 0 var(--face-edge);clip-path:polygon(0 0,100% var(--ext),100% 100%,0 calc(100% - var(--ext)))}
+.player-console::after{left:0;right:calc(var(--ext) * -1);bottom:calc(var(--ext) * -1);height:var(--ext);background:linear-gradient(var(--face-side),var(--face-bottom));clip-path:polygon(0 0,calc(100% - var(--ext)) 0,100% 100%,var(--ext) 100%)}
 .game-shell[data-layout=touch] .player-console::before,.game-shell[data-layout=touch] .player-console::after{display:none}
 /* Stepped faces (hard shadows) where overflow would clip pseudo-elements. */
 .ability{box-shadow:inset 0 1px 0 var(--glass-lit),inset 1px 0 0 #ffffff10,calc(var(--ext-step) * 1) calc(var(--ext-step) * 1) 0 var(--face-side),calc(var(--ext-step) * 2) calc(var(--ext-step) * 2) 0 var(--face-bottom),calc(var(--ext-step) * 3) calc(var(--ext-step) * 4) 14px #0008}
@@ -270,3 +270,10 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 @media(max-width:760px){.player-sigil{font-size:22px}.sigil-row{font-size:22px;gap:12px}}
 @media(prefers-reduced-motion:reduce){.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{animation:none}}
 @media(forced-colors:active){.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{filter:none;animation:none}}
+
+/* Key light: a crisp 1px top/left edge on every pane so the slab reads even in a still frame. */
+.player-console,.command-popover,.modal,.ability,.party-member,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.revelry-action{background-image:linear-gradient(var(--key-lit),var(--key-lit)),linear-gradient(90deg,var(--key-lit),var(--key-lit)),var(--glass-fill);background-size:100% 1px,1px 100%,100% 100%;background-repeat:no-repeat;background-position:top left,top left,0 0}
+.ability{background-image:linear-gradient(var(--key-lit),var(--key-lit)),linear-gradient(90deg,var(--key-lit),var(--key-lit)),var(--glass-fill)}
+.party-member.selected,.command-row.is-current,.ability:hover:not(:disabled){background-image:linear-gradient(#ffffff80,#ffffff80),linear-gradient(90deg,#ffffff80,#ffffff80),var(--glass-fill-hot)}
+.game-shell[data-layout=touch] .player-console{background-image:none}
+@media(forced-colors:active){.player-console,.command-popover,.modal,.ability,.party-member,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.revelry-action{background-image:none}}
