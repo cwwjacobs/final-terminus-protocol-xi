@@ -22,6 +22,7 @@ export interface InputOptions {
   touch?: { stick: TouchStickState; enabled: () => boolean };
   onInputMode?: (mode: InputMode) => void;
   commandMenu?: { isOpen: () => boolean; onInput: (intent: MenuIntent) => void };
+  ui?: { isOpen: () => boolean; onInput: (intent: MenuIntent) => void; onToggle: () => void };
 }
 
 const combat: Partial<Record<Command, Action>> = {
@@ -45,6 +46,7 @@ export function bindInput(options: InputOptions): () => void {
   let focused = document.hasFocus(), wasPlayable = false, padPresent = false, padArmed = false;
   let previousButtons: boolean[] = [], padId: number | null = null;
   let menuWasOpen = false, menuPadArmed = false, menuDirection = -1, menuRepeatAt = 0;
+  let uiPadArmed = false, uiDirection = '', uiRepeatAt = 0;
   const touchPointers = new Map<number, { x: number; y: number }>();
 
   const editable = () => {
@@ -52,7 +54,7 @@ export function bindInput(options: InputOptions): () => void {
     return !!element && (/^(INPUT|SELECT|TEXTAREA|BUTTON|A|SUMMARY)$/.test(element.tagName) || element.isContentEditable || !!element.closest?.('[role="dialog"], [role="button"], [role="menu"], [role="textbox"], [role="link"]'));
   };
   const menuOpen = () => !!commandMenu?.isOpen();
-  const available = () => focused && !document.hidden && enabled();
+  const available = () => focused && !document.hidden && enabled() && !options.ui?.isOpen();
   const menuPlayable = () => available() && (!editable() || !!(document.activeElement as HTMLElement | null)?.closest?.('[data-command-menu]'));
   const playable = () => available() && !menuOpen() && !editable();
   const stop = () => send({ type: 'move', x: 0, z: 0, facing: getFacing() });
@@ -78,6 +80,26 @@ export function bindInput(options: InputOptions): () => void {
   function down(event: KeyboardEvent) {
     if (!event.ctrlKey && !event.altKey && !event.metaKey) options.onInputMode?.('keyboard');
     refreshSettings();
+    if (event.code === 'Escape' && options.ui && !event.ctrlKey && !event.altKey && !event.metaKey && !event.defaultPrevented) {
+      if (!event.repeat) {
+        event.preventDefault(); clearHeld();
+        if (options.ui.isOpen()) options.ui.onInput('back');
+        else if (menuOpen()) commandMenu!.onInput('back');
+        else options.ui.onToggle();
+      }
+      return;
+    }
+    if (options.ui?.isOpen()) {
+      const tag = (document.activeElement as HTMLElement | null)?.tagName;
+      if (!event.defaultPrevented && !event.ctrlKey && !event.altKey && !event.metaKey && !['INPUT', 'SELECT', 'TEXTAREA'].includes(tag ?? '')) {
+        const intent = ({ ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right', Enter: 'confirm', NumpadEnter: 'confirm' } as Partial<Record<string, MenuIntent>>)[event.code];
+        if (intent && !(intent === 'confirm' && ['BUTTON', 'A', 'SUMMARY'].includes(tag ?? ''))) {
+          event.preventDefault();
+          if (!event.repeat || intent !== 'confirm') options.ui.onInput(intent);
+        }
+      }
+      return;
+    }
     if (menuOpen()) {
       if (!menuPlayable() || event.ctrlKey || event.altKey || event.metaKey) return;
       if ((event.code === 'Enter' || event.code === 'NumpadEnter') && (document.activeElement as HTMLElement | null)?.closest?.('[data-command-native]')) return;
@@ -176,6 +198,30 @@ export function bindInput(options: InputOptions): () => void {
     const buttons = pad?.buttons.map(button => button.pressed) ?? [];
     const neutral = !buttons.some(Boolean) && (!pad || pad.axes.slice(0, 4).every(axis => deadzone(axis) === 0));
     if (pad && !neutral) options.onInputMode?.('controller');
+    // Main menus/results have their own context. Confirm/back cannot cast or evade.
+    // Keep an explicitly remapped Menu button working as saved during gameplay.
+    if (options.ui && focused && !document.hidden) {
+      const opened = options.ui.isOpen();
+      if (buttons[9] && !previousButtons[9] && (opened || !Object.values(settings.buttons).includes(9))) {
+        clearHeld(); options.ui.onToggle(); uiPadArmed = false;
+      } else if (opened) {
+        if (neutral) uiPadArmed = true;
+        if (uiPadArmed) {
+          if (buttons[1] && !previousButtons[1]) { options.ui.onInput('back'); uiPadArmed = false; }
+          else if (buttons[0] && !previousButtons[0]) { options.ui.onInput('confirm'); uiPadArmed = false; }
+          else {
+            const direction = buttons[12] || (pad?.axes[1] ?? 0) < -.55 ? 'up'
+              : buttons[13] || (pad?.axes[1] ?? 0) > .55 ? 'down'
+              : buttons[14] || (pad?.axes[0] ?? 0) < -.55 ? 'left'
+              : buttons[15] || (pad?.axes[0] ?? 0) > .55 ? 'right' : '';
+            if (direction && (direction !== uiDirection || now >= uiRepeatAt)) {
+              options.ui.onInput(direction); uiRepeatAt = now + (direction !== uiDirection ? 360 : 130);
+            }
+            uiDirection = direction;
+          }
+        }
+      } else { uiPadArmed = false; uiDirection = ''; }
+    } else { uiPadArmed = false; uiDirection = ''; }
     if (!navigating || !menuPlayable()) { menuPadArmed = false; menuDirection = -1; }
     else if (pad && !menuPadArmed && neutral) menuPadArmed = true;
     if (navigating && menuPlayable() && menuPadArmed) {
