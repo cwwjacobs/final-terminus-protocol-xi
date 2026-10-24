@@ -21,6 +21,7 @@ The foundation separates combat rules, player input, presentation and room autho
 | `components/game/world-feedback.ts`, `floating-feedback.ts`, `party-markers.ts` | Presentation event baselines, fixed number pools and role/selection/TP/low-HP markers |
 | `components/game/combat-glyphs.ts`, `icons.ts`, `Icon.tsx` | Vector outlines for floating numbers (pure layout) and HUD icons; one shared `<defs>` sheet per overlay, pooled `<use>` nodes, `currentColor` icons sized by font-size |
 | `components/game/actors.ts` | Procedural articulated rigs, reusable asset resources and animation adapter |
+| `components/game/role-animation.ts`, `action-layer.ts`, `hero-props.ts` | Event → clip map, locomotion/one-shot blending on the shared 22-joint library, procedural weapon props; see docs/ANIMATION-PIPELINE.md |
 | `lib/rooms.ts` | Request validation, room leases, server-time advancement, CAS and D1 repository |
 | `lib/local-save.ts` | Local save validation independent of the React HUD |
 | `app/api/rooms/route.ts` | HTTP boundary, Cloudflare DB binding and safe error responses |
