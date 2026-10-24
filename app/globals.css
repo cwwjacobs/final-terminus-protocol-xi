@@ -272,7 +272,8 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 @media(forced-colors:active){.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil{filter:none;animation:none}}
 
 /* Key light: a crisp 1px top/left edge on every pane so the slab reads even in a still frame. */
-.player-console,.command-popover,.modal,.ability,.party-member,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.revelry-action{background-image:linear-gradient(var(--key-lit),var(--key-lit)),linear-gradient(90deg,var(--key-lit),var(--key-lit)),var(--glass-fill);background-size:100% 1px,1px 100%,100% 100%;background-repeat:no-repeat;background-position:top left,top left,0 0}
+.command-popover,.modal{--pane-fill:linear-gradient(135deg,#3f3166ee,#1b142ff4)}
+.player-console,.command-popover,.modal,.ability,.party-member,.utility-actions button,.engage,.command-toggle,.hotbar-toggle,.revelry-action{background-image:linear-gradient(var(--key-lit),var(--key-lit)),linear-gradient(90deg,var(--key-lit),var(--key-lit)),var(--pane-fill,var(--glass-fill));background-size:100% 1px,1px 100%,100% 100%;background-repeat:no-repeat;background-position:top left,top left,0 0}
 .ability{background-image:linear-gradient(var(--key-lit),var(--key-lit)),linear-gradient(90deg,var(--key-lit),var(--key-lit)),var(--glass-fill)}
 .party-member.selected,.command-row.is-current,.ability:hover:not(:disabled){background-image:linear-gradient(#ffffff80,#ffffff80),linear-gradient(90deg,#ffffff80,#ffffff80),var(--glass-fill-hot)}
 .game-shell[data-layout=touch] .player-console{background-image:none}
