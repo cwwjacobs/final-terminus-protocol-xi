@@ -1,150 +1,319 @@
 {
-  "generated": "2026-10-24T04:55:34Z",
+  "generated": "2026-10-24T05:05:38Z",
   "target": "bacchus.glb",
   "fps": 30,
   "method": "world-rotation delta vs T-pose reference; hips vertical only",
   "placeholder": false,
   "clips": [
     {
-      "name": "Death01",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Death01",
+      "name": "Melee_2H_Attack_Slice",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_2H_Attack_Slice",
+      "frames": 34,
+      "seconds": 1.1,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Melee_2H_Attack_Spin",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_2H_Attack_Spin",
       "frames": 73,
       "seconds": 2.4,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Hit_Chest",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Hit_Chest",
-      "frames": 11,
-      "seconds": 0.3333,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "name": "Melee_2H_Attack_Stab",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_2H_Attack_Stab",
+      "frames": 49,
+      "seconds": 1.6,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Interact",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Interact",
-      "frames": 61,
-      "seconds": 2.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
-      "interim": true
+      "name": "Melee_2H_Attack_Chop",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_2H_Attack_Chop",
+      "frames": 50,
+      "seconds": 1.6333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
-      "name": "Jog_Fwd_Loop",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Jog_Fwd_Loop",
+      "name": "Melee_Block",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_Block",
+      "frames": 33,
+      "seconds": 1.0667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Melee_Blocking",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_Blocking",
+      "frames": 33,
+      "seconds": 1.0667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Ranged_Bow_Release",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Bow_Release",
+      "frames": 41,
+      "seconds": 1.3333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Ranged_Bow_Release_Up",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Bow_Release_Up",
+      "frames": 42,
+      "seconds": 1.3667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Ranged_Magic_Raise",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Magic_Raise",
+      "frames": 64,
+      "seconds": 2.1,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Ranged_Magic_Shoot",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Magic_Shoot",
       "frames": 29,
       "seconds": 0.9333,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Pistol_Shoot",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Pistol_Shoot",
-      "frames": 20,
-      "seconds": 0.6333,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
-      "interim": true
-    },
-    {
-      "name": "Punch_Cross",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Punch_Cross",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
-      "interim": true
-    },
-    {
-      "name": "Punch_Enter",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Punch_Enter",
-      "frames": 27,
-      "seconds": 0.8667,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
-      "interim": true
-    },
-    {
-      "name": "Roll",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Roll",
-      "frames": 45,
-      "seconds": 1.4667,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "name": "Ranged_Magic_Spellcasting_Long",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Magic_Spellcasting_Long",
+      "frames": 77,
+      "seconds": 2.5333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Spell_Simple_Enter",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Spell_Simple_Enter",
-      "frames": 17,
-      "seconds": 0.5333,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "name": "Hit_A",
+      "source": "Rig_Medium_General.glb",
+      "sourceSha256": "5f725c0f745f36078c7238968cd5c04843cbc6260689eb6e7f5e2bbd7ffdd7ad",
+      "sourceClip": "Hit_A",
+      "frames": 21,
+      "seconds": 0.6667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Spell_Simple_Shoot",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Spell_Simple_Shoot",
-      "frames": 16,
-      "seconds": 0.5,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "name": "Death_A",
+      "source": "Rig_Medium_General.glb",
+      "sourceSha256": "5f725c0f745f36078c7238968cd5c04843cbc6260689eb6e7f5e2bbd7ffdd7ad",
+      "sourceClip": "Death_A",
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     },
     {
-      "name": "Sword_Attack",
-      "source": "AnimationLibrary_Godot_Standard.glb",
-      "sourceSha256": "1b7bf67866360665426bb99e4c71bd619f19b408453c24e30f0c3071601eee5c",
-      "sourceClip": "Sword_Attack",
-      "frames": 47,
-      "seconds": 1.5333,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "A_TPose",
+      "name": "Dodge_Backward",
+      "source": "Rig_Medium_MovementAdvanced.glb",
+      "sourceSha256": "8b2317cf81e3f24149e4b791c27e1932bebd46cd378ed962e7d27d642fad8c56",
+      "sourceClip": "Dodge_Backward",
+      "frames": 13,
+      "seconds": 0.4,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Dodge_Right",
+      "source": "Rig_Medium_MovementAdvanced.glb",
+      "sourceSha256": "8b2317cf81e3f24149e4b791c27e1932bebd46cd378ed962e7d27d642fad8c56",
+      "sourceClip": "Dodge_Right",
+      "frames": 13,
+      "seconds": 0.4,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Running_A",
+      "source": "Rig_Medium_MovementBasic.glb",
+      "sourceSha256": "11422afd50abf7e8c92ea107e2e0bc94abd38023d6d15f55ad580347efbfa29e",
+      "sourceClip": "Running_A",
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Cheering",
+      "source": "Rig_Medium_Simulation.glb",
+      "sourceSha256": "ab6ffeed40c8281dd0ce0506534eadf7385151f1c266643a10fa2a0f0a7ba3b1",
+      "sourceClip": "Cheering",
+      "frames": 51,
+      "seconds": 1.6667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Skeletons_Taunt",
+      "source": "Rig_Medium_Special.glb",
+      "sourceSha256": "74047dd2178fbed388656051664158e921b7bfc613abb119860aeb7b646bd640",
+      "sourceClip": "Skeletons_Taunt",
+      "frames": 32,
+      "seconds": 1.0333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
       "interim": false
     }
   ],
-  "interim": [
-    "Pistol_Shoot",
-    "Punch_Enter",
-    "Punch_Cross",
-    "Interact"
-  ],
+  "interim": [],
   "file": "hero-animations.glb",
-  "bytes": 286976,
-  "sha256": "7285b39cacfc5097b3a82ec2ad31c152bc03e8c87d10e9a7ed0ecdc1b3d7efc1"
+  "bytes": 447660,
+  "sha256": "f524169f1eb95adc00091e3cfbde254ffd2cc86f2f124e7af236ace9cc62493a"
 }

@@ -1,14 +1,15 @@
 # Hero animation pipeline
 
-Status, 24 October 2026: **real retargeted clips, library enabled.** `public/assets/animations/hero-animations.glb` now holds eleven clips retargeted from the Quaternius Universal Animation Library (Standard, CC0) onto the hero rig; the receipt says `"placeholder": false`, so `HeroAssetCache` loads the library and attaches the props by default. Verified in headless Chromium: run cycle, spell cast on Hecate with the orbital staff, Heracles with spear and shield, trusts animating in combat. Rendered on real hardware: not yet.
+Status, 24 October 2026: **real retargeted clips from KayKit Character Animations 1.1, library enabled, no interim stand-ins.** `public/assets/animations/hero-animations.glb` holds eighteen clips retargeted from the KayKit medium rig onto the hero rig against each file's `T-Pose`; the receipt says `"placeholder": false` with an empty `interim` list and a SHA-256 per source file, so `HeroAssetCache` loads the library and attaches the props by default. Verified in headless Chromium on the painted rigs: Dolos's `Ranged_Bow_Release` with the bow standing vertical in the left hand, Heracles's two-handed swings and Arc Cleave spin with spear and shield, Hecate casting with the orbital staff, trusts animating in combat, run cycle. Rendered on real hardware: not yet.
 
-Four of the eleven are **interim** stand-ins, listed in the receipt's `interim` array and in `INTERIM_CLIPS`: `Pistol_Shoot` for the bow release, `Punch_Cross` for the thrust, `Punch_Enter` for the block stance, `Interact` for provoke. The free library has no bow, two-handed polearm or shield clips. The current KayKit Character Animations pack (Free 1.1, itch.io, CC0) has all three (`Ranged_Bow_Draw/Release`, `Melee_2H_Attack_*`, `Melee_Block`); it needs a browser download — itch's free-download flow is not scriptable — then one more `--source` on the command below with `--map auto`. The legacy KayKit 1.2 pack mirrored on OpenGameArt is a six-joint blocky rig and does not fit this skeleton.
+Sources (kept out of the repo under `work/animation-sources/`, hashes in the receipt). Both are CC0; neither needs attribution, both creators take tips.
 
-Sources used (kept out of the repo under `work/animation-sources/`, hashes in the receipt):
+| Pack | Files used | Rig | License | Where |
+| --- | --- | --- | --- | --- |
+| KayKit Character Animations 1.1 | `Rig_Medium_{CombatMelee,CombatRanged,General,MovementAdvanced,MovementBasic,Simulation,Special}.glb` | 23 joints, no neck/clavicles/upper chest, extra wrist; `T-Pose` clip in every file | CC0 | https://kaylousberg.itch.io/kaykit-character-animations (Download Now → "No thanks, just take me to the downloads" → Free 1.1) |
+| Quaternius Universal Animation Library, Standard | `AnimationLibrary_Godot_Standard.glb` (46 clips, Rigify `DEF-` rig, `A_TPose`) | 53 joints | CC0 | https://opengameart.org/content/universal-animation-library (direct zip, scriptable) — retargets cleanly with `--map rigify`; kept as the alternative source |
 
-| Pack | File | License | Mirror |
-| --- | --- | --- | --- |
-| Quaternius Universal Animation Library, Standard | `AnimationLibrary_Godot_Standard.glb` (46 clips, Rigify DEF rig, `A_TPose` reference) | CC0 | https://opengameart.org/content/universal-animation-library |
+The legacy "KayKit Character Animations 1.2" on OpenGameArt is a six-joint blocky rig and does not fit this skeleton.
 
 ## Why one library
 
@@ -19,19 +20,21 @@ All five painted heroes share one 22-joint skeleton: identical bone names and hi
 `scripts/animation/retarget.py` runs in Blender (`blender -b -P … -- args`) or with Blender as a Python module (`pip install bpy`, Python 3.11+). It needs no GPU.
 
 ```sh
-python3 -I scripts/animation/retarget.py \
-  --target public/assets/models/bacchus.glb \
-  --source work/animation-sources/AnimationLibrary_Godot_Standard.glb --map rigify --reference-clip A_TPose \
-      --clips "$(node --experimental-strip-types -e "import('./components/game/role-animation.ts').then(m=>console.log(m.referencedClips().join(',')))")" \
-      --interim Pistol_Shoot,Punch_Enter,Punch_Cross,Interact \
-  --out public/assets/animations/hero-animations.glb
-# When the KayKit Free 1.1 pack is present, add a second source and move the
-# bow/2H/block rows in role-animation.ts to its clip names:
-#   --source work/animation-sources/<KayKit rig>.glb --map auto --clips Ranged_Bow_Draw,Ranged_Bow_Release,Melee_2H_Attack_Slice,Melee_2H_Attack_Stab,Melee_2H_Attack_Spin,Melee_Block
+S=work/animation-sources/kaykit
+python3 -I scripts/animation/retarget.py --target public/assets/models/bacchus.glb \
+ --source $S/Rig_Medium_CombatMelee.glb --map kaykit --reference-clip T-Pose --clips Melee_2H_Attack_Slice,Melee_2H_Attack_Spin,Melee_2H_Attack_Stab,Melee_2H_Attack_Chop,Melee_Block,Melee_Blocking \
+ --source $S/Rig_Medium_CombatRanged.glb --map kaykit --reference-clip T-Pose --clips Ranged_Bow_Release,Ranged_Bow_Release_Up,Ranged_Magic_Raise,Ranged_Magic_Shoot,Ranged_Magic_Spellcasting_Long \
+ --source $S/Rig_Medium_General.glb --map kaykit --reference-clip T-Pose --clips Hit_A,Death_A \
+ --source $S/Rig_Medium_MovementAdvanced.glb --map kaykit --reference-clip T-Pose --clips Dodge_Backward,Dodge_Right \
+ --source $S/Rig_Medium_MovementBasic.glb --map kaykit --reference-clip T-Pose --clips Running_A \
+ --source $S/Rig_Medium_Simulation.glb --map kaykit --reference-clip T-Pose --clips Cheering \
+ --source $S/Rig_Medium_Special.glb --map kaykit --reference-clip T-Pose --clips Skeletons_Taunt \
+ --out public/assets/animations/hero-animations.glb
 ```
+The clip list must stay equal to `referencedClips()` in `role-animation.ts`; `tests/animation-library.test.ts` fails otherwise.
 
 - `--target` is the canonical rig; any hero file works, Bacchus is the reference.
-- `--map rigify` is the Quaternius library (Rigify `DEF-` bones); `--map mixamo` the Mixamo names; `--map auto` matches by synonym and side and prints the resulting table plus any unmapped canonical bones. Fill gaps by editing `SYNONYMS`, `MIXAMO` or `RIGIFY` in the script.
+- `--map kaykit` is the KayKit medium rig; `--map rigify` the Quaternius library (Rigify `DEF-` bones); `--map mixamo` the Mixamo names; `--map auto` matches by synonym and side and prints the resulting table plus any unmapped canonical bones. Fill gaps by editing `SYNONYMS`, `MIXAMO`, `RIGIFY` or `KAYKIT` in the script. Canonical bones a source lacks (KayKit: neck, clavicles, upper chest) follow their parents.
 - `--interim A,B` records which output clips are stand-ins from a real pack; `role-animation.ts` keeps the same list so the receipt test can hold them together.
 - `--reference-clip` names the source's T-pose clip. The hero bind pose is a T-pose; the transfer is the source bone's world-rotation change from that reference applied to the hero bone's rest, so both rigs must agree on what "neutral" is. Pass `-` when the source armature rest pose is already a T-pose.
 - `--rename Old=New` per source renames clips on output; `--no-vertical` drops the hips' vertical travel (horizontal travel is always dropped: the combat kernel owns position).
@@ -49,11 +52,11 @@ The receipt lists every clip with its source file, source clip, frame count, sec
 | `components/game/hero-assets.ts` | Gates placeholder playback, loads an enabled library once per cache, indexes clips (scale tracks and non-hips translations dropped), builds the layer and props per visual. A disabled, missing or failing library keeps existing hero presentation. |
 | `Scene.tsx` | Forwards authoritative events to the actor's visual; ordinary impacts may use the returned contact delay. The existing `immediateImpact()` rule preserves scheduled multihit/sequence feedback timing. The `down` event also reaches a fallen actor so a future death clip can play. |
 
-Contact times in the role map were measured on the retargeted rig as the frame of peak right-hand reach (Sword_Attack 0.30 s of 1.53 s, Punch_Cross 0.27 s, Pistol_Shoot 0.47 s, Spell_Simple_Shoot ≈ 0.15 s, Spell_Simple_Enter 0.50 s). Re-measure when a clip changes: `scripts/animation/retarget.py` has no probe yet; the one-off used for these numbers is in the pipeline commit message.
+Contact times in the role map: measured on the retargeted rig as the frame of peak right-hand reach where that is the strike (Ranged_Bow_Release 0.27 s, Ranged_Bow_Release_Up 0.13 s, Melee_2H_Attack_Stab 0.80 s, Melee_2H_Attack_Chop 0.80 s, Melee_2H_Attack_Spin 1.5 s, Melee_Block 0.43 s, Skeletons_Taunt 0.47 s, Cheering 0.67 s), and chosen by eye for Slice (0.45 s of 1.10 s) and the magic shoots (0.30 s), where reach does not mark the moment. Re-measure when a clip changes; the probe is a dozen lines of bpy (sample each clip at 30 Hz on the retargeted armature, report the frame of max horizontal |hand_R − hips|).
 
 ## What to review before activating real animations
 
-1. Done for the Quaternius set: receipt is `placeholder: false` with per-clip source hashes. Remaining: the KayKit Free 1.1 pack for bow, two-handed and block clips, replacing the four interim rows.
+1. Done: receipt is `placeholder: false`, `interim: []`, per-source SHA-256. `Ranged_Bow_Draw` and `Ranged_Bow_Aiming_Idle` exist in the pack but are unused until a draw→release sequence is sequenced with the signature-ability work.
 2. In the browser, per hero: run cycle at speed (foot slide), hit reaction, death pose, each weaponskill, Hecate cast, Ariadne heal, Dolos draw/release with the bow in the left hand, Heracles's shield position on `forearm_L` and spear grip. Check hip translation/grounding across the different proportions, root motion, shoulder motion and contact frames. Fit and verify the longer-armed heroes individually.
 3. Bacchus: the library drives only his legs/hips and head; confirm hit and dodge read correctly under the polearm pose, and decide whether his auto/weaponskills move to library clips with the grip solver generalized over them.
 4. Add dedicated mappings and choreography for Critical Dash (three timed contacts and return to origin), Split Volley (multiple contacts), Rapid Weave (rapid elemental cast/release cycle), and Aegis (party shield activation and one-hit break). Use authoritative `source`, `sequenceId` and `hitIndex` metadata where available; do not infer these actions from display text or restart a full ability on every hit. Preserve kernel-owned movement, damage, TP and cooldown timing.

@@ -70,7 +70,7 @@ function animationFixture() {
   source.spine.add(hand);
   const library: HeroAssetSource = {
     scene: new THREE.Group(),
-    animations: [new THREE.AnimationClip('Sword_Attack', 1, [
+    animations: [new THREE.AnimationClip('Melee_2H_Attack_Slice', 1, [
       new THREE.QuaternionKeyframeTrack('hand_R.quaternion', [0, 1], [
         0, 0, 0, 1, 0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8),
       ]),

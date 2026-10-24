@@ -65,6 +65,15 @@ RIGIFY = {
     'thigh_R': 'DEF-thigh.R', 'shin_R': 'DEF-shin.R', 'foot_R': 'DEF-foot.R', 'toe_R': 'DEF-toe.R',
 }
 
+# KayKit Character Animations 1.1 medium rig (23 joints; no neck/clavicles/upper chest, a wrist bone the hero lacks).
+KAYKIT = {
+    'hips': 'hips', 'spine': 'spine', 'chest': 'chest', 'head': 'head',
+    'upper_arm_L': 'upperarm.l', 'forearm_L': 'lowerarm.l', 'hand_L': 'hand.l',
+    'upper_arm_R': 'upperarm.r', 'forearm_R': 'lowerarm.r', 'hand_R': 'hand.r',
+    'thigh_L': 'upperleg.l', 'shin_L': 'lowerleg.l', 'foot_L': 'foot.l', 'toe_L': 'toes.l',
+    'thigh_R': 'upperleg.r', 'shin_R': 'lowerleg.r', 'foot_R': 'foot.r', 'toe_R': 'toes.r',
+}
+
 # Synonyms for the heuristic matcher. Matching is done on a normalized name:
 # lowercase, prefixes like "mixamorig:" removed, separators removed, with the
 # side detected from l/r/left/right tokens. Unmatched bones are reported.
@@ -164,9 +173,10 @@ def auto_map(source_bones: list[str]) -> dict[str, str]:
 
 
 def build_map(kind: str, source_bones: list[str]) -> dict[str, str]:
-    if kind == 'rigify':
+    if kind in ('rigify', 'kaykit'):
         have = set(source_bones)
-        return {canon: name for canon, name in RIGIFY.items() if name in have}
+        table = RIGIFY if kind == 'rigify' else KAYKIT
+        return {canon: name for canon, name in table.items() if name in have}
     if kind == 'mixamo':
         names = {normalize(b): b for b in source_bones}
         out = {}
@@ -547,7 +557,7 @@ def main(argv):
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument('--target', required=True, help='hero GLB whose armature is the canonical rig')
     p.add_argument('--source', action='append', default=[], help='library GLB/FBX (repeatable; pairs with --map/--clips/--reference-clip/--rename in order)')
-    p.add_argument('--map', action='append', default=[], choices=['auto', 'mixamo', 'rigify'], help='bone-map strategy per source')
+    p.add_argument('--map', action='append', default=[], choices=['auto', 'mixamo', 'rigify', 'kaykit'], help='bone-map strategy per source')
     p.add_argument('--clips', action='append', default=[], help='comma list of source clip names per source (default: all)')
     p.add_argument('--reference-clip', action='append', default=[], help='name of a T-pose clip in that source, or "-" for armature rest')
     p.add_argument('--rename', action='append', default=[], help='comma list old=new clip renames per source')
@@ -596,7 +606,10 @@ def main(argv):
         if src is None:
             bpy.ops.import_scene.fbx(filepath=source)
             src = [o for o in bpy.data.objects if o.type == 'ARMATURE' and o is not tgt][-1]
-        src_actions = {a.name: a for a in bpy.data.actions if a not in before_actions}
+        def base_name(name: str) -> str:
+            stem, dot, tail = name.rpartition('.')
+            return stem if dot and tail.isdigit() and len(tail) == 3 else name
+        src_actions = {base_name(a.name): a for a in bpy.data.actions if a not in before_actions}
         source_sha = sha256(source)
         bone_map = build_map(kind, [b.name for b in src.data.bones])
         missing = [c for c in CANONICAL if c not in bone_map]

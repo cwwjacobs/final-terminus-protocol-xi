@@ -75,8 +75,8 @@ test('events map to role clips; log lines and boss casts do not', () => {
       assert.ok(entry.contact >= 0 && (entry.rate ?? 1) > 0);
     }
   }
-  assert.equal(clipFor('hunter', 'weapon:pierce')?.clip, 'Pistol_Shoot');
-  assert.equal(clipFor('arcanist', 'magic')?.clip, 'Spell_Simple_Shoot');
+  assert.equal(clipFor('hunter', 'weapon:pierce')?.clip, 'Ranged_Bow_Release');
+  assert.equal(clipFor('arcanist', 'magic')?.clip, 'Ranged_Magic_Shoot');
 });
 
 test('upper-body actions take the arms, leave the legs on locomotion, and hand back cleanly', async () => {
@@ -131,7 +131,7 @@ test('running takes over from walking by speed, with weights that always sum to 
   assert.ok(walkWeight > .95, 'walk dominates at 1 m/s');
   for (let i = 0; i < 90; i++) { layer.update(1 / 30, 4.5, true); mixer.update(1 / 30); }
   w = weights(); assert.ok(Math.abs(w.lower - 1) < 1e-3, `running sums to one: ${JSON.stringify(w)}`);
-  const runWeight = (mixer as unknown as { _actions: THREE.AnimationAction[] })._actions.find(a => a.getClip().name === 'Jog_Fwd_Loop:lower')!.getEffectiveWeight();
+  const runWeight = (mixer as unknown as { _actions: THREE.AnimationAction[] })._actions.find(a => a.getClip().name === 'Running_A:lower')!.getEffectiveWeight();
   assert.ok(runWeight > .95, `run dominates at 4.5 m/s (${runWeight})`);
   layer.dispose();
 });
