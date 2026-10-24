@@ -20,7 +20,21 @@ export const ABILITY_MARKS = {
   lightning: [stroke('m36 17-16 18h11l-3 13 16-20H33Z')],
 } as const satisfies Record<string, IconShape[]>;
 
+
+/** Role sigils in the 64-unit box, in the Nova/Lumae house style: mono-line,
+ * vertical axis, four-point star crown, two sparkle satellites, a geometric
+ * core and a flourished base. Cores are the Greek letters of the earlier
+ * GameSigils set: Υ Bacchus, Π Heracles, Λ Dolos, Ψ Hecate, ∞ Ariadne. */
+export const ROLE_EMBLEMS = {
+  vanguard: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V30M20 16c4 8 8 12 12 14 4-2 8-6 12-14'), stroke('M32 14l6 6-6 6-6-6z'), stroke('M32 17.5l2.5 2.5-2.5 2.5-2.5-2.5z', 1.2), stroke('M24 44h16'), stroke('M32 52c-5-2-10 0-12 4 3 3 8 2 12-4zM32 52c5-2 10 0 12 4-3 3-8 2-12-4z', 1.6)],
+  warden: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M14 30c4-10 32-10 36 0', 1.6), stroke('M18 24h28M23 24v22M41 24v22'), stroke('M32 36a3.2 3.2 0 1 0 0 .1', 1.5), stroke('M16 50h32'), stroke('M22 56h20', 1.6)],
+  hunter: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V20'), stroke('M22 32l10-14 10 14'), stroke('M14 48c6-9 30-9 36 0', 1.6), stroke('M14 48v3M50 48v3', 1.6), stroke('M27 56l5-4 5 4', 1.6)],
+  arcanist: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V16M20 18c0 10 4 16 12 16s12-6 12-16'), fill('M20 12.8L20.5 14.5L22.2 15L20.5 15.5L20 17.2L19.5 15.5L17.8 15L19.5 14.5Z'), fill('M44 12.8L44.5 14.5L46.2 15L44.5 15.5L44 17.2L43.5 15.5L41.8 15L43.5 14.5Z'), stroke('M14 40c0-8 8-12 18-12s18 4 18 12-8 12-18 12-18-4-18-12z', 1.4), stroke('M26 50h12')],
+  luminary: [fill('M32 1L33.1 4.9L37 6L33.1 7.1L32 11L30.9 7.1L27 6L30.9 4.9Z'), fill('M13 12.4L13.6 14.4L15.6 15L13.6 15.6L13 17.6L12.4 15.6L10.4 15L12.4 14.4Z'), fill('M51 12.4L51.6 14.4L53.6 15L51.6 15.6L51 17.6L50.4 15.6L48.4 15L50.4 14.4Z'), stroke('M32 58V14'), stroke('M32 30c-4-8-14-8-14 0s10 8 14 0 14-8 14 0-10 8-14 0', 1.8), stroke('M18 50c6 0 10 2 14 6 4-4 8-6 14-6', 1.6), fill('M46 50a2.2 2.2 0 1 0 0 .1'), stroke('M26 42h12', 1.6)],
+} as const satisfies Record<string, IconShape[]>;
+
 const mark = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stroke: 3, shapes: [...shapes] });
+const sigil = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stroke: 2.2, shapes: [...shapes] });
 const icon = (...shapes: IconShape[]): IconDefinition => ({ box: 24, stroke: 1.8, shapes });
 
 export const ICONS = {
@@ -30,12 +44,15 @@ export const ICONS = {
   guide: icon(stroke('M9.3 9.2a2.7 2.7 0 1 1 4 2.5c-1 .6-1.3 1.2-1.3 2.3'), fill('M12 17a1.1 1.1 0 1 0 0 2.2 1.1 1.1 0 0 0 0-2.2z')),
   settings: icon(stroke('M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z'), stroke('M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1', 2.2)),
   menu: icon(stroke('M4 7h16M4 12h16M4 17h16', 2)),
-  // Party roles: the same shapes as the floor rings in party-markers.ts
-  vanguard: icon(stroke('M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z')),
-  warden: icon(stroke('M12 3l9 9-9 9-9-9z')),
-  hunter: icon(stroke('M12 4l9 15H3z')),
-  arcanist: icon(fill('M12 2.5l1.6 6.1 5.4-3.2-3.2 5.4 6.1 1.6-6.1 1.6 3.2 5.4-5.4-3.2L12 21.5l-1.6-6.1-5.4 3.2 3.2-5.4L2.5 12.4l6.1-1.6-3.2-5.4 5.4 3.2z')),
-  luminary: icon(stroke('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z'), fill('M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z')),
+  // Party role sigils: thyrsus Υ, gate Π, arrow Λ, trident Ψ, thread ∞
+  vanguard: sigil(ROLE_EMBLEMS.vanguard), warden: sigil(ROLE_EMBLEMS.warden), hunter: sigil(ROLE_EMBLEMS.hunter),
+  arcanist: sigil(ROLE_EMBLEMS.arcanist), luminary: sigil(ROLE_EMBLEMS.luminary),
+  // Party roles, geometric: the same shapes as the floor rings in party-markers.ts
+  vanguardShape: icon(stroke('M12 3l7.8 4.5v9L12 21l-7.8-4.5v-9z')),
+  wardenShape: icon(stroke('M12 3l9 9-9 9-9-9z')),
+  hunterShape: icon(stroke('M12 4l9 15H3z')),
+  arcanistShape: icon(fill('M12 2.5l1.6 6.1 5.4-3.2-3.2 5.4 6.1 1.6-6.1 1.6 3.2 5.4-5.4-3.2L12 21.5l-1.6-6.1-5.4 3.2 3.2-5.4L2.5 12.4l6.1-1.6-3.2-5.4 5.4 3.2z')),
+  luminaryShape: icon(stroke('M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16z'), fill('M12 9.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z')),
   // Ability marks
   cleave: mark(ABILITY_MARKS.cleave), pierce: mark(ABILITY_MARKS.pierce), resonance: mark(ABILITY_MARKS.resonance),
   fire: mark(ABILITY_MARKS.fire), ice: mark(ABILITY_MARKS.ice), lightning: mark(ABILITY_MARKS.lightning),
@@ -62,7 +79,7 @@ export const ICONS = {
 
 export type IconName = keyof typeof ICONS;
 
-/** Party portrait icon for a role; falls back to the vanguard hexagon so an
+/** Party portrait sigil for a role; falls back to the vanguard thyrsus so an
  * unknown role still renders rather than throwing in the HUD. */
 export function roleIcon(role: string): IconName {
   return role in ICONS && ['vanguard', 'warden', 'hunter', 'arcanist', 'luminary'].includes(role) ? role as IconName : 'vanguard';
