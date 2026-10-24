@@ -14,6 +14,7 @@ export function touchAxes(dx: number, dy: number, radius: number) {
 }
 
 export type InputMode = 'keyboard' | 'touch' | 'controller';
-export type ControlLayout = 'auto' | 'touch' | 'desktop';
-export const normalizeLayout = (value: unknown): ControlLayout => value === 'touch' || value === 'desktop' ? value : 'auto';
-export const usesTouchLayout = (layout: ControlLayout, detected: InputMode) => layout === 'touch' || (layout === 'auto' && detected === 'touch');
+export type ControlLayout = 'auto' | 'touch' | 'desktop' | 'controller';
+export const normalizeLayout = (value: unknown): ControlLayout => value === 'touch' || value === 'desktop' || value === 'controller' ? value : 'auto';
+export const resolveLayout = (layout: ControlLayout, detected: InputMode): Exclude<ControlLayout, 'auto'> => layout === 'auto' ? detected === 'keyboard' ? 'desktop' : detected : layout;
+export const usesTouchLayout = (layout: ControlLayout, detected: InputMode) => resolveLayout(layout, detected) === 'touch';

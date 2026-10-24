@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useState } from 'react';
-import { normalizeLayout, usesTouchLayout, type ControlLayout, type InputMode } from './touch-input';
+import { normalizeLayout, resolveLayout, usesTouchLayout, type ControlLayout, type InputMode } from './touch-input';
 
 const STORAGE = 'terminus-xi-control-layout';
 
@@ -28,5 +28,5 @@ export function useInputProfile() {
     setLayout(next);
     try { localStorage.setItem(STORAGE, next); } catch {}
   };
-  return { layout, changeLayout, detected, activate, touch: usesTouchLayout(layout, detected) };
+  return { layout, changeLayout, detected, activate, interface: resolveLayout(layout, detected), touch: usesTouchLayout(layout, detected) };
 }

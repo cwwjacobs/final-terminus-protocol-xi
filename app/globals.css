@@ -302,3 +302,111 @@ button:disabled:not(.command-row){box-shadow:inset 0 1px 0 #ffffff10,0 4px 12px 
 .game-shell[data-layout=touch] .kit-status b{display:none}
 @media(max-width:760px){.role-hotbar{grid-template-columns:repeat(auto-fit,minmax(78px,1fr))}.ally-selection>span{display:none}.party-detail-name>span:last-child{font-size:9px}.party-detail{padding:9px}}
 @media(forced-colors:active){.party-member.friendly-target,.party-detail.friendly-target{outline:2px solid Highlight}.touch-ability .rapid-charge{background:Highlight;color:HighlightText}}
+
+/* Compact gameplay HUD. Keep the translucent panes; give the field back its space. */
+.game-shell{--ext-step:2px}
+button.brand{padding:0;border:0;background:none;box-shadow:none;text-align:left}
+.game-shell[data-layout=desktop] .topbar{height:60px;padding:10px 16px;gap:12px}
+.game-shell[data-layout=desktop] .brand{font-size:16px;letter-spacing:2px;gap:8px}
+.game-shell[data-layout=desktop] .brand-sigil{font-size:27px}
+.game-shell[data-layout=desktop] .brand small{font-size:6px;letter-spacing:3px}
+.game-shell[data-layout=desktop] .topbar nav{gap:6px}
+.game-shell[data-layout=desktop] .topbar nav button{min-height:36px;padding:6px 9px;font-size:11px}
+.topbar nav kbd{font-size:9px;margin-left:7px;color:var(--gold)}
+.game-shell[data-layout=desktop] .boss-panel{top:12px;width:min(360px,33vw)}
+.game-shell[data-layout=desktop] .boss-panel h1{font-size:17px}
+.game-shell[data-layout=desktop] .boss-panel .target-select{top:44px;font-size:8px;padding:5px 8px}
+.game-shell[data-layout=desktop] .player-console{width:min(620px,calc(100vw - 32px));bottom:36px;padding:8px 12px;--ext:4px}
+.game-shell[data-layout=desktop] .player-status{min-height:34px;padding:0 0 6px;gap:12px;border-bottom:0}
+.game-shell[data-layout=desktop] .player-name{font-size:14px;gap:6px;min-width:65px}
+.game-shell[data-layout=desktop] .player-name small{display:none}
+.game-shell[data-layout=desktop] .player-sigil{font-size:21px}
+.game-shell[data-layout=desktop] .resource label{font-size:9px;margin-bottom:4px}
+.game-shell[data-layout=desktop] .resource b{font-size:11px}
+.game-shell[data-layout=desktop] .engage{font-size:9px;min-height:34px;padding:5px 8px}
+.game-shell[data-layout=desktop] .command-toolbar{margin-top:3px;gap:8px}
+.game-shell[data-layout=desktop] .command-toggle{min-width:142px;min-height:34px;padding:6px 9px;font-size:11px}
+.game-shell[data-layout=desktop] .command-live-note{display:none}
+.game-shell[data-layout=desktop] .hotbar-toggle{min-height:34px;font-size:11px}
+.game-shell[data-layout=desktop] .role-hotbar{margin-top:7px;gap:6px;grid-template-columns:repeat(auto-fit,minmax(62px,1fr))}
+.game-shell[data-layout=desktop] .role-hotbar .ability{height:56px;padding:4px 2px;box-shadow:inset 0 1px 0 var(--glass-lit),2px 3px 0 var(--face-bottom)}
+.game-shell[data-layout=desktop] .role-hotbar .ability-icon{height:23px;font-size:21px;line-height:23px}
+.game-shell[data-layout=desktop] .role-hotbar .ability strong{font-size:10px;margin-top:5px;overflow:hidden;text-overflow:ellipsis}
+.game-shell[data-layout=desktop] .role-hotbar .ability small{display:none}
+.game-shell[data-layout=desktop] .party-panel{top:100px;left:16px;width:178px;max-height:min(270px,calc(100dvh - 290px));min-height:0;transform:none}
+.game-shell[data-layout=desktop] .party-member{min-height:40px;padding:8px;margin-top:4px;transform:none}
+.game-shell[data-layout=desktop] .party-member.selected{box-shadow:inset 3px 0 0 var(--gold),2px 3px 0 var(--face-bottom)}
+.game-shell[data-layout=desktop] .party-panel .portrait,.game-shell[data-layout=desktop] .party-panel .tp-line,.game-shell[data-layout=desktop] .panel-caption>span{display:none}
+.game-shell[data-layout=desktop] .member-info{position:relative}
+.game-shell[data-layout=desktop] .member-name{font-size:11px;letter-spacing:0;padding-right:38px}
+.game-shell[data-layout=desktop] .member-name small{display:none}
+.game-shell[data-layout=desktop] .member-role{font-size:0;margin:0}
+.game-shell[data-layout=desktop] .member-role b{position:absolute;right:0;top:0;font-size:10px}
+.game-shell[data-layout=desktop] .member-role b small{display:none}
+.game-shell[data-layout=desktop] .mini-track{margin-top:6px}
+.game-shell[data-layout=desktop] .combat-log{bottom:220px;right:16px;width:220px}
+.entry-card{left:50%;top:46%;width:min(330px,calc(100vw - 32px));padding:16px;transform:translate(-50%,-50%)}
+.entry-card h2{font-size:34px;margin-top:9px}
+.entry-card p{font-size:12px;margin:10px 0 14px}
+.entry-card .sigil-row{font-size:20px;gap:13px;margin-bottom:9px}
+.entry-card .primary{max-width:100%;min-height:44px;padding:10px 16px}
+.entry-card>small{font-size:10px;line-height:1.5}
+.statusbar{height:24px;padding:5px 16px;letter-spacing:.4px;font-size:8px}
+.debug-stats{display:none}
+
+/* A finished fight has useful exits, never a wall of disabled combat buttons. */
+.result-backdrop{position:absolute;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:#08061124}
+.result-backdrop .result-card{position:relative;inset:auto;transform:none;width:min(380px,100%);max-height:calc(100dvh - 32px);overflow:auto;padding:36px 20px 18px;border-radius:10px;text-align:left;background:var(--glass-fill);backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);border:1px solid var(--glass-rim);box-shadow:inset 0 1px 0 var(--glass-lit),4px 6px 0 var(--face-bottom),0 16px 40px #0007}
+.result-card .result-close{position:absolute;right:8px;top:6px;display:flex;align-items:center;gap:5px;min-height:34px;padding:5px 8px;background:transparent;border:0;font-size:12px}
+.result-backdrop .result-card h2{font:28px Georgia,serif;margin:12px 0 8px}
+.result-backdrop .result-card p{font-size:13px;line-height:1.5;margin:0 0 18px}
+.result-actions{display:flex;gap:8px;flex-wrap:wrap}
+.result-actions button{flex:1;min-height:42px;padding:9px 12px;font-size:13px;white-space:nowrap}
+.result-card>small{display:block;margin-top:12px;font-size:10px;line-height:1.5;color:var(--muted)}
+.encounter-summary{position:absolute;bottom:38px;left:50%;transform:translateX(-50%);width:max-content;max-width:calc(100vw - 24px);z-index:30;display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border:1px solid var(--glass-rim);border-radius:8px;background:var(--glass-fill);backdrop-filter:blur(12px);font-size:12px}
+.encounter-summary button{min-height:38px;font-size:12px;padding:7px 10px}
+
+/* Shared menu behavior with a distinct controller presentation. */
+.modal-backdrop{padding:12px;background:#05040b60;backdrop-filter:blur(4px)}
+.modal{width:min(520px,100%);max-height:min(650px,calc(100dvh - 24px));padding:16px 20px;border-radius:10px;--pane-fill:var(--glass-fill);scrollbar-width:thin}
+.modal.compact-menu{width:min(360px,100%)}
+.modal-navigation{position:sticky;top:0;z-index:2;display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-bottom:6px;border-radius:6px;background:var(--glass-fill);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px)}
+.modal-navigation>button:first-child:not(.modal-close){margin-right:auto}
+.modal .modal-navigation button{position:static;display:flex;align-items:center;gap:5px;margin:0;min-height:36px;padding:5px 9px;font-size:12px;background:transparent;border-color:#ffffff26}
+.modal .eyebrow{font-size:8px;letter-spacing:2px}
+.modal h2{font-size:25px;margin:8px 0 14px}
+.modal h3{font-size:19px;margin:16px 0 9px}
+.modal p{font-size:12px;line-height:1.65}
+.modal .field-label{margin:14px 0;font-size:12px}
+.modal .field-label input,.modal .field-label select{padding:10px;margin-top:7px;min-height:40px}
+.modal .checkbox{margin:12px 0;min-height:30px}
+.pause-actions{display:grid;gap:7px}
+.modal .pause-actions button{width:100%;min-height:42px;margin:0;text-align:left;font-size:13px;padding:10px 13px}
+.modal .menu-state{margin:0 0 12px;color:var(--mint)}
+.modal .menu-nav-hint{position:sticky;bottom:-16px;padding:10px 0 0;margin:14px 0 0;font-size:10px;color:var(--muted)}
+.layout-picker{margin:0 0 15px;padding:10px;border:1px solid var(--line);border-radius:6px}
+.layout-picker legend{font-size:12px;color:var(--gold)}
+.modal .layout-picker button{margin:4px 4px 0 0;min-height:38px;padding:7px 10px}
+.layout-picker button[aria-pressed=true]{border-color:var(--mint);color:var(--mint);background:#80e9df14}
+.controller-actions{position:absolute;right:18px;bottom:38px;width:300px;z-index:10}
+.controller-actions>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.controller-actions button{position:relative;min-height:64px;padding:7px 5px;background:var(--glass-fill);backdrop-filter:blur(12px);border-radius:8px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.controller-actions kbd{position:absolute;left:6px;top:4px;font-size:10px;color:var(--mint)}
+.controller-actions .ui-icon{font-size:22px;color:var(--gold)}
+.controller-actions span{font-size:11px}
+.controller-actions small{position:absolute;right:5px;top:4px;color:var(--gold)}
+.controller-actions p{font-size:10px;margin-top:8px;text-align:right;color:var(--muted)}
+.game-shell[data-interface=controller] .player-console{left:18px;width:min(420px,calc(100vw - 340px));transform:none}
+.game-shell[data-interface=controller] .party-panel{display:none}
+.game-shell[data-interface=controller] .modal button:focus-visible{outline:3px solid var(--mint);outline-offset:2px;background-color:#80e9df16}
+.game-shell[data-layout=touch] .touch-menu-toggle span{display:inline}
+.game-shell[data-layout=touch] .touch-menu-toggle{display:flex;align-items:center;gap:5px;font-size:11px;min-width:65px}
+.game-shell[data-layout=touch] .result-close,.game-shell[data-layout=touch] .result-actions button,.game-shell[data-layout=touch] .modal-navigation button{min-height:44px}
+@media(max-width:1000px){.game-shell[data-layout=desktop] .topbar nav button span,.game-shell[data-layout=desktop] .brand small{display:none}.game-shell[data-layout=desktop] .topbar nav button:last-child span{display:inline}.game-shell[data-layout=desktop] .brand{font-size:14px}.game-shell[data-layout=desktop] .party-panel{width:148px}.game-shell[data-layout=desktop] .boss-panel{width:36vw}}
+@media(max-width:800px){.game-shell[data-layout=desktop] .party-panel{display:none}.game-shell[data-layout=desktop] .boss-panel{top:66px;width:min(380px,calc(100vw - 36px))}.game-shell[data-layout=desktop] .boss-panel .target-select{top:44px}.game-shell[data-layout=desktop] .brand{font-size:13px}.game-shell[data-layout=desktop] .topbar nav em{display:none}.game-shell[data-interface=controller] .player-console{left:50%;transform:translateX(-50%);bottom:142px;width:min(420px,calc(100vw - 24px))}.controller-actions{left:50%;right:auto;transform:translateX(-50%);width:min(300px,calc(100vw - 24px))}.controller-actions p{text-align:center}.entry-card{top:43%}.entry-card h2{font-size:28px}.encounter-summary{justify-content:center;width:calc(100vw - 24px)}}
+@media(max-height:540px){.game-shell[data-layout=desktop] .party-panel,.entry-card .sigil-row,.entry-card p,.entry-card>small{display:none}.entry-card{top:40%;padding:10px}.entry-card h2{font-size:25px;margin:6px 0 12px}.result-backdrop .result-card{padding:32px 18px 14px}.game-shell[data-layout=desktop] .combat-log{display:none}}
+@media(prefers-reduced-motion:reduce){.controller-actions button{transition:none}}
+@media(forced-colors:active){.result-card,.encounter-summary,.controller-actions button{background:Canvas!important;border-color:ButtonText;box-shadow:none!important;backdrop-filter:none!important}}
+
+@media(max-height:540px) and (min-width:700px){.game-shell[data-interface=controller] .player-console{left:12px;bottom:30px;transform:none;width:calc(100vw - 334px)}.game-shell[data-interface=controller] .controller-actions{left:auto;right:12px;bottom:30px;transform:none}}
+.toast{z-index:150}

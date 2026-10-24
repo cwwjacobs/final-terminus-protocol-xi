@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createTouchStick, touchAxes, normalizeLayout, usesTouchLayout } from '../components/game/touch-input.ts';
+import { createTouchStick, touchAxes, normalizeLayout, resolveLayout, usesTouchLayout } from '../components/game/touch-input.ts';
 import { bindInput, deadzone, movement } from '../components/game/input.ts';
 import { bindButton, bindKey, bindingWarnings, buttonLabel, COMMANDS, defaults, keyboardEventBinding, keyLabel, normalizeControls } from '../components/game/control-settings.ts';
 import type { Command, ControlSettings } from '../components/game/control-settings.ts';
@@ -181,20 +181,21 @@ function surface() {
   };
 }
 
-function harness(initialSettings: ControlSettings = defaults(), routing?: { send?: (action: Action) => void; command?: (command: Command) => void }) {
+function harness(initialSettings: ControlSettings = defaults(), routing?: { send?: (action: Action) => void; command?: (command: Command) => void; ui?: boolean }) {
   const win = surface(), doc = { ...surface(), activeElement: { tagName: 'BODY', isContentEditable: false, closest: (() => null) as (selector?: string) => object | null }, hidden: false, hasFocus: () => true };
   const pad = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
   const touch = createTouchStick();
-  const state = { touchEnabled: true, settings: initialSettings, enabled: true, commandOpen: false, role: 'vanguard' as Role, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const state = { touchEnabled: true, settings: initialSettings, enabled: true, commandOpen: false, uiOpen: false, role: 'vanguard' as Role, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const uiInputs: MenuIntent[] = [];
   const menuInputs: MenuIntent[] = [];
   const sent: Action[] = [], commands: Command[] = [], looks: number[][] = [], zooms: number[] = [], connections: boolean[] = [];
   let callback: FrameRequestCallback | null = null, now = performance.now() + 100;
   const replacements = { window: win, document: doc, navigator: { getGamepads: () => state.pad ? [state.pad] : [] }, requestAnimationFrame: (fn: FrameRequestCallback) => { callback = fn; return 1; }, cancelAnimationFrame: () => { callback = null; } };
   const descriptors = Object.fromEntries(Object.keys(replacements).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(replacements)) Object.defineProperty(globalThis, key, { value, configurable: true });
-  const cleanup = bindInput({ touch: { stick: touch, enabled: () => state.touchEnabled }, send: action => { sent.push(action); routing?.send?.(action); }, getFacing: () => state.facing, getRole: () => state.role, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => { commands.push(command); routing?.command?.(command); }, commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
+  const cleanup = bindInput({ ui: routing?.ui ? { isOpen: () => state.uiOpen, onToggle: () => { state.uiOpen = !state.uiOpen; }, onInput: intent => { uiInputs.push(intent); if (intent === 'back') state.uiOpen = false; } } : undefined, touch: { stick: touch, enabled: () => state.touchEnabled }, send: action => { sent.push(action); routing?.send?.(action); }, getFacing: () => state.facing, getRole: () => state.role, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => { commands.push(command); routing?.command?.(command); }, commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
   return {
-    state, touch, sent, commands, looks, zooms, connections, menuInputs, win, doc, pad,
+    state, touch, sent, commands, looks, zooms, connections, menuInputs, uiInputs, win, doc, pad,
     frame() { now += 60; assert.ok(callback); callback(now); },
     key(code: string, type = 'keydown', extra: Record<string, unknown> = {}) { return win.emit(type, { code, shiftKey: false, ctrlKey: false, metaKey: false, altKey: false, repeat: false, ...extra }); },
     move() { const action = sent.filter((action): action is Extract<Action, { type: 'move' }> => action.type === 'move').at(-1); assert.ok(action); return action; },
@@ -573,5 +574,93 @@ test('touch camera isolates pointer IDs, pinches to zoom and cancels without lea
     h.win.emit('pointerdown', pointer(3, 100, 100)); h.state.enabled = false;
     h.win.emit('pointermove', pointer(3, 200, 200)); assert.equal(h.looks.length, 1);
     h.state.enabled = true; h.win.emit('pointermove', pointer(3, 210, 210)); assert.equal(h.looks.length, 1);
+  } finally { h.close(); }
+});
+
+test('PC, mobile and controller resolve to independent layouts and explicit choices survive input changes', () => {
+  assert.equal(resolveLayout('auto', 'keyboard'), 'desktop');
+  assert.equal(resolveLayout('auto', 'touch'), 'touch');
+  assert.equal(resolveLayout('auto', 'controller'), 'controller');
+  for (const input of ['keyboard', 'touch', 'controller'] as const) {
+    assert.equal(resolveLayout('controller', input), 'controller');
+    assert.equal(resolveLayout('desktop', input), 'desktop');
+    assert.equal(resolveLayout('touch', input), 'touch');
+  }
+  assert.equal(normalizeLayout('controller'), 'controller');
+});
+
+test('Escape opens the game menu, closes results, and backs out of Commands without opening another menu', () => {
+  const h = harness(defaults(), { ui: true });
+  try {
+    assert.equal(h.key('Escape').prevented, true);
+    assert.equal(h.state.uiOpen, true);
+    h.key('Escape', 'keydown', { repeat: true });
+    assert.equal(h.state.uiOpen, true, 'holding Escape does not bounce between screens');
+    h.key('Escape');
+    assert.equal(h.state.uiOpen, false);
+    assert.deepEqual(h.uiInputs, ['back']);
+    h.state.commandOpen = true;
+    h.key('Escape');
+    assert.equal(h.state.commandOpen, false);
+    assert.equal(h.state.uiOpen, false);
+    assert.equal(h.menuInputs.at(-1), 'back');
+    assert.deepEqual(h.sent.filter(action => action.type !== 'move'), []);
+  } finally { h.close(); }
+});
+
+test('menu keyboard navigation preserves native buttons and forms, and suppresses gameplay', () => {
+  const h = harness(defaults(), { ui: true });
+  try {
+    h.state.uiOpen = true;
+    h.key('Enter'); h.key('ArrowDown'); h.key('Digit1'); h.key('KeyW'); h.frame();
+    assert.deepEqual(h.uiInputs, ['confirm', 'down']);
+    assert.deepEqual(h.sent.filter(action => action.type !== 'move'), []);
+    assert.equal(h.move().x, 0); assert.equal(h.move().z, 0);
+    h.doc.activeElement.tagName = 'BUTTON';
+    assert.equal(h.key('Enter').prevented, false, 'native button activation is not duplicated');
+    h.doc.activeElement.tagName = 'SELECT';
+    assert.equal(h.key('ArrowDown').prevented, false, 'native select navigation stays native');
+    h.key('Escape'); assert.equal(h.state.uiOpen, false, 'Escape exits even from a form');
+  } finally { h.close(); }
+});
+
+test('controller Menu, A, B and D-pad navigate overlays without casting or evading behind them', () => {
+  const h = harness(defaults(), { ui: true });
+  try {
+    h.state.pad = h.pad; h.frame();
+    h.pad.buttons[9].pressed = true; h.frame();
+    assert.equal(h.state.uiOpen, true);
+    h.frame(); assert.equal(h.state.uiOpen, true, 'held Menu does not toggle repeatedly');
+    h.pad.buttons[9].pressed = false; h.frame();
+    h.pad.buttons[13].pressed = true; h.frame();
+    assert.equal(h.uiInputs.at(-1), 'down');
+    h.pad.buttons[13].pressed = false; h.frame();
+    h.pad.buttons[0].pressed = true; h.frame(); h.frame();
+    assert.equal(h.uiInputs.filter(intent => intent === 'confirm').length, 1);
+    h.pad.buttons[0].pressed = false; h.frame();
+    h.pad.buttons[1].pressed = true; h.frame(); h.frame();
+    assert.equal(h.state.uiOpen, false);
+    assert.deepEqual(h.sent.filter(action => action.type !== 'move'), [], 'closing does not also Evade');
+    assert.deepEqual(h.menuInputs, [], 'confirming an overlay does not open combat Commands');
+    h.pad.buttons[1].pressed = false; h.frame();
+    h.pad.buttons[1].pressed = true; h.frame();
+    assert.equal(h.sent.filter(action => action.type === 'dodge').length, 1, 'normal gameplay resumes after release');
+  } finally { h.close(); }
+});
+
+test('controller overlay navigation remains available when gameplay is disabled and ignores unfocused windows', () => {
+  const h = harness(defaults(), { ui: true });
+  try {
+    h.state.uiOpen = true; h.state.enabled = false; h.state.pad = h.pad; h.frame();
+    h.pad.axes[1] = .9; h.frame();
+    assert.equal(h.uiInputs.at(-1), 'down');
+    assert.equal(h.move().z, 0);
+    h.pad.axes[1] = 0; h.frame();
+    h.win.emit('blur');
+    h.pad.buttons[1].pressed = true; h.frame();
+    assert.equal(h.state.uiOpen, true);
+    h.pad.buttons[1].pressed = false; h.win.emit('focus'); h.frame();
+    h.pad.buttons[1].pressed = true; h.frame();
+    assert.equal(h.state.uiOpen, false);
   } finally { h.close(); }
 });
