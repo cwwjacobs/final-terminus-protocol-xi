@@ -80,7 +80,8 @@ export function createHeroProps(id: string, model: THREE.Object3D): HeroProps | 
         part(new THREE.CylinderGeometry(.028, .028, .2, 8), mats.dark);
         part(new THREE.CylinderGeometry(.004, .004, 1.36, 4), mats.string, 0, 0, -.05);
         for (const y of [-.71, .71]) part(new THREE.SphereGeometry(.028, 8, 6), mats.bronze, 0, y, 0);
-      }, owned));
+      // Limbs stand vertical when the bow arm is extended (the KayKit release pose), string toward the archer.
+      }, owned, { rotation: [Math.PI / 2, 0, 0], position: [0, .065, 0] }));
       break;
     }
     case 'hecate': {

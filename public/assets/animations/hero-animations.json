@@ -1,202 +1,319 @@
 {
-  "generated": "2026-10-24T01:01:00Z",
+  "generated": "2026-10-24T05:05:38Z",
   "target": "bacchus.glb",
   "fps": 30,
   "method": "world-rotation delta vs T-pose reference; hips vertical only",
+  "placeholder": false,
   "clips": [
     {
-      "name": "Cheering",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Cheering",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Death_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Death_A",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Dodge_Backward",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Dodge_Backward",
-      "frames": 19,
-      "seconds": 0.6,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Dodge_Right",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Dodge_Right",
-      "frames": 19,
-      "seconds": 0.6,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Hit_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Hit_A",
-      "frames": 16,
-      "seconds": 0.5,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
       "name": "Melee_2H_Attack_Slice",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
       "sourceClip": "Melee_2H_Attack_Slice",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 34,
+      "seconds": 1.1,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Melee_2H_Attack_Spin",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
       "sourceClip": "Melee_2H_Attack_Spin",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 73,
+      "seconds": 2.4,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Melee_2H_Attack_Stab",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
       "sourceClip": "Melee_2H_Attack_Stab",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 49,
+      "seconds": 1.6,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Melee_2H_Attack_Chop",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
+      "sourceClip": "Melee_2H_Attack_Chop",
+      "frames": 50,
+      "seconds": 1.6333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Melee_Block",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
       "sourceClip": "Melee_Block",
-      "frames": 25,
-      "seconds": 0.8,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 33,
+      "seconds": 1.0667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Melee_Blocking",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatMelee.glb",
+      "sourceSha256": "c55e6ec1c79e83ae21d46fe1cd921c1b64be8b9a524a24517e51c6ba99231459",
       "sourceClip": "Melee_Blocking",
-      "frames": 25,
-      "seconds": 0.8,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Ranged_Bow_Draw",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Ranged_Bow_Draw",
-      "frames": 28,
-      "seconds": 0.9,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 33,
+      "seconds": 1.0667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Ranged_Bow_Release",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
       "sourceClip": "Ranged_Bow_Release",
-      "frames": 28,
-      "seconds": 0.9,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 41,
+      "seconds": 1.3333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Ranged_Bow_Release_Up",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
+      "sourceClip": "Ranged_Bow_Release_Up",
+      "frames": 42,
+      "seconds": 1.3667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Ranged_Magic_Raise",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
       "sourceClip": "Ranged_Magic_Raise",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 64,
+      "seconds": 2.1,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Ranged_Magic_Shoot",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
       "sourceClip": "Ranged_Magic_Shoot",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 29,
+      "seconds": 0.9333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Ranged_Magic_Spellcasting_Long",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_CombatRanged.glb",
+      "sourceSha256": "7fef1fc0e7b0feafd34b8e12d23f514c8c1f9d068047a691b854b56f1774dff5",
       "sourceClip": "Ranged_Magic_Spellcasting_Long",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 77,
+      "seconds": 2.5333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Hit_A",
+      "source": "Rig_Medium_General.glb",
+      "sourceSha256": "5f725c0f745f36078c7238968cd5c04843cbc6260689eb6e7f5e2bbd7ffdd7ad",
+      "sourceClip": "Hit_A",
+      "frames": 21,
+      "seconds": 0.6667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Death_A",
+      "source": "Rig_Medium_General.glb",
+      "sourceSha256": "5f725c0f745f36078c7238968cd5c04843cbc6260689eb6e7f5e2bbd7ffdd7ad",
+      "sourceClip": "Death_A",
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Dodge_Backward",
+      "source": "Rig_Medium_MovementAdvanced.glb",
+      "sourceSha256": "8b2317cf81e3f24149e4b791c27e1932bebd46cd378ed962e7d27d642fad8c56",
+      "sourceClip": "Dodge_Backward",
+      "frames": 13,
+      "seconds": 0.4,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
+    },
+    {
+      "name": "Dodge_Right",
+      "source": "Rig_Medium_MovementAdvanced.glb",
+      "sourceSha256": "8b2317cf81e3f24149e4b791c27e1932bebd46cd378ed962e7d27d642fad8c56",
+      "sourceClip": "Dodge_Right",
+      "frames": 13,
+      "seconds": 0.4,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
       "name": "Running_A",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
+      "source": "Rig_Medium_MovementBasic.glb",
+      "sourceSha256": "11422afd50abf7e8c92ea107e2e0bc94abd38023d6d15f55ad580347efbfa29e",
       "sourceClip": "Running_A",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "frames": 25,
+      "seconds": 0.8,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
-      "name": "Running_Strafe_Left",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Running_Strafe_Left",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "name": "Cheering",
+      "source": "Rig_Medium_Simulation.glb",
+      "sourceSha256": "ab6ffeed40c8281dd0ce0506534eadf7385151f1c266643a10fa2a0f0a7ba3b1",
+      "sourceClip": "Cheering",
+      "frames": 51,
+      "seconds": 1.6667,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     },
     {
-      "name": "Running_Strafe_Right",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Running_Strafe_Right",
-      "frames": 22,
-      "seconds": 0.7,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
-    },
-    {
-      "name": "Spell_Simple_Shoot",
-      "source": "PLACEHOLDER (synthetic, scripts/animation/retarget.py --stub)",
-      "sourceClip": "Spell_Simple_Shoot",
-      "frames": 31,
-      "seconds": 1.0,
-      "mappedBones": 22,
-      "unmappedCanonical": [],
-      "reference": "TPose"
+      "name": "Skeletons_Taunt",
+      "source": "Rig_Medium_Special.glb",
+      "sourceSha256": "74047dd2178fbed388656051664158e921b7bfc613abb119860aeb7b646bd640",
+      "sourceClip": "Skeletons_Taunt",
+      "frames": 32,
+      "seconds": 1.0333,
+      "mappedBones": 18,
+      "unmappedCanonical": [
+        "upper_chest",
+        "neck",
+        "clavicle_L",
+        "clavicle_R"
+      ],
+      "reference": "T-Pose",
+      "interim": false
     }
   ],
-  "placeholder": true,
+  "interim": [],
   "file": "hero-animations.glb",
-  "bytes": 178772,
-  "sha256": "66e823f9cbfd5d42216f39262bb16523e1f4325803326025fe5d4f22bf4c116f"
+  "bytes": 447660,
+  "sha256": "f524169f1eb95adc00091e3cfbde254ffd2cc86f2f124e7af236ace9cc62493a"
 }
