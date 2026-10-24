@@ -38,13 +38,22 @@ export function validSave(raw: unknown): raw is GameState {
   const template = createGame(state.mode === 'god' ? 'god' : 'trial');
   const omit = (value: object, keys: string[]) =>
     Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-  if (!finiteShape(state, omit(template, ['events', 'chain', 'burst', 'boss', 'party'])) ||
+  if (!finiteShape(state, omit(template, ['events', 'chain', 'burst', 'boss', 'party', 'runStats'])) ||
     !finiteShape(state.boss, omit(template.boss, ['cast', 'cooldowns'])) ||
     !Array.isArray(state.party) || state.party.length !== 5 ||
     !['trial', 'god'].includes(state.mode) || !['ready', 'fighting', 'victory', 'defeat'].includes(state.status)) return false;
   if (!integer(state.tick, 0) || !integer(state.eventSeq, 0) || !integer(state.sequenceSeq, 0) ||
     !integer(state.rng, 0, 0xffffffff) || state.time < 0 || state.combatTime < 0 ||
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
+
+  const stats = state.runStats;
+  if (!record(stats) || !exactKeys(stats, ['startedAt', 'partial', 'party']) ||
+    !nonnegative(stats.startedAt) || stats.startedAt > state.combatTime + FLOAT_TOLERANCE ||
+    typeof stats.partial !== 'boolean' || (!stats.partial && stats.startedAt !== 0) ||
+    !Array.isArray(stats.party) || stats.party.length !== state.party.length ||
+    stats.party.some(entry => !record(entry) || !exactKeys(entry, ['damage', 'healing', 'taken', 'deaths']) ||
+      ![entry.damage, entry.healing, entry.taken].every(value => nonnegative(value) && value <= 1e12) ||
+      !integer(entry.deaths, 0, 1e9))) return false;
 
   const sequenceIds = new Set<number>();
   for (const actor of state.party) {

@@ -410,3 +410,39 @@ button.brand{padding:0;border:0;background:none;box-shadow:none;text-align:left}
 
 @media(max-height:540px) and (min-width:700px){.game-shell[data-interface=controller] .player-console{left:12px;bottom:30px;transform:none;width:calc(100vw - 334px)}.game-shell[data-interface=controller] .controller-actions{left:auto;right:12px;bottom:30px;transform:none}}
 .toast{z-index:150}
+
+
+/* End-of-run numbers stay behind a small disclosure; exits never scroll away. */
+.result-backdrop .result-card{display:flex;flex-direction:column;overflow:hidden;padding:12px 20px 18px}
+.result-backdrop .result-card.with-scoreboard{width:min(640px,100%)}
+.result-heading,.result-actions,.result-card>small{flex-shrink:0}
+.result-topline{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.result-topline .eyebrow{font-size:8px;letter-spacing:2px}
+.result-card .result-close{position:static;flex-shrink:0}
+.result-backdrop .result-card h2{margin:7px 0 6px}
+.result-backdrop .result-card .result-heading>p{font-size:12px;margin:0 0 12px;color:var(--muted)}
+.result-content{min-height:0;overflow:auto;scrollbar-width:thin;margin-bottom:12px}
+.result-totals{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:0 0 10px;padding:10px 12px;border:1px solid var(--glass-rim);border-radius:6px;background:#ffffff05}
+.result-totals dt{font-size:10px;color:var(--muted);margin-bottom:4px}
+.result-totals dd{margin:0;font-size:19px;line-height:1.2;color:var(--gold);font-variant-numeric:tabular-nums}
+.result-totals>div+div{border-left:1px solid var(--line);padding-left:12px}
+.result-stats-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:36px;padding:7px 10px;font-size:12px;background:transparent;border-radius:6px}
+.result-stats-toggle[aria-expanded=true]{color:var(--mint);border-color:#a5dedb66}
+.result-table-scroll{overflow:auto;scrollbar-width:thin;margin-top:10px;border:1px solid var(--line);border-radius:6px}
+.result-table{width:100%;min-width:510px;border-collapse:collapse;font-size:11px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.result-table caption{text-align:left;padding:8px 10px;color:var(--muted);font-size:10px}
+.result-table th,.result-table td{padding:8px 9px;text-align:right;border-top:1px solid var(--line)}
+.result-table th:first-child{text-align:left}
+.result-table thead th{font-size:10px;color:var(--muted);font-weight:400}
+.result-table abbr{text-decoration:none;cursor:help}
+.result-table tbody th{font-weight:400}
+.result-player-row{background:#dbc2840a}
+.result-you{display:inline-block;margin-left:5px;font-size:7px;letter-spacing:.6px;color:var(--gold)}
+.result-table tfoot{color:var(--gold);background:#ffffff04}
+.result-backdrop .result-card .result-stats-note,.result-backdrop .result-card .result-partial{font-size:10px;line-height:1.5;color:var(--muted);margin:8px 0 0}
+.result-backdrop .result-card .result-partial{margin:0 0 9px;color:var(--gold)}
+.game-shell[data-layout=touch] .result-stats-toggle{min-height:44px}
+.game-shell[data-interface=controller] .result-card button:focus-visible,.result-table-scroll:focus-visible{outline:3px solid var(--mint);outline-offset:2px}
+@media(max-width:540px){.result-backdrop .result-card{padding:10px 14px 14px}.result-table th,.result-table td{padding:8px}.result-table-scroll::after{content:'Swipe or ← → for all stats';display:block;position:sticky;left:0;width:max-content;max-width:100%;padding:7px 9px;color:var(--muted);font-size:9px}}
+@media(max-height:540px){.result-backdrop .result-card{padding:8px 14px 12px}.result-backdrop .result-card h2{font-size:23px;margin:0 0 4px}.result-backdrop .result-card .result-heading>p{margin-bottom:7px}.result-totals{padding:7px 10px;margin-bottom:7px}.result-totals dd{font-size:16px}.result-content{margin-bottom:8px}.result-card>small{margin-top:7px}}
+@media(forced-colors:active){.result-table-scroll,.result-totals,.result-table th,.result-table td{border-color:CanvasText}.result-player-row,.result-table tfoot,.result-totals{background:Canvas}.result-actor{color:CanvasText!important}}

@@ -1,4 +1,5 @@
 import { REVELRY } from '../game/content.ts';
+import { createRunStats } from '../game/run-stats.ts';
 
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -6,12 +7,18 @@ const timer = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value) && value >= 0;
 const LEGACY_SEED = 0x51f15e;
 
-/** Normalize historical persisted data on a detached copy. Only version 1 may
- * receive missing defaults; malformed supplied values are never repaired. */
+/** Normalize historical persisted data on a detached copy. Mechanics defaults
+ * belong to version 1; absent run statistics may also predate this additive
+ * version-2 feature. Malformed supplied values are never repaired. */
 export function migrateGameState(raw: unknown): Record<string, unknown> | null {
-  if (!record(raw) || ![1, 2].includes(raw.version as number) || !Array.isArray(raw.party)) return null;
+  if (!record(raw) || ![1, 2].includes(raw.version as number) || !Array.isArray(raw.party) || raw.party.length !== 5) return null;
   let state: Record<string, unknown>;
   try { state = structuredClone(raw); } catch { return null; }
+  if (!Object.hasOwn(state, 'runStats')) {
+    if (!timer(state.combatTime)) return null;
+    const partial = state.status !== 'ready' && state.combatTime > 0;
+    state.runStats = createRunStats((state.party as unknown[]).length, partial ? state.combatTime : 0, partial);
+  }
   if (state.version === 2) return state;
   if (!record(state.boss)) return null;
   const absent = (object: Record<string, unknown>, key: string, value: unknown) => {
