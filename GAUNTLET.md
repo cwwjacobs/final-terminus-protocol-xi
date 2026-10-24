@@ -19,23 +19,18 @@ findings go back to Stage 1 as the next loop list. Quote receipts verbatim when 
 
 # LOOP_MAP.md
 
-# LOOP_MAP — Direct controls, menu, music and 1–5 player rooms
+# LOOP_MAP — Main-menu hero and control picker
 
-Goal: Implement the researched direct-control design with every character ability mapped and visible, preserve transparent glass, add the supplied music with mute/volume, and provide a clear solo/host/join/lobby/encounter/results flow for 1–5 players.
-Kernel: Preserve combat mechanics, run statistics, deterministic server authority, saves/custom controls, 5 party slots filled by players or trusts, and obvious Back/Close/Leave actions. Input from menus must never fire combat actions. No duplicate activation surfaces in the default HUD.
-Out of scope: New animations, new combat skills, matchmaking, chat, account systems, audio effects beyond the supplied music.
-Authorization: User approved the researched plan with “make it work please sanely” and explicitly requested music, menu and multiplayer rooms/invite codes. Earlier GREEN/GO and main/publication authorization remain active.
+Goal: Main menu visibly exposes Choose hero and Controls & keybinds; one hero picker shows all five characters and persists the choice. Solo and room creation use that hero; joining prefers it when available, and lobby players can choose available hero places. Controls open with input layout and active hero's hotkeys before camera options.
+Kernel: Keep compact glass styling, direct role ability mappings, saved custom bindings, menu/back flow, music and scoreboard, authoritative five-slot rooms, host permission, reconnect reservations and session-token privacy.
+Out of scope: Combat balance, hero models/animations, duplicate characters, matchmaking.
+Authorization: User explicitly requested hero picker, main menu and hotkey mapper/control picker on the main menu. Prior GO, main synchronization and publication authorization persist.
 
-| Loop | Goal | Files it may touch | Exit check | Status |
+| Loop | Goal | Allowed files | Exit check | Status |
 |---|---|---|---|---|
-| 2 | Ship coherent direct controls and start/room/music experience | components/game/* control/HUD/menu/music files, app/globals.css, lib/rooms.ts and room metadata/validation, app/api/rooms/route.ts if required, tests/* relevant to changed behavior, public/audio/siege-of-the-gilded-hall.mp3, docs/*, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | mapped |
+| 3 | Deliver hero choice and discoverable controls across local/room flows | components/game/MainMenu.tsx, HeroPicker.tsx, main-menu.css, hero-picker.css, ControlsPanel.tsx, controls-panel.css, GameClient.tsx, control-settings.ts helpers if needed, lib/rooms.ts, related tests, docs/*, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | Receipt attached: 252 tests, typecheck and production build pass; independent review complete, awaiting Operator seal |
 
-Whole-build check: the command above plus browser checks of menu → solo or room → combat → results, mapped-action discoverability and music controls. Exercise room capacity, independent client slots, reconnect and invite handling with authoritative tests. Browser/real-device limits must be explicit; never substitute a blank WebGL canvas for visual proof.
-
-Implementation tasks may run concurrently in separate files inside this authorized loop. The owner integrates GameClient and global styles. A separate reviewer reads code and receipts before publication. Existing scoreboard loop1 receipts remain in RECEIPTS.md.
-
-## Repair 2.A — quiet completed-room keepalives
-Live results exposed repeated “The encounter is over” messages because every poll included idle movement after combat ended. Send movement only during fighting, allow explicit start in the lobby, and discard stale combat commands in results. Keep busy result buttons labeled for their actual action. Scope: GameClient.tsx, EncounterResult.tsx, room-sync.ts, tests/room-sync.test.ts, receipt/reviewer documents. Exit check: aggregate tests, typecheck and production build.
+Whole-build: command above and browser main-menu → hero picker → controls mapping → local/room hero checks where available. Independent review must check room slot transfer, host identity, stale snapshots and custom binding preservation. Hardware/3D/simultaneous-client browser limits remain explicit. Parallel tasks own separate files in one authorized loop; root integrates and publishes.
 
 ---
 
@@ -223,6 +218,63 @@ npm warn Unknown env config "http-proxy". This will stop working in the next maj
 rendering chunks...
 computing gzip size...
 ✓ built in 751ms
+[0m
+  Route (app)
+  ┌ ? /         
+  └ λ /api/rooms
+
+  λ API  ? Unknown
+
+  ? Some routes could not be classified. vinext currently uses static analysis
+    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.
+    Automatic classification will be improved in a future release.
+
+  Build complete. Run `vinext start` to start the production server.
+
+```
+
+Receipt attached, awaiting seal.
+
+## Receipt: loop 3
+
+- time: 2026-10-24T06:12:03Z
+- cwd: /workspace/scratch/86df643da5ef/terminus-public-release
+- command: `npm test > /tmp/terminus-loop3-tests.log && tail -10 /tmp/terminus-loop3-tests.log && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs > /tmp/terminus-loop3-build.log 2>&1 && tail -18 /tmp/terminus-loop3-build.log`
+- exit code: 0
+- files:
+  - components/game/MainMenu.tsx sha256=1359fc49b015b6fef66a1fe1cfa630ebe68530603bf8ef1a8951fed64945a28b bytes=12110
+  - components/game/HeroPicker.tsx sha256=2939711f721d25139a353ba0ace877cf8d3b5c2f8107dab418768daf9b965104 bytes=2917
+  - components/game/main-menu.css sha256=f34dceefa94977135ea2f9e6d72cb6266d8fbe2942f8c505fdbe446d48ee75ea bytes=8641
+  - components/game/hero-picker.css sha256=303b10764efada6ff578f8895c8881c51fe5d66ac0358f0eba1abb7a37a80420 bytes=3143
+  - components/game/ControlsPanel.tsx sha256=ed2b2398d9cd7553257b96eff829361a5a550df955a776817096e60f4ea792f3 bytes=11423
+  - components/game/controls-panel.css sha256=eaaaa41240e3ca8948018a94c7906ee1ff00edd2bbd2c7aef6b7c6ec8f4bf26f bytes=3982
+  - components/game/GameClient.tsx sha256=9ee397c51043d5cdf14baffa937ea013fa158519e33af1b87379fc2aa0fe7cd8 bytes=51139
+  - lib/rooms.ts sha256=8584cea70a4976104a77736c4d65b447d0e81800707dcc1141459a5e2fbd2ae3 bytes=20903
+  - tests/rooms.test.ts sha256=af0bd7534e63743a57103283bc886da18faff052db94fc1bc7123cc70c0e58e3 bytes=42340
+  - docs/HERO-PICKER.md sha256=cd0c0acc770628771eae21095d0243f8f04a87c4fab906a39c141b4162459b71 bytes=1531
+
+```
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+✔ depth scale and spawn punch are bounded, monotonic and off under reduced motion (0.236579ms)
+✔ tilt and scale are applied per frame without adding nodes (0.754012ms)
+ℹ tests 252
+ℹ suites 0
+ℹ pass 252
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 954.078655
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> final-terminus-protocol-xi@0.1.0 typecheck
+> tsc --noEmit
+
+[5/5] build ssr environment...
+[2Ktransforming...✓ 143 modules transformed.
+rendering chunks...
+computing gzip size...
+✓ built in 908ms
 [0m
   Route (app)
   ┌ ? /         

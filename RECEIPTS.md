@@ -196,3 +196,60 @@ computing gzip size...
 ```
 
 Receipt attached, awaiting seal.
+
+## Receipt: loop 3
+
+- time: 2026-10-24T06:12:03Z
+- cwd: /workspace/scratch/86df643da5ef/terminus-public-release
+- command: `npm test > /tmp/terminus-loop3-tests.log && tail -10 /tmp/terminus-loop3-tests.log && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs > /tmp/terminus-loop3-build.log 2>&1 && tail -18 /tmp/terminus-loop3-build.log`
+- exit code: 0
+- files:
+  - components/game/MainMenu.tsx sha256=1359fc49b015b6fef66a1fe1cfa630ebe68530603bf8ef1a8951fed64945a28b bytes=12110
+  - components/game/HeroPicker.tsx sha256=2939711f721d25139a353ba0ace877cf8d3b5c2f8107dab418768daf9b965104 bytes=2917
+  - components/game/main-menu.css sha256=f34dceefa94977135ea2f9e6d72cb6266d8fbe2942f8c505fdbe446d48ee75ea bytes=8641
+  - components/game/hero-picker.css sha256=303b10764efada6ff578f8895c8881c51fe5d66ac0358f0eba1abb7a37a80420 bytes=3143
+  - components/game/ControlsPanel.tsx sha256=ed2b2398d9cd7553257b96eff829361a5a550df955a776817096e60f4ea792f3 bytes=11423
+  - components/game/controls-panel.css sha256=eaaaa41240e3ca8948018a94c7906ee1ff00edd2bbd2c7aef6b7c6ec8f4bf26f bytes=3982
+  - components/game/GameClient.tsx sha256=9ee397c51043d5cdf14baffa937ea013fa158519e33af1b87379fc2aa0fe7cd8 bytes=51139
+  - lib/rooms.ts sha256=8584cea70a4976104a77736c4d65b447d0e81800707dcc1141459a5e2fbd2ae3 bytes=20903
+  - tests/rooms.test.ts sha256=af0bd7534e63743a57103283bc886da18faff052db94fc1bc7123cc70c0e58e3 bytes=42340
+  - docs/HERO-PICKER.md sha256=cd0c0acc770628771eae21095d0243f8f04a87c4fab906a39c141b4162459b71 bytes=1531
+
+```
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+✔ depth scale and spawn punch are bounded, monotonic and off under reduced motion (0.236579ms)
+✔ tilt and scale are applied per frame without adding nodes (0.754012ms)
+ℹ tests 252
+ℹ suites 0
+ℹ pass 252
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 954.078655
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> final-terminus-protocol-xi@0.1.0 typecheck
+> tsc --noEmit
+
+[5/5] build ssr environment...
+[2Ktransforming...✓ 143 modules transformed.
+rendering chunks...
+computing gzip size...
+✓ built in 908ms
+[0m
+  Route (app)
+  ┌ ? /         
+  └ λ /api/rooms
+
+  λ API  ? Unknown
+
+  ? Some routes could not be classified. vinext currently uses static analysis
+    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.
+    Automatic classification will be improved in a future release.
+
+  Build complete. Run `vinext start` to start the production server.
+
+```
+
+Receipt attached, awaiting seal.

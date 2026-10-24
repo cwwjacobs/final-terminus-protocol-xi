@@ -46,6 +46,8 @@ const create = async (repo: MemoryRepository, at = NOW) =>
   await handleRoomRequest(repo, { op: "create", mode: "trial" }, at) as RoomCredentials;
 const sync = async (repo: MemoryRepository, session: RoomCredentials, seq: number, at: number, actions: unknown[] = []) =>
   await handleRoomRequest(repo, { op: "sync", code: session.code, token: session.token, seq, actions }, at) as RoomSnapshot;
+const selectHero = async (repo: MemoryRepository, session: RoomCredentials, slot: number, at = NOW) =>
+  await handleRoomRequest(repo, { op: "selectHero", code: session.code, token: session.token, slot }, at) as RoomSnapshot;
 
 test("create returns one human and four trusts without private persistence fields", async () => {
   const repo = new MemoryRepository();
@@ -63,6 +65,186 @@ test("create returns one human and four trusts without private persistence field
   assert.ok(!JSON.stringify(session).includes("occupants"));
   assert.equal(session.hostSlot, 0);
   assert.deepEqual(session.members, Array.from({ length: 5 }, (_, slot) => ({ slot, connected: slot === 0, reserved: false })));
+});
+
+test("each hero can host a room without changing the fixed party or host authority", async () => {
+  const repo = new MemoryRepository();
+  const defaultRoom = await create(repo);
+  for (let slot = 0; slot < 5; slot++) {
+    const owner = await handleRoomRequest(repo, { op: "create", mode: "trial", slot }, NOW) as RoomCredentials;
+    assert.equal(owner.slot, slot);
+    assert.equal(owner.hostSlot, slot);
+    assert.deepEqual(owner.state.party.map(actor => actor.id), defaultRoom.state.party.map(actor => actor.id));
+    assert.deepEqual(owner.state.party.map(actor => actor.human), owner.state.party.map((_, index) => index === slot));
+    assert.deepEqual(owner.members, Array.from({ length: 5 }, (_, index) => ({ slot: index, connected: index === slot, reserved: false })));
+    const started = await sync(repo, owner, 0, NOW + 100, [{ type: "start" }]);
+    assert.equal(started.state.status, "fighting");
+    assert.equal(started.actionResults?.[0].ok, true);
+  }
+});
+
+test("joining prefers an available hero and falls back when that hero is occupied or reserved", async () => {
+  const repo = new MemoryRepository();
+  const owner = await handleRoomRequest(repo, { op: "create", slot: 3 }, NOW) as RoomCredentials;
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code, slot: 1 }, NOW) as RoomCredentials;
+  assert.equal(guest.slot, 1);
+  const occupiedFallback = await handleRoomRequest(repo, { op: "join", code: owner.code, slot: 3 }, NOW) as RoomCredentials;
+  assert.equal(occupiedFallback.slot, 0);
+  await sync(repo, owner, 0, NOW + TRUST_TIMEOUT_MS + 1);
+  const reservedFallback = await handleRoomRequest(repo, { op: "join", code: owner.code, slot: 1 }, NOW + TRUST_TIMEOUT_MS + 1) as RoomCredentials;
+  assert.equal(reservedFallback.slot, 2);
+  assert.deepEqual(reservedFallback.members[1], { slot: 1, connected: false, reserved: true });
+  assert.equal(reservedFallback.state.party[2].human, true);
+  const finalGuest = await handleRoomRequest(repo, { op: "join", code: owner.code, slot: 3 }, NOW + TRUST_TIMEOUT_MS + 1) as RoomCredentials;
+  assert.equal(finalGuest.slot, 4);
+  await assert.rejects(handleRoomRequest(repo, { op: "join", code: owner.code, slot: 1 }, NOW + TRUST_TIMEOUT_MS + 1), status(409));
+});
+
+test("lobby hero changes preserve the session, action receipts, hero resources and run statistics", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  await sync(repo, guest, 7, NOW + 100, [{ type: "move", x: 1, z: 0 }, { type: "guard" }]);
+  const before = repo.rows.get(owner.code)!;
+  before.state.party[guest.slot].hp -= 120;
+  before.state.party[4].hp -= 200;
+  before.state.party[4].tp = 1000;
+  before.state.runStats.party[4].damage = 1234;
+  const sessionBefore = structuredClone(before.occupants[guest.slot]!);
+  const resources = before.state.party.map(actor => ({ hp: actor.hp, maxHp: actor.maxHp, mp: actor.mp, maxMp: actor.maxMp, tp: actor.tp }));
+  const stats = structuredClone(before.state.runStats);
+  const changed = await selectHero(repo, guest, 4, NOW + 101);
+  assert.equal(changed.slot, 4);
+  assert.equal(changed.hostSlot, owner.slot);
+  assert.equal(changed.revision, before.revision + 1);
+  assert.equal(changed.state.party[guest.slot].human, false);
+  assert.equal(changed.state.party[4].human, true);
+  assert.deepEqual(changed.members[guest.slot], { slot: guest.slot, connected: false, reserved: false });
+  assert.deepEqual(changed.members[4], { slot: 4, connected: true, reserved: false });
+  assert.deepEqual(changed.state.party.map(actor => ({ hp: actor.hp, maxHp: actor.maxHp, mp: actor.mp, maxMp: actor.maxMp, tp: actor.tp })), resources);
+  assert.deepEqual(changed.state.runStats, stats);
+  assert.equal(changed.actionSeq, 7);
+  assert.deepEqual(changed.actionResults, sessionBefore.lastResults);
+  const stored = repo.rows.get(owner.code)!;
+  assert.equal(stored.occupants[guest.slot], null);
+  assert.deepEqual(stored.occupants[4], { ...sessionBefore, lastSeen: NOW + 101 });
+  for (const slot of [guest.slot, 4]) {
+    assert.equal(stored.state.party[slot].moveX, 0);
+    assert.equal(stored.state.party[slot].moveZ, 0);
+  }
+  assert.ok(!JSON.stringify(changed).includes("tokenHash"));
+  const unchanged = structuredClone(stored);
+  const retry = await selectHero(repo, guest, 4, NOW + 200);
+  assert.deepEqual(retry, changed);
+  assert.deepEqual(repo.rows.get(owner.code), unchanged, "same-slot retry must not renew ownership or advance simulation");
+  const duplicateSync = await sync(repo, guest, 7, NOW + 250, [{ type: "start" }]);
+  assert.equal(duplicateSync.slot, 4, "the original token finds the new slot even with stale client session metadata");
+  assert.equal(duplicateSync.state.status, "ready");
+  const moved = await sync(repo, guest, 8, NOW + 300, [{ type: "move", x: 0, z: 1 }]);
+  assert.equal(moved.slot, 4);
+  assert.equal(moved.state.party[4].moveZ, 1);
+  assert.equal(moved.state.party[guest.slot].human, false, "the released hero resumes trust simulation");
+});
+
+test("host authority follows a lobby hero change and cannot be inherited by taking the old hero", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const changed = await selectHero(repo, owner, 3, NOW + 100);
+  assert.equal(changed.hostSlot, 3);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code, slot: 0 }, NOW + 100) as RoomCredentials;
+  const denied = await sync(repo, guest, 0, NOW + 200, [{ type: "start" }]);
+  assert.equal(denied.state.status, "ready");
+  assert.equal(denied.actionResults?.[0].ok, false);
+  await assert.rejects(handleRoomRequest(repo, { op: "reset", code: owner.code, token: guest.token, mode: "god" }, NOW + 250), status(403));
+  const started = await sync(repo, owner, 0, NOW + 300, [{ type: "start" }]);
+  assert.equal(started.slot, 3);
+  assert.equal(started.hostSlot, 3);
+  assert.equal(started.state.status, "fighting");
+});
+
+test("hero changes reject occupied and reserved heroes until their ownership expires", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  const unchanged = structuredClone(repo.rows.get(owner.code));
+  await assert.rejects(selectHero(repo, owner, guest.slot, NOW + 100), status(409));
+  await assert.rejects(selectHero(repo, owner, guest.slot, NOW + TRUST_TIMEOUT_MS + 1), status(409));
+  assert.deepEqual(repo.rows.get(owner.code), unchanged, "failed changes do not publish speculative presence or movement");
+  await sync(repo, owner, 0, NOW + 30_000);
+  const claimed = await selectHero(repo, owner, guest.slot, NOW + OWNERSHIP_TIMEOUT_MS + 1);
+  assert.equal(claimed.slot, guest.slot);
+  assert.equal(claimed.hostSlot, guest.slot);
+  await assert.rejects(sync(repo, guest, 0, NOW + OWNERSHIP_TIMEOUT_MS + 100), status(403));
+});
+
+test("hero changes require a ready lobby, including same-slot requests, until the host resets", async () => {
+  for (const runStatus of ["fighting", "victory", "defeat"] as const) {
+    const repo = new MemoryRepository();
+    const owner = await create(repo);
+    await sync(repo, owner, 0, NOW, [{ type: "start" }]);
+    repo.rows.get(owner.code)!.state.status = runStatus;
+    const unchanged = structuredClone(repo.rows.get(owner.code));
+    await assert.rejects(selectHero(repo, owner, 4, NOW + 100), status(409));
+    await assert.rejects(selectHero(repo, owner, owner.slot, NOW + 100), status(409));
+    assert.deepEqual(repo.rows.get(owner.code), unchanged);
+    if (runStatus !== "fighting") {
+      await handleRoomRequest(repo, { op: "reset", code: owner.code, token: owner.token }, NOW + 200);
+      assert.equal((await selectHero(repo, owner, 4, NOW + 300)).slot, 4);
+    }
+  }
+});
+
+test("hero preferences and changes reject malformed slots and client-supplied authority", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const other = await create(repo);
+  for (const slot of [-1, 5, 1.5, "1", null, undefined, Infinity, NaN]) {
+    for (const request of [
+      { op: "create", slot }, { op: "join", code: owner.code, slot },
+      { op: "selectHero", code: owner.code, token: owner.token, slot },
+    ]) assert.throws(() => parseRoomRequest(request), status(400));
+  }
+  const base = { op: "selectHero", code: owner.code, token: owner.token, slot: 4 };
+  for (const extra of [{ hostSlot: 4 }, { state: {} }, { tokenHash: "forged" }, { seq: 0 }, { actions: [] }]) {
+    assert.throws(() => parseRoomRequest({ ...base, ...extra }), status(400));
+  }
+  assert.throws(() => parseRoomRequest({ op: "selectHero", code: owner.code, token: owner.token }), status(400));
+  const unchanged = structuredClone(repo.rows);
+  await assert.rejects(handleRoomRequest(repo, { ...base, token: "0".repeat(32) }, NOW + 100), status(403));
+  await assert.rejects(handleRoomRequest(repo, { ...base, code: other.code }, NOW + 100), status(403));
+  assert.deepEqual(repo.rows, unchanged);
+});
+
+test("concurrent hero changes cannot claim the same hero and CAS failures expose no change", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  const originalGet = repo.get.bind(repo);
+  let reads = 0;
+  let releaseReads!: () => void;
+  const barrier = new Promise<void>(resolve => { releaseReads = resolve; });
+  repo.get = async code => {
+    const room = await originalGet(code);
+    if (reads < 2) {
+      reads++;
+      if (reads === 2) releaseReads();
+      await barrier;
+    }
+    return room;
+  };
+  const results = await Promise.allSettled([selectHero(repo, owner, 4, NOW + 100), selectHero(repo, guest, 4, NOW + 100)]);
+  assert.equal(results.filter(result => result.status === "fulfilled").length, 1);
+  assert.equal(results.filter(result => result.status === "rejected" && status(409)(result.reason)).length, 1);
+  const winner = results.find(result => result.status === "fulfilled") as PromiseFulfilledResult<RoomSnapshot>;
+  assert.equal(winner.value.slot, 4);
+  assert.ok(repo.conflicts > 0);
+  const stored = repo.rows.get(owner.code)!;
+  assert.equal(stored.occupants.filter(Boolean).length, 2);
+  assert.equal(stored.state.party.filter(actor => actor.human).length, 2);
+  repo.failWrites = true;
+  const unchanged = structuredClone(stored);
+  await assert.rejects(selectHero(repo, owner, 3, NOW + 200), status(409));
+  assert.deepEqual(repo.rows.get(owner.code), unchanged);
 });
 
 test("the ready lobby stays out of combat until its host explicitly starts", async () => {
