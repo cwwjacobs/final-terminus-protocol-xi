@@ -377,6 +377,7 @@ test("Critical Dash duplicate requests and reconnect snapshots retain the hit cu
   assert.equal(activation.state.party[0].sequence?.id, 1);
   const partial = await sync(repo, owner, 1, NOW + 400);
   assert.equal(partial.state.party[0].sequence?.nextHit, 1);
+  assert.equal(partial.state.runStats.party[0].damage, 224);
   const before = structuredClone(repo.rows.get(owner.code));
   const duplicate = await sync(repo, owner, 1, NOW + 800, [{ type: "criticalDash" }]);
   assert.deepEqual(duplicate, partial);
@@ -384,6 +385,8 @@ test("Critical Dash duplicate requests and reconnect snapshots retain the hit cu
   const completed = await sync(repo, owner, 2, NOW + 1400);
   assert.equal(completed.state.party[0].sequence, null);
   assert.equal(completed.state.sequenceSeq, 1);
+  assert.equal(completed.state.runStats.party[0].damage, completed.state.boss.maxHp - completed.state.boss.hp,
+    'the authoritative snapshot persists run totals across worker reads and duplicate packets');
   const again = await sync(repo, owner, 3, NOW + 1500, [{ type: "criticalDash" }]);
   assert.equal(again.actionErrors?.length, 1, 'reconnect does not refresh the ability cooldown');
   assert.equal(again.state.sequenceSeq, 1);

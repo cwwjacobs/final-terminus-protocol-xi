@@ -1,5 +1,6 @@
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
+import { createRunStats } from './run-stats.ts';
 import type { Action, ActionResult, Actor, BossCast, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
@@ -17,7 +18,7 @@ export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState
   // New rotations retain the 100–180s Trial / 300–450s God active-play targets.
   const maxHp = safeMode === 'god' ? 310000 : 105000;
   return {
-    version: 2, rng: seed >>> 0, sequenceSeq: 0, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready',
+    version: 2, rng: seed >>> 0, sequenceSeq: 0, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready', runStats: createRunStats(PARTY.length),
     party: PARTY.map((p, i) => ({
       id: p.id, name: p.name, role: p.role, color: p.color,
       x: (i - 2) * 2, z: 9 + Math.abs(i - 2), facing: Math.PI,
@@ -114,6 +115,7 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   const multiplier = guaranteedCritical ? 2 : critical ? 1.5 : 1;
   const damage = Math.min(state.boss.hp, Math.round(amount * attack / ATTACK_BASELINE * multiplier * (kind === 'burst' && state.party[slot].role === 'arcanist' ? 1.1 : 1)));
   state.boss.hp -= damage;
+  state.runStats.party[slot].damage += damage;
   threat(state.party[slot], damage * 0.65, damage * 0.8);
   event(state, kind, `${state.party[slot].name}: ${label} · ${damage}`, slot, damage, undefined, source, physical ? critical : undefined, sequenceId, hitIndex);
   finishIfNeeded(state);
@@ -138,10 +140,12 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
     actor.revelryStacks = 0;
   }
   actor.hp -= damage;
+  state.runStats.party[slot].taken += damage;
   actor.ce = Math.max(0, actor.ce - damage * 0.7);
   if (damage > 0) actor.tp = Math.min(TP_MAX, actor.tp + 45);
   event(state, 'hit', `${actor.name}: ${label} · −${damage}`, slot, damage);
   if (actor.hp <= 0) {
+    state.runStats.party[slot].deaths++;
     clearTransient(actor);
     actor.engaged = false;
     actor.ce = actor.ve = actor.moveX = actor.moveZ = 0;
@@ -152,6 +156,7 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
 function begin(state: GameState, slot: number) {
   state.status = 'fighting';
   state.combatTime = 0;
+  state.runStats = createRunStats(state.party.length);
   state.party[slot].engaged = true;
   threat(state.party[slot], 1, 1);
   event(state, 'start', `${state.party[slot].name} engages the Crown Resonance.`, slot);
@@ -290,6 +295,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     if (!target) return fail('No wounded ally in range.');
     const restored = Math.min(target.p.maxHp - target.p.hp, Math.round(690 * TRAITS[actor.role].healingPower / 100 * (target.p.hp / target.p.maxHp < .35 ? 1.2 : 1)));
     target.p.hp += restored;
+    state.runStats.party[slot].healing += restored;
     actor.mp -= 70;
     actor.cooldowns.heal = 5;
     threat(actor, restored * 0.16 * .75, restored * 0.4 * .75);
@@ -449,7 +455,11 @@ function bossStep(state: GameState, dt: number) {
       event(state, 'enrage', 'Coherence Collapse. The Regent outlasts the party; the local arena gives way.');
       for (let i = 0; i < state.party.length; i++) {
         const actor = state.party[i];
-        if (actor.hp > 0) event(state, 'down', `${actor.name} is lost to Coherence Collapse.`, i);
+        if (actor.hp > 0) {
+          state.runStats.party[i].taken += actor.hp;
+          state.runStats.party[i].deaths++;
+          event(state, 'down', `${actor.name} is lost to Coherence Collapse.`, i);
+        }
         actor.hp = actor.ce = actor.ve = actor.moveX = actor.moveZ = actor.revelryStacks = 0;
         actor.engaged = false;
       }

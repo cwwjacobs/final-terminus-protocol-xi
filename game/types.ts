@@ -66,6 +66,21 @@ export interface BossCast {
   pulses?: number;
 }
 
+export interface ActorRunStats {
+  /** Effective HP removed/restored; overkill and overhealing are excluded. */
+  damage: number;
+  healing: number;
+  taken: number;
+  deaths: number;
+}
+
+export interface RunStats {
+  /** Combat clock when recording began; legacy active saves start mid-run. */
+  startedAt: number;
+  partial: boolean;
+  party: ActorRunStats[];
+}
+
 export interface GameState {
   version: 2;
   rng: number;
@@ -77,6 +92,7 @@ export interface GameState {
   eventSeq: number;
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
+  runStats: RunStats;
   party: Actor[];
   boss: {
     name: string;
