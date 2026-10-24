@@ -51,10 +51,10 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
     </details>
     <h3>Make the controls yours</h3>
     <p>Choose a key button, then press its replacement. Escape cancels. By default, ← / → and D-pad left / right cycle enemies; ↑ / ↓ and D-pad up / down cycle living allies. Tab / Shift + Tab also cycle enemies. Ally selection never changes your enemy lock. I / K look up / down; J / L look left / right. A single enemy remains selected and flashes its marker on every press. Menu Tab keeps normal keyboard navigation.</p>
-    <p>Primary abilities use 1 / 2 / 3 and X / Y / RB: martial roles use weaponskills, Hecate uses Fire / Ice / Lightning, and Ariadne uses Mend / Aegis / Guard. Other techniques remain available through Commands and the bindings below.</p>
+    <p>Primary abilities use 1 / 2 / 3 and X / Y / RB: martial roles use weaponskills, Hecate uses Fire / Ice / Lightning, and Ariadne uses Restore / Aegis. Q / RT activates the current role’s technique; E / LT is Bacchus’s Revelry. Guard is Shift / LB, Evade is C / B, and Space / A toggles auto attack. Every usable ability has a direct slot; optional direct overrides below can use a separate key or button.</p>
     {bindingWarnings(value).length > 0 && <div className="binding-notice" role="status">{bindingWarnings(value).map(warning => <p key={warning}>{warning}</p>)}</div>}
     <p className="binding-notice" role="status">{capturing ? `Listening for ${COMMANDS.find(c => c.id === capturing)?.label}…` : notice}</p>
-    {Array.from(new Set(COMMANDS.map(c => c.group))).map(group => <details className="control-options" key={group} open={group === 'Targeting'}><summary>{group}</summary>
+    {Array.from(new Set(COMMANDS.map(c => c.group))).map(group => <details className="control-options" key={group} open={group === 'Combat'}><summary>{group}</summary>
       <div className="binding-head" aria-hidden="true"><span>Action</span><span>Keyboard</span><span>Controller</span></div>
       {COMMANDS.filter(c => c.group === group).map(command => <div className="binding-row" key={command.id}>
         <span>{command.label}</span>
@@ -62,7 +62,7 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
         <select aria-label={`Controller button for ${command.label}`} value={value.buttons[command.id] ?? ''} onChange={e => { onChange(bindButton(value,command.id,e.target.value === '' ? undefined : Number(e.target.value))); setNotice('Controller mapping updated; conflicting buttons are swapped or cleared.'); }}><option value="">Unbound</option>{Array.from({length:17},(_,button) => <option key={button} value={button}>{buttonLabel(button)}</option>)}</select>
       </div>)}
     </details>)}
-    <p className="muted">Left stick moves; right stick looks. Button mappings above are configurable. Open Commands is remappable (Enter / A by default). Within Commands, arrows / D-pad navigate, Enter / A selects, and Escape / B goes back; these navigation controls are fixed. Combat continues while you choose. Settings dialogs keep normal keyboard and Tab navigation. Keyboard modifier-only combat keys, such as Shift for Guard, activate on release so Shift + Tab can target safely.</p>
+    <p className="muted">Left stick moves; right stick looks. Button mappings above are configurable. An optional command-menu binding can be assigned below; it is unbound by default. Within that optional menu, arrows / D-pad navigate, Enter / A selects, and Escape / B goes back; these navigation controls are fixed. Combat continues while you choose. Settings dialogs keep normal keyboard and Tab navigation. Keyboard modifier-only combat keys, such as Shift for Guard, activate on release so Shift + Tab can target safely.</p>
     <button onClick={() => { setCapturing(null); onChange(defaults()); setNotice('Default bindings, camera settings and non-inverted controls restored.'); }}>Restore default controls</button>
   </div>;
 }

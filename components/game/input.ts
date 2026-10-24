@@ -1,5 +1,5 @@
 import type { Action, Role } from '../../game/types.ts';
-import { COMMANDS, keyboardEventBinding, normalizeControls, primaryCommand } from './control-settings.ts';
+import { COMMANDS, keyboardEventBinding, normalizeControls, roleCommand } from './control-settings.ts';
 import type { Command, ControlSettings } from './control-settings.ts';
 import type { MenuIntent } from './command-menu.ts';
 import { resetTouchStick, type InputMode, type TouchStickState } from './touch-input.ts';
@@ -70,7 +70,9 @@ export function bindInput(options: InputOptions): () => void {
   }
   function fire(command: Command) {
     if (command === 'commandMenu' && commandMenu) { clearHeld(); commandMenu.onInput('open'); return; }
-    if (command === 'primary1' || command === 'primary2' || command === 'primary3') command = primaryCommand(options.getRole?.() ?? 'vanguard', command);
+    const resolved = roleCommand(options.getRole?.() ?? 'vanguard', command);
+    if (resolved === null) return;
+    command = resolved;
     if (command === 'targetEnemyNext') command = 'targetNext';
     if (command === 'targetEnemyPrevious') command = 'targetPrevious';
     const action = combat[command];
@@ -189,13 +191,13 @@ export function bindInput(options: InputOptions): () => void {
     const dt = Math.max(0, Math.min((now - last) / 1000, 0.05)); last = now;
     const pad = Array.from(navigator.getGamepads?.() ?? []).find(candidate => candidate?.connected);
     if (!!pad !== padPresent) { padPresent = !!pad; onPad(padPresent); }
-    if ((pad?.index ?? null) !== padId) { padId = pad?.index ?? null; padArmed = false; menuPadArmed = false; previousButtons = pad?.buttons.map(button => button.pressed) ?? []; }
+    if ((pad?.index ?? null) !== padId) { padId = pad?.index ?? null; padArmed = false; menuPadArmed = false; previousButtons = pad?.buttons.map(button => button.pressed || button.value > .5) ?? []; }
     const navigating = menuOpen();
     if (navigating !== menuWasOpen) { clearHeld(); menuWasOpen = navigating; }
     const active = playable();
     if (!active && (wasPlayable || held.size || dragging || pendingModifiers.size)) clearHeld();
     wasPlayable = active;
-    const buttons = pad?.buttons.map(button => button.pressed) ?? [];
+    const buttons = pad?.buttons.map(button => button.pressed || button.value > .5) ?? [];
     const neutral = !buttons.some(Boolean) && (!pad || pad.axes.slice(0, 4).every(axis => deadzone(axis) === 0));
     if (pad && !neutral) options.onInputMode?.('controller');
     // Main menus/results have their own context. Confirm/back cannot cast or evade.

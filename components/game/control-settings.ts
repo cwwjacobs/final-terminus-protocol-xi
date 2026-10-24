@@ -21,28 +21,30 @@ export const COMMANDS = [
   { id: 'primary1', label: 'Primary ability 1 · role dependent', group: 'Combat', defaultKey: 'Digit1', defaultButton: 2 },
   { id: 'primary2', label: 'Primary ability 2 · role dependent', group: 'Combat', defaultKey: 'Digit2', defaultButton: 3 },
   { id: 'primary3', label: 'Primary ability 3 · role dependent', group: 'Combat', defaultKey: 'Digit3', defaultButton: 5 },
-  { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space' },
-  { id: 'cleave', label: 'Arc Cleave', group: 'Combat', defaultKey: 'Shift+Digit1' },
-  { id: 'pierce', label: 'Vector Pierce', group: 'Combat', defaultKey: 'Shift+Digit2' },
-  { id: 'resonance', label: 'Q Resonance', group: 'Combat', defaultKey: 'Shift+Digit3' },
-  { id: 'fire', label: 'Fire magic', group: 'Combat', defaultKey: 'Digit4' },
-  { id: 'ice', label: 'Ice magic', group: 'Combat', defaultKey: 'Digit5' },
-  { id: 'lightning', label: 'Lightning magic', group: 'Combat', defaultKey: 'Digit6' },
-  { id: 'provoke', label: 'Provoke', group: 'Combat', defaultKey: 'KeyR', defaultButton: 7 },
-  { id: 'heal', label: 'Mend', group: 'Combat', defaultKey: 'KeyF', defaultButton: 4 },
-  { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 6 },
+  { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space', defaultButton: 0 },
+  { id: 'utility1', label: 'Role technique · Dash / Provoke / Volley / Weave', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 7 },
+  { id: 'utility2', label: 'Role support · Revelry', group: 'Combat', defaultKey: 'KeyE', defaultButton: 6 },
+  { id: 'cleave', label: 'Arc Cleave', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'pierce', label: 'Vector Pierce', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'resonance', label: 'Q Resonance', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'fire', label: 'Fire magic', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'ice', label: 'Ice magic', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'lightning', label: 'Lightning magic', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'provoke', label: 'Provoke', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'heal', label: 'Restore', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 4 },
   { id: 'dodge', label: 'Evade', group: 'Combat', defaultKey: 'KeyC', defaultButton: 1 },
-  { id: 'revelry', label: 'Revelry', group: 'Combat', defaultKey: 'KeyQ' },
-  { id: 'criticalDash', label: 'Critical Dash', group: 'Combat', defaultKey: 'KeyZ' },
-  { id: 'splitVolley', label: 'Split Volley', group: 'Combat', defaultKey: 'KeyX' },
-  { id: 'rapidWeave', label: 'Rapid Weave', group: 'Combat', defaultKey: 'KeyE' },
-  { id: 'aegis', label: 'Aegis', group: 'Combat', defaultKey: 'KeyT' },
-  { id: 'commandMenu', label: 'Open command menu', group: 'Menus', defaultKey: 'Enter', defaultButton: 0 },
+  { id: 'revelry', label: 'Revelry · optional direct binding', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'criticalDash', label: 'Critical Dash', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'splitVolley', label: 'Split Volley', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'rapidWeave', label: 'Rapid Weave · optional direct binding', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'aegis', label: 'Aegis', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'commandMenu', label: 'Optional command menu', group: 'Menus', defaultKey: '' },
 ] as const;
 
 export type Command = (typeof COMMANDS)[number]['id'];
 export interface ControlSettings {
-  version: 4;
+  version: 5;
   keys: Record<Command, string>;
   buttons: Partial<Record<Command, number>>;
   mouseSensitivity: number;
@@ -67,7 +69,7 @@ const safeButton = (value: unknown): value is number => typeof value === 'number
 
 export function defaults(): ControlSettings {
   return {
-    version: 4,
+    version: 5,
     keys: Object.fromEntries(COMMANDS.map(command => [command.id, command.defaultKey])) as Record<Command, string>,
     buttons: Object.fromEntries(COMMANDS.flatMap(command => 'defaultButton' in command ? [[command.id, command.defaultButton]] : [])),
     mouseSensitivity: 1, touchSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
@@ -107,19 +109,58 @@ function legacyPreset(map: Record<string, unknown>, expected: Record<string, str
 }
 
 export type PrimaryCommand = 'primary1' | 'primary2' | 'primary3';
-export function primaryCommand(role: Role, slot: PrimaryCommand): Command {
-  const index = slot === 'primary1' ? 0 : slot === 'primary2' ? 1 : 2;
-  const actions: readonly Command[] = role === 'arcanist' ? ['fire', 'ice', 'lightning']
-    : role === 'luminary' ? ['heal', 'aegis', 'guard'] : ['cleave', 'pierce', 'resonance'];
-  return actions[index];
+export type RoleSlotCommand = PrimaryCommand | 'utility1' | 'utility2';
+export const ROLE_SLOT_COMMANDS: readonly RoleSlotCommand[] = ['primary1', 'primary2', 'primary3', 'utility1', 'utility2'];
+/** The same slots drive input, HUD ordering and effective binding labels. */
+export const ROLE_ACTION_SLOTS: Record<Role, readonly (Command | null)[]> = {
+  vanguard: ['cleave', 'pierce', 'resonance', 'criticalDash', 'revelry'],
+  warden: ['cleave', 'pierce', 'resonance', 'provoke', null],
+  hunter: ['cleave', 'pierce', 'resonance', 'splitVolley', null],
+  arcanist: ['fire', 'ice', 'lightning', 'rapidWeave', null],
+  luminary: ['heal', 'aegis', null, null, null],
+};
+export function roleCommand(role: Role, slot: Command): Command | null {
+  const index = ROLE_SLOT_COMMANDS.indexOf(slot as RoleSlotCommand);
+  return index < 0 ? slot : ROLE_ACTION_SLOTS[role]?.[index] ?? null;
+}
+export function primaryCommand(role: Role, slot: PrimaryCommand): Command | null { return roleCommand(role, slot); }
+
+export function effectiveBindingCommand(role: Role, action: Command, settings: ControlSettings, mode: 'keyboard' | 'controller'): Command | null {
+  const bound = (command: Command) => mode === 'controller' ? settings.buttons[command] !== undefined : !!settings.keys[command];
+  return ROLE_SLOT_COMMANDS.find(slot => roleCommand(role, slot) === action && bound(slot)) ?? (bound(action) ? action : null);
 }
 
-/** Explain absent directional/role bindings without changing a saved custom map. */
+/** Old per-device presets are recognized exactly; one customized device never
+ * causes the other device's bindings to be silently overwritten. */
+const v4Keys: Record<string, string> = {
+  ...oldKeys, cameraLeft: 'KeyJ', cameraRight: 'KeyL', cameraUp: 'KeyI', cameraDown: 'KeyK',
+  targetEnemyPrevious: 'ArrowLeft', targetEnemyNext: 'ArrowRight', targetAllyPrevious: 'ArrowUp', targetAllyNext: 'ArrowDown',
+  primary1: 'Digit1', primary2: 'Digit2', primary3: 'Digit3',
+  cleave: 'Shift+Digit1', pierce: 'Shift+Digit2', resonance: 'Shift+Digit3',
+  criticalDash: 'KeyZ', splitVolley: 'KeyX', rapidWeave: 'KeyE', aegis: 'KeyT',
+};
+const v4Buttons: Record<string, number> = {
+  recenter: 11, targetNext: 10, targetEnemyPrevious: 14, targetEnemyNext: 15,
+  targetAllyPrevious: 12, targetAllyNext: 13, primary1: 2, primary2: 3, primary3: 5,
+  provoke: 7, heal: 4, guard: 6, dodge: 1, commandMenu: 0,
+};
+const exactPreset = (map: Record<string, unknown>, expected: Record<string, string | number>) =>
+  Object.keys(map).length === Object.keys(expected).length && Object.entries(expected).every(([key, value]) => map[key] === value);
+
+/** Explain missing effective action mappings without mistaking optional aliases
+ * for missing controls. Custom maps are preserved even when a new slot is free. */
 export function bindingWarnings(settings: ControlSettings): string[] {
   const warnings: string[] = [];
-  for (const id of ['targetEnemyPrevious', 'targetEnemyNext', 'targetAllyPrevious', 'targetAllyNext', 'primary1', 'primary2', 'primary3', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis'] as const) {
-    const command = COMMANDS.find(command => command.id === id)!;
-    if (!settings.keys[id] && settings.buttons[id] === undefined) warnings.push(`${command.label} is unbound. Your existing bindings were kept; assign it below or restore defaults.`);
+  for (const id of ['targetEnemyPrevious', 'targetEnemyNext', 'targetAllyPrevious', 'targetAllyNext', 'primary1', 'primary2', 'primary3'] as const) {
+    if (!settings.keys[id] && settings.buttons[id] === undefined) warnings.push(`${COMMANDS.find(command => command.id === id)!.label} is unbound. Your existing bindings were kept; assign it below or restore defaults.`);
+  }
+  const seen = new Set<Command>();
+  for (const role of Object.keys(ROLE_ACTION_SLOTS) as Role[]) for (const action of ROLE_ACTION_SLOTS[role]) {
+    if (!action || seen.has(action)) continue;
+    seen.add(action);
+    const label = COMMANDS.find(command => command.id === action)!.label;
+    for (const mode of ['keyboard', 'controller'] as const) if (!effectiveBindingCommand(role, action, settings, mode))
+      warnings.push(`${label} has no ${mode} binding. Your existing bindings were kept; assign a role slot or direct binding below.`);
   }
   return warnings;
 }
@@ -127,26 +168,22 @@ export function bindingWarnings(settings: ControlSettings): string[] {
 /** Saved bindings are data: discard unknown fields, bound numbers and remove conflicts. */
 export function normalizeControls(value: unknown): ControlSettings {
   const result = defaults();
-  if (!object(value) || (value.version !== undefined && ![1, 2, 3, 4].includes(value.version as number))) return result;
-  const legacy = value.version !== 4;
+  if (!object(value) || (value.version !== undefined && ![1, 2, 3, 4, 5].includes(value.version as number))) return result;
+  const legacy = value.version !== 5;
+  const beforeV4 = value.version !== 4 && value.version !== 5;
   const keys = object(value.keys) ? value.keys : undefined;
   const buttons = object(value.buttons) ? value.buttons : undefined;
-  const migrateKeys = legacy && keys && legacyPreset(keys, oldKeys, value.version);
-  const migrateButtons = legacy && buttons && legacyPreset(buttons, oldButtons, value.version);
+  const migrateKeys = legacy && keys && (value.version === 4 ? exactPreset(keys, v4Keys) : legacyPreset(keys, oldKeys, value.version));
+  const migrateButtons = legacy && buttons && (value.version === 4 ? exactPreset(buttons, v4Buttons) : legacyPreset(buttons, oldButtons, value.version));
   if (keys && !migrateKeys) {
-    if (legacy) for (const command of COMMANDS) result.keys[command.id] = oldKeys[command.id] ?? '';
+    if (legacy) for (const command of COMMANDS) result.keys[command.id] = (beforeV4 ? oldKeys : v4Keys)[command.id] ?? '';
     for (const command of COMMANDS) if (safeKey(keys[command.id])) result.keys[command.id] = keys[command.id] as string;
   }
   if (buttons && !migrateButtons) {
-    // An omitted entry in an explicitly saved buttons map means unbound.
+    // Omitted entries in an explicitly saved map mean unbound. In particular,
+    // never steal A for Commands or LT/RT for a newly added role technique.
     result.buttons = {};
     for (const command of COMMANDS) if (safeButton(buttons[command.id])) result.buttons[command.id] = buttons[command.id] as number;
-    if (legacy && value.version !== 2 && value.version !== 3 && !Object.hasOwn(buttons, 'revelry') &&
-        !Object.values(result.buttons).includes(15)) result.buttons.revelry = 15;
-    if (legacy && value.version !== 3 && !Object.hasOwn(buttons, 'commandMenu')) {
-      if (result.buttons.engage === 0) delete result.buttons.engage;
-      if (!Object.values(result.buttons).includes(0)) result.buttons.commandMenu = 0;
-    }
   }
   const usedKeys = new Set<string>(), usedButtons = new Set<number>();
   // Explicit saved choices take priority over defaults introduced by a new release.
@@ -161,9 +198,9 @@ export function normalizeControls(value: unknown): ControlSettings {
     if (button !== undefined && usedButtons.has(button)) delete result.buttons[command.id];
     else if (button !== undefined) usedButtons.add(button);
   }
-  if (legacy && keys && !migrateKeys) for (const command of COMMANDS) {
+  if (beforeV4 && keys && !migrateKeys) for (const command of COMMANDS) {
     // New keyboard commands are added only when their default is genuinely free.
-    if (!(command.id in oldKeys) && !Object.hasOwn(keys, command.id) && !usedKeys.has(command.defaultKey)) {
+    if (command.defaultKey && !(command.id in oldKeys) && !Object.hasOwn(keys, command.id) && !usedKeys.has(command.defaultKey)) {
       result.keys[command.id] = command.defaultKey;
       usedKeys.add(command.defaultKey);
     }
