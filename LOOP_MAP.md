@@ -12,3 +12,6 @@ Authorization: User approved the researched plan with “make it work please san
 Whole-build check: the command above plus browser checks of menu → solo or room → combat → results, mapped-action discoverability and music controls. Exercise room capacity, independent client slots, reconnect and invite handling with authoritative tests. Browser/real-device limits must be explicit; never substitute a blank WebGL canvas for visual proof.
 
 Implementation tasks may run concurrently in separate files inside this authorized loop. The owner integrates GameClient and global styles. A separate reviewer reads code and receipts before publication. Existing scoreboard loop1 receipts remain in RECEIPTS.md.
+
+## Repair 2.A — quiet completed-room keepalives
+Live results exposed repeated “The encounter is over” messages because every poll included idle movement after combat ended. Send movement only during fighting, allow explicit start in the lobby, and discard stale combat commands in results. Keep busy result buttons labeled for their actual action. Scope: GameClient.tsx, EncounterResult.tsx, room-sync.ts, tests/room-sync.test.ts, receipt/reviewer documents. Exit check: aggregate tests, typecheck and production build.

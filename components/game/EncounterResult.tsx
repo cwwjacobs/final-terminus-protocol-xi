@@ -54,7 +54,7 @@ export default function EncounterResult({ won, time, mode, online, busy, control
       <div className="result-actions">
         {online ? <button autoFocus className="primary" disabled={busy} onClick={onLobby ?? onClose}>{onLobby ? 'Party lobby' : 'Back to arena'}</button>
           : <button autoFocus className="primary" onClick={onReplay}>Play again <Icon name="arrow"/></button>}
-        {online ? <button disabled={busy} onClick={onLeave}>{busy ? 'Leaving…' : 'Leave party'}</button>
+        {online ? <button disabled={busy} onClick={onLeave}>Leave party</button>
           : <button onClick={onStart}>Back to start</button>}
       </div>
       <small>{controller ? 'A select · B close · Menu opens game menu' : 'Esc or Close returns to the arena'}</small>

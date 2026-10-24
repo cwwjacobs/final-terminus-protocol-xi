@@ -34,6 +34,9 @@ Whole-build check: the command above plus browser checks of menu → solo or roo
 
 Implementation tasks may run concurrently in separate files inside this authorized loop. The owner integrates GameClient and global styles. A separate reviewer reads code and receipts before publication. Existing scoreboard loop1 receipts remain in RECEIPTS.md.
 
+## Repair 2.A — quiet completed-room keepalives
+Live results exposed repeated “The encounter is over” messages because every poll included idle movement after combat ended. Send movement only during fighting, allow explicit start in the lobby, and discard stale combat commands in results. Keep busy result buttons labeled for their actual action. Scope: GameClient.tsx, EncounterResult.tsx, room-sync.ts, tests/room-sync.test.ts, receipt/reviewer documents. Exit check: aggregate tests, typecheck and production build.
+
 ---
 
 # RECEIPTS.md
@@ -169,6 +172,57 @@ npm warn Unknown env config "http-proxy". This will stop working in the next maj
 rendering chunks...
 computing gzip size...
 ✓ built in 803ms
+[0m
+  Route (app)
+  ┌ ? /         
+  └ λ /api/rooms
+
+  λ API  ? Unknown
+
+  ? Some routes could not be classified. vinext currently uses static analysis
+    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.
+    Automatic classification will be improved in a future release.
+
+  Build complete. Run `vinext start` to start the production server.
+
+```
+
+Receipt attached, awaiting seal.
+
+## Receipt: loop 2.A
+
+- time: 2026-10-24T05:25:16Z
+- cwd: /workspace/scratch/86df643da5ef/terminus-public-release
+- command: `npm test > /tmp/terminus-loop2a-tests.log && tail -10 /tmp/terminus-loop2a-tests.log && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs > /tmp/terminus-loop2a-build.log 2>&1 && tail -18 /tmp/terminus-loop2a-build.log`
+- exit code: 0
+- files:
+  - components/game/GameClient.tsx sha256=6355f8200c076aea1210be43cd24afb83a431b74c03fbcdc59feee17bf22e031 bytes=48869
+  - components/game/EncounterResult.tsx sha256=135f1e6fa5de889bf2912aecf1480cb763ee9f16c2835fd2dc2fe95cad4fddec bytes=5194
+  - components/game/room-sync.ts sha256=1c9575c27928ecf02bcb787f825712786f8c6ebe169b7ff631256c8714384240 bytes=414
+  - tests/room-sync.test.ts sha256=8029d61d7ce5815e3147465c6498182afc808cca018e5d6ff19e17823a052964 bytes=1180
+
+```
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+✔ depth scale and spawn punch are bounded, monotonic and off under reduced motion (0.122401ms)
+✔ tilt and scale are applied per frame without adding nodes (0.78695ms)
+ℹ tests 244
+ℹ suites 0
+ℹ pass 244
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 897.81425
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> final-terminus-protocol-xi@0.1.0 typecheck
+> tsc --noEmit
+
+[5/5] build ssr environment...
+[2Ktransforming...✓ 140 modules transformed.
+rendering chunks...
+computing gzip size...
+✓ built in 751ms
 [0m
   Route (app)
   ┌ ? /         
