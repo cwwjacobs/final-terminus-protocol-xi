@@ -421,7 +421,7 @@ export default function Scene(props: SceneProps) {
       }
       for (const event of incoming.events) {
         const source = typeof event.actor === 'number' ? event.actor : -1;
-        const delay = state.party[source]?.hp > 0 ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
+        const delay = state.party[source]?.hp > 0 || event.kind === 'down' ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
         if (delay > 0 && !immediateImpact(event)) {
           if (pendingImpacts.length >= effects.length) pendingImpacts.shift();
           pendingImpacts.push({ event, at: animationTime + delay });
