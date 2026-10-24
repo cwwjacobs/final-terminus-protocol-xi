@@ -61,6 +61,105 @@ test("create returns one human and four trusts without private persistence field
   assert.ok(!JSON.stringify(stored).includes(session.token), "token is hashed at rest");
   assert.ok(!JSON.stringify(session).includes("tokenHash"));
   assert.ok(!JSON.stringify(session).includes("occupants"));
+  assert.equal(session.hostSlot, 0);
+  assert.deepEqual(session.members, Array.from({ length: 5 }, (_, slot) => ({ slot, connected: slot === 0, reserved: false })));
+});
+
+test("the ready lobby stays out of combat until its host explicitly starts", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code.toUpperCase() }, NOW) as RoomCredentials;
+  const blocked = await sync(repo, guest, 0, NOW + 250, [{ type: "start" }, { type: "engage" }, { type: "move", x: 0, z: 1 }]);
+  assert.equal(blocked.state.status, "ready");
+  assert.equal(blocked.state.combatTime, 0);
+  assert.deepEqual(blocked.actionResults?.map(result => result.ok), [false, false, true]);
+  assert.ok(blocked.actionErrors?.every(error => error.includes("host")));
+  const ownerEngage = await sync(repo, owner, 0, NOW + 500, [{ type: "engage" }]);
+  assert.equal(ownerEngage.state.status, "ready", "even the host uses the deliberate Start control");
+  const waiting = await sync(repo, guest, 1, NOW + 2000);
+  assert.equal(waiting.state.combatTime, 0);
+  assert.equal(waiting.state.boss.hp, waiting.state.boss.maxHp);
+  const started = await sync(repo, owner, 1, NOW + 2250, [{ type: "start" }]);
+  assert.equal(started.state.status, "fighting");
+  assert.equal(started.actionResults?.[0].ok, true);
+});
+
+test("host departure transfers authority and legacy rooms derive host metadata safely", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  const stored = repo.rows.get(owner.code)!;
+  Reflect.deleteProperty(stored, "hostSlot");
+  const legacy = await sync(repo, guest, 0, NOW + 100);
+  assert.equal(legacy.hostSlot, owner.slot);
+  assert.equal(repo.rows.get(owner.code)!.hostSlot, 0);
+  await handleRoomRequest(repo, { op: "leave", code: owner.code, token: owner.token }, NOW + 250);
+  const inherited = await sync(repo, guest, 1, NOW + 500, [{ type: "start" }]);
+  assert.equal(inherited.hostSlot, guest.slot);
+  assert.equal(inherited.state.status, "fighting");
+  assert.equal(inherited.members[0].connected, false);
+  assert.equal(inherited.members[0].reserved, false);
+  assert.ok(!JSON.stringify(inherited).includes("tokenHash"));
+});
+
+test("a disconnected host is reserved briefly and transfers after ownership expires", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  const reserved = await sync(repo, guest, 0, NOW + TRUST_TIMEOUT_MS + 1);
+  assert.equal(reserved.hostSlot, 0);
+  assert.deepEqual(reserved.members[0], { slot: 0, connected: false, reserved: true });
+  // Refresh the guest's lease independently while the original host is away.
+  await sync(repo, guest, 1, NOW + 30000);
+  const transferred = await sync(repo, guest, 2, NOW + OWNERSHIP_TIMEOUT_MS + 1, [{ type: "start" }]);
+  assert.equal(transferred.hostSlot, guest.slot);
+  assert.equal(transferred.members[0].reserved, false);
+  assert.equal(transferred.state.status, "fighting");
+  await assert.rejects(sync(repo, owner, 0, NOW + OWNERSHIP_TIMEOUT_MS + 250), status(403));
+});
+
+test("the host can return finished runs to the lobby without releasing any player session", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  await sync(repo, owner, 0, NOW, [{ type: "start" }]);
+  await assert.rejects(handleRoomRequest(repo, { op: "reset", code: owner.code, token: owner.token }, NOW + 100), status(409));
+  await assert.rejects(handleRoomRequest(repo, { op: "reset", code: owner.code, token: guest.token }, NOW + 100), status(403));
+  const finished = repo.rows.get(owner.code)!;
+  finished.state.status = "victory";
+  finished.state.boss.hp = 0;
+  finished.state.combatTime = 100;
+  finished.state.runStats.party[0].damage = finished.state.boss.maxHp;
+  const hashes = finished.occupants.map(occupant => occupant?.tokenHash);
+  const reset = await handleRoomRequest(repo, { op: "reset", code: owner.code, token: owner.token }, NOW + 250) as RoomSnapshot;
+  assert.equal(reset.state.status, "ready");
+  assert.equal(reset.state.combatTime, 0);
+  assert.equal(reset.state.boss.hp, reset.state.boss.maxHp);
+  assert.ok(reset.state.runStats.party.every(row => Object.values(row).every(value => value === 0)));
+  assert.equal(reset.members.filter(member => member.connected).length, 2);
+  assert.deepEqual(repo.rows.get(owner.code)!.occupants.map(occupant => occupant?.tokenHash), hashes);
+  const beforeRetry = structuredClone(repo.rows.get(owner.code));
+  const retry = await handleRoomRequest(repo, { op: "reset", code: owner.code, token: owner.token }, NOW + 400) as RoomSnapshot;
+  assert.deepEqual(retry, reset);
+  assert.deepEqual(repo.rows.get(owner.code), beforeRetry, "a retried reset cannot reset the room twice");
+  const guestAgain = await sync(repo, guest, 0, NOW + 500);
+  assert.equal(guestAgain.slot, guest.slot);
+  assert.equal(guestAgain.state.status, "ready");
+  const restarted = await sync(repo, owner, 1, NOW + 500, [{ type: "start" }]);
+  assert.equal(restarted.state.status, "fighting");
+});
+
+test("room mode changes require the authenticated host and malformed reset fields are rejected", async () => {
+  const repo = new MemoryRepository();
+  const owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: "join", code: owner.code }, NOW) as RoomCredentials;
+  await assert.rejects(handleRoomRequest(repo, { op: "reset", code: owner.code, token: guest.token, mode: "god" }, NOW + 100), status(403));
+  const god = await handleRoomRequest(repo, { op: "reset", code: owner.code, token: owner.token, mode: "god" }, NOW + 100) as RoomSnapshot;
+  assert.equal(god.state.mode, "god");
+  assert.equal(god.state.status, "ready");
+  for (const extra of [{ mode: "cheat" }, { hostSlot: 1 }, { state: {} }]) {
+    assert.throws(() => parseRoomRequest({ op: "reset", code: owner.code, token: owner.token, ...extra }), status(400));
+  }
 });
 
 test("five-slot cap is preserved under concurrent joins with CAS retries", async () => {

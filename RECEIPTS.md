@@ -83,3 +83,65 @@ npm warn Unknown env config "http-proxy". This will stop working in the next maj
 ```
 
 Receipt attached, awaiting seal.
+
+## Receipt: loop 2
+
+- time: 2026-10-24T05:14:40Z
+- cwd: /workspace/scratch/86df643da5ef/terminus-public-release
+- command: `npm test > /tmp/terminus-loop2-tests.log && tail -10 /tmp/terminus-loop2-tests.log && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs > /tmp/terminus-loop2-build.log 2>&1 && tail -18 /tmp/terminus-loop2-build.log`
+- exit code: 0
+- files:
+  - components/game/GameClient.tsx sha256=83eb57f7aad5d2bca320b26529e0070a1c70832f6fd34441c086c93ca0d4031d bytes=48733
+  - components/game/CombatHUD.tsx sha256=f565eaf7917492c9bd63f1353e7813c90482921059cbffeba10d9d4616a35d30 bytes=5259
+  - components/game/MainMenu.tsx sha256=9ea385be2da614fbed56f64157939d93c207009bcc901c2aea31ee9309e9a0b8 bytes=9762
+  - components/game/TouchControls.tsx sha256=10eb1d09ada2afdeabf8bceff98a1bf2e68bddc767751c49e8541a41d8897243 bytes=5767
+  - components/game/control-settings.ts sha256=371fc72e81c350e376b6f7265250d6e6057e9312bb5cb93de4826f538beac2a8 bytes=17155
+  - components/game/input.ts sha256=a3e58b05abaacb11fefb3feb0468885ba7b24ff4c89c89df96467f94972bd967 bytes=18426
+  - components/game/kit-ui.ts sha256=68d8f3730f2f44a56d9cec040568a86f05f4883e6212d19b6522074b5e64af6c bytes=5457
+  - components/game/Scene.tsx sha256=fdaa339973d0155ac450aae2a62e55b97c804ce818a28f6de70005324d3147d7 bytes=38023
+  - components/game/use-game-music.ts sha256=e06d87803c553a5618ec6ac203a2a81bd046d7cd0bab73deea50f4df4cb883af bytes=1911
+  - components/game/music-player.ts sha256=256fc25a35cc7288b181a1892f25a8bd4dbe5690c96738a4f3770d06efad81ce bytes=6431
+  - components/game/music-settings.ts sha256=9d142b30c3959707da94b33c9a67cba2b7330925fc4b86963677499d12a7bc66 bytes=944
+  - components/game/MusicControls.tsx sha256=136480dfef4386470408e920f17f22fda73d8829c10a015ed19776e34e2e651e bytes=1637
+  - lib/rooms.ts sha256=39d8ee8ba46c5c39db169811e0ac732e5f9db954920511a649c6f66c45d4f3a6 bytes=18915
+  - lib/room-invite.ts sha256=ce304985f836b2839a147ae553777fdaa0b3318caf4c782247a10fa5a10b1a58 bytes=1307
+  - public/audio/siege-of-the-gilded-hall.mp3 sha256=78d6f749fbe14e29d06718f23e6851070de1249dc4a7e87067b8ed814c146c56 bytes=3959600
+
+```
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+✔ depth scale and spawn punch are bounded, monotonic and off under reduced motion (0.123743ms)
+✔ tilt and scale are applied per frame without adding nodes (0.635649ms)
+ℹ tests 241
+ℹ suites 0
+ℹ pass 241
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 878.00229
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> final-terminus-protocol-xi@0.1.0 typecheck
+> tsc --noEmit
+
+[5/5] build ssr environment...
+[2Ktransforming...✓ 139 modules transformed.
+rendering chunks...
+computing gzip size...
+✓ built in 803ms
+[0m
+  Route (app)
+  ┌ ? /         
+  └ λ /api/rooms
+
+  λ API  ? Unknown
+
+  ? Some routes could not be classified. vinext currently uses static analysis
+    and cannot detect dynamic API usage (headers(), cookies(), etc.) at build time.
+    Automatic classification will be improved in a future release.
+
+  Build complete. Run `vinext start` to start the production server.
+
+```
+
+Receipt attached, awaiting seal.

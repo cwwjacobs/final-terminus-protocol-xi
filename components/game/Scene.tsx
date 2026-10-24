@@ -335,9 +335,15 @@ export default function Scene(props: SceneProps) {
     framingCamera.lookAt(defaultPose.lookAt.x, defaultPose.lookAt.y, defaultPose.lookAt.z);
     framingCamera.updateMatrixWorld();
     const framingPoint = new THREE.Vector3();
-    const actionDock = host.parentElement?.querySelector<HTMLElement>('.player-console');
+    let actionDock: HTMLElement | null = null;
     const activeSlot = () => Math.max(0, Math.min(rigs.length - 1, latest.current.slot));
     const resize = () => {
+      const nextDock = host.parentElement?.querySelector<HTMLElement>('.direct-combat-hud[data-interface="desktop"]') ?? null;
+      if (nextDock !== actionDock) {
+        if (actionDock) observer.unobserve(actionDock);
+        actionDock = nextDock;
+        if (actionDock) observer.observe(actionDock);
+      }
       const width = Math.max(1, host.clientWidth), height = Math.max(1, host.clientHeight);
       renderer.setSize(width, height, false); camera.aspect = width / height;
       framingCamera.aspect = width / height; framingCamera.updateProjectionMatrix();
@@ -350,7 +356,9 @@ export default function Scene(props: SceneProps) {
       camera.updateProjectionMatrix(); size.set(width, height);
     };
     const observer = new ResizeObserver(resize); observer.observe(host);
-    if (actionDock) observer.observe(actionDock);
+    // The dock mounts after leaving the title, and changes with the input layout.
+    const dockObserver = new MutationObserver(resize);
+    if (host.parentElement) dockObserver.observe(host.parentElement, { childList: true, attributes: true, attributeFilter: ['data-layout', 'data-interface', 'data-front'] });
     resize();
     const onContextLost = (event: Event) => {
       event.preventDefault(); stopped = true; cancelAnimationFrame(frame); numbers.reset();
@@ -561,7 +569,7 @@ export default function Scene(props: SceneProps) {
     };
     frame = requestAnimationFrame(render);
     return () => {
-      stopped = true; cancelAnimationFrame(frame); observer.disconnect();
+      stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
       motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.

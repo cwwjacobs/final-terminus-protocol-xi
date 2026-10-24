@@ -1,15 +1,14 @@
-# LOOP_MAP — End-of-run scoreboard
+# LOOP_MAP — Direct controls, menu, music and 1–5 player rooms
 
-Goal: Show real per-character Damage, DPS, effective Healing, Damage taken and Deaths at the end of each run, including local and online play.
-Kernel: Preserve combat balance, deterministic simulation, save compatibility, transparent glass, compact results, visible Close/Replay/Back controls, and independent input layouts. Totals survive event-log truncation. Overkill and overhealing do not count.
-Out of scope: Audio, animations, combat balance, historical run archive or public rankings.
-Operator authorization: The requested scoreboard and the earlier GREEN/GO authorize implementation, checks, main synchronization and public release. No new approval boundary is introduced.
-Whole-build check: `npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs` plus published run-to-results UI check where browser capabilities permit.
+Goal: Implement the researched direct-control design with every character ability mapped and visible, preserve transparent glass, add the supplied music with mute/volume, and provide a clear solo/host/join/lobby/encounter/results flow for 1–5 players.
+Kernel: Preserve combat mechanics, run statistics, deterministic server authority, saves/custom controls, 5 party slots filled by players or trusts, and obvious Back/Close/Leave actions. Input from menus must never fire combat actions. No duplicate activation surfaces in the default HUD.
+Out of scope: New animations, new combat skills, matchmaking, chat, account systems, audio effects beyond the supplied music.
+Authorization: User approved the researched plan with “make it work please sanely” and explicitly requested music, menu and multiplayer rooms/invite codes. Earlier GREEN/GO and main/publication authorization remain active.
 
 | Loop | Goal | Files it may touch | Exit check | Status |
 |---|---|---|---|---|
-| 1 | Deliver complete scoreboard feature | game/types.ts, game/engine.ts, game/run-stats.ts, lib/state-migrations.ts, lib/local-save.ts, components/game/EncounterResult.tsx, components/game/GameClient.tsx, components/game/dialog-navigation.ts, app/globals.css, tests/run-stats.test.ts, tests/save.test.ts, tests/rooms.test.ts, tests/scoreboard.test.ts, tests/dialog-navigation.test.ts, docs/RUN-STATS.md, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | receipt-attached |
+| 2 | Ship coherent direct controls and start/room/music experience | components/game/* control/HUD/menu/music files, app/globals.css, lib/rooms.ts and room metadata/validation, app/api/rooms/route.ts if required, tests/* relevant to changed behavior, public/audio/siege-of-the-gilded-hall.mp3, docs/*, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | mapped |
 
-Implementation tasks may run concurrently within this single authorized loop, with separate files and a shared schema. A separate reviewer reads the resulting diff and receipts before publication. New discoveries stay within the above scope; unrelated features return to the Operator.
+Whole-build check: the command above plus browser checks of menu → solo or room → combat → results, mapped-action discoverability and music controls. Exercise room capacity, independent client slots, reconnect and invite handling with authoritative tests. Browser/real-device limits must be explicit; never substitute a blank WebGL canvas for visual proof.
 
-Integration refinement: focused horizontal table scrolling uses the existing dialog navigation path for both keyboard and controller; Up/Down and Tab continue to move between controls. This is part of making the requested board usable on narrow layouts.
+Implementation tasks may run concurrently in separate files inside this authorized loop. The owner integrates GameClient and global styles. A separate reviewer reads code and receipts before publication. Existing scoreboard loop1 receipts remain in RECEIPTS.md.

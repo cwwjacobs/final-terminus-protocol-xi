@@ -446,3 +446,19 @@ button.brand{padding:0;border:0;background:none;box-shadow:none;text-align:left}
 @media(max-width:540px){.result-backdrop .result-card{padding:10px 14px 14px}.result-table th,.result-table td{padding:8px}.result-table-scroll::after{content:'Swipe or ← → for all stats';display:block;position:sticky;left:0;width:max-content;max-width:100%;padding:7px 9px;color:var(--muted);font-size:9px}}
 @media(max-height:540px){.result-backdrop .result-card{padding:8px 14px 12px}.result-backdrop .result-card h2{font-size:23px;margin:0 0 4px}.result-backdrop .result-card .result-heading>p{margin-bottom:7px}.result-totals{padding:7px 10px;margin-bottom:7px}.result-totals dd{font-size:16px}.result-content{margin-bottom:8px}.result-card>small{margin-top:7px}}
 @media(forced-colors:active){.result-table-scroll,.result-totals,.result-table th,.result-table td{border-color:CanvasText}.result-player-row,.result-table tfoot,.result-totals{background:Canvas}.result-actor{color:CanvasText!important}}
+
+/* Music is controlled in menus; the battlefield keeps its direct action HUD. */
+.music-controls{display:grid;gap:8px;padding:12px 0;border-top:1px solid var(--line);font-size:12px}
+.music-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;color:var(--gold)}
+.music-heading small{color:var(--muted);font-size:10px}
+.music-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.music-controls button{min-height:36px;padding:7px 10px;font-size:11px}
+.music-volume{display:flex;align-items:center;gap:8px;flex:1;min-width:170px;font-size:11px}
+.music-volume input{min-width:70px;width:100%;accent-color:var(--gold)}
+.music-volume output{min-width:30px;color:var(--muted)}
+.music-controls.compact{display:flex;align-items:center;justify-content:space-between;padding:0;border:0}
+.music-controls.compact .music-actions{gap:6px}.music-controls.compact button{padding:5px 8px;min-height:32px;font-size:10px}
+.music-controls>small,.music-error{color:var(--muted);font-size:10px;line-height:1.4}.music-error{flex-basis:100%}
+.legacy-commands{position:absolute;right:18px;bottom:160px;z-index:25;width:min(300px,calc(100vw - 32px))}
+.game-shell[data-front=true]>.toast{z-index:180;bottom:max(12px,env(safe-area-inset-bottom))}
+.game-shell[data-layout=touch] .music-controls button{min-height:44px}

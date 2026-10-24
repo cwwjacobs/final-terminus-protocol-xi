@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { Action } from '../game/types.ts';
 import { applyAction, createGame } from '../game/engine.ts';
-import { abilityDetail, manualHealConfirmed, roleAbilities, withHealingTarget } from '../components/game/kit-ui.ts';
+import { abilityDetail, actionCommand, manualHealConfirmed, roleAbilities, roleActionSlots, withHealingTarget } from '../components/game/kit-ui.ts';
+import { defaults, effectiveBindingCommand } from '../components/game/control-settings.ts';
 import { commandEntries } from '../components/game/command-menu.ts';
 
 test('every role exposes its new technique alongside only permitted actions', () => {
@@ -15,6 +16,26 @@ test('every role exposes its new technique alongside only permitted actions', ()
     assert.ok(kit.some(item => item.action.type === 'dodge'));
     assert.ok(commandEntries(state, slot, 'abilities').some(item => item.action?.type === signature));
   }
+});
+
+test('each role has one visible slot per action and every default keyboard/controller action is mapped', () => {
+  const settings = defaults();
+  const counts = [8, 7, 7, 7, 5];
+  for (const [index, actor] of createGame().party.entries()) {
+    const slots = roleActionSlots(actor.role);
+    assert.equal(slots.length, counts[index], actor.name);
+    assert.equal(new Set(slots.map(slot => actionCommand(slot.presentation.action))).size, slots.length, 'no duplicated Guard or utility activation');
+    assert.equal(new Set(slots.map(slot => slot.id)).size, slots.length);
+    for (const slot of slots) for (const mode of ['keyboard', 'controller'] as const) {
+      const binding = effectiveBindingCommand(actor.role, slot.command, settings, mode);
+      assert.ok(binding, `${actor.name} ${slot.command} ${mode}`);
+      assert.ok(mode === 'keyboard' ? settings.keys[binding] : settings.buttons[binding] !== undefined);
+    }
+  }
+  const healer = roleActionSlots('luminary', 2);
+  assert.equal(healer.some(slot => slot.id === 'primary3'), false);
+  assert.equal(healer.filter(slot => slot.command === 'guard').length, 1);
+  assert.deepEqual(healer.find(slot => slot.command === 'heal')?.presentation.action, { type: 'heal', target: 2 });
 });
 
 test('per-spell display follows rapid charges, then reveals the remaining ordinary recast', () => {

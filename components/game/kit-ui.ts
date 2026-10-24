@@ -1,6 +1,7 @@
 import type { Action, Actor, Role } from '../../game/types.ts';
 import { ABILITY_DEFINITIONS, canUseActionRole, getCooldown } from '../../game/content.ts';
 import { abilities, type AbilityPresentation } from './catalog.ts';
+import { roleCommand, type Command } from './control-settings.ts';
 
 /** Labels shared by touch, quick actions and Commands. Rules stay in game/content. */
 export const utilityAbilities: AbilityPresentation[] = [
@@ -9,8 +10,8 @@ export const utilityAbilities: AbilityPresentation[] = [
   { key: 'provoke', pad: '', name: 'Provoke', icon: 'provoke', color: 'gold', action: { type: 'provoke' }, hint: ABILITY_DEFINITIONS.provoke.description },
   { key: 'splitVolley', pad: '', name: 'Split Volley', icon: 'splitVolley', color: 'mint', action: { type: 'splitVolley' }, hint: ABILITY_DEFINITIONS.splitVolley.description },
   { key: 'rapidWeave', pad: '', name: 'Rapid Weave', icon: 'rapidWeave', color: 'violet', action: { type: 'rapidWeave' }, hint: ABILITY_DEFINITIONS.rapidWeave.description },
-  { key: 'heal', pad: '', name: 'Mend', icon: 'mend', color: 'mint', action: { type: 'heal' }, hint: ABILITY_DEFINITIONS.heal.description },
-  { key: 'aegis', pad: '', name: 'Luminous Aegis', icon: 'aegis', color: 'ice', action: { type: 'aegis' }, hint: ABILITY_DEFINITIONS.aegis.description },
+  { key: 'heal', pad: '', name: 'Restore', icon: 'mend', color: 'mint', action: { type: 'heal' }, hint: ABILITY_DEFINITIONS.heal.description },
+  { key: 'aegis', pad: '', name: 'Aegis', icon: 'aegis', color: 'ice', action: { type: 'aegis' }, hint: ABILITY_DEFINITIONS.aegis.description },
   { key: 'guard', pad: '', name: 'Guard', icon: 'guard', color: 'ice', action: { type: 'guard' }, hint: ABILITY_DEFINITIONS.guard.description },
   { key: 'dodge', pad: '', name: 'Evade', icon: 'evade', color: 'mint', action: { type: 'dodge' }, hint: ABILITY_DEFINITIONS.dodge.description },
 ];
@@ -20,10 +21,39 @@ export function withHealingTarget(action: Action, target: number | null): Action
 }
 
 export function roleAbilities(role: Role, target: number | null = null): AbilityPresentation[] {
-  return [...abilities, ...utilityAbilities].filter(item => canUseActionRole(role, item.action.type)).map(item => ({
-    ...item, name: item.action.type === 'magic' && item.action.element === 'lightning' ? 'Thunder' : item.name,
-    action: withHealingTarget(item.action, target),
-  }));
+  return roleActionSlots(role, target).filter(item => item.command !== 'engage').map(item => item.presentation);
+}
+
+export const combatSlotIds = ['primary1', 'primary2', 'primary3', 'utility1', 'utility2', 'guard', 'dodge', 'engage'] as const;
+export type CombatSlotId = typeof combatSlotIds[number];
+export interface CombatActionSlot { id: CombatSlotId; command: Command; presentation: AbilityPresentation }
+
+export function actionCommand(action: Action): Command | null {
+  if (action.type === 'weapon') return action.id;
+  if (action.type === 'magic') return action.element;
+  if (action.type === 'move' || action.type === 'start') return null;
+  return action.type;
+}
+
+/** The same role-slot registry resolves input and the visible kit. No duplicate
+ * Guard on Ariadne or standalone utility outside the action surface. */
+export function roleActionSlots(role: Role, target: number | null = null): CombatActionSlot[] {
+  const catalogue = [...abilities, ...utilityAbilities, {
+    key: 'engage', pad: '', name: 'Auto attack', icon: 'engaged' as const, color: 'gold',
+    action: { type: 'engage' } as Action, hint: 'Toggle auto attacks on the selected enemy.',
+  }];
+  const slots: CombatActionSlot[] = [];
+  for (const id of combatSlotIds) {
+    const command = id === 'guard' || id === 'dodge' || id === 'engage' ? id : roleCommand(role, id);
+    if (!command) continue;
+    const item = catalogue.find(item => actionCommand(item.action) === command);
+    if (!item || !canUseActionRole(role, item.action.type)) continue;
+    slots.push({ id, command, presentation: {
+      ...item, name: item.action.type === 'magic' && item.action.element === 'lightning' ? 'Thunder' : item.name,
+      action: withHealingTarget(item.action, target),
+    } });
+  }
+  return slots;
 }
 
 export function abilityDetail(actor: Actor, action: Action): string {

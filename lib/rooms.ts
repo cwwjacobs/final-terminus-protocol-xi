@@ -1,6 +1,7 @@
 import { applyAction, createGame, setHuman, stepGame } from "../game/engine.ts";
 import type { Action, GameState } from "../game/types.ts";
 import { restoreSave } from "./local-save.ts";
+import { normalizeInviteCode } from "./room-invite.ts";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 export const TRUST_TIMEOUT_MS = 8_000;
@@ -26,6 +27,7 @@ export type RoomRequest =
   | { op: "create"; mode: "trial" | "god" }
   | { op: "join"; code: string }
   | { op: "sync"; code: string; token: string; seq: number; actions: Action[] }
+  | { op: "reset"; code: string; token: string; mode?: "trial" | "god" }
   | { op: "leave"; code: string; token: string };
 
 interface Occupant {
@@ -48,6 +50,8 @@ export interface StoredRoom {
   revision: number;
   state: GameState;
   occupants: (Occupant | null)[];
+  /** Absent on rooms created before lobby controls were introduced. */
+  hostSlot?: number | null;
   updatedAt: number;
   expiresAt: number;
 }
@@ -59,10 +63,19 @@ export interface RoomRepository {
   purgeExpired(now: number): Promise<void>;
 }
 
+export interface RoomMember {
+  slot: number;
+  connected: boolean;
+  /** A disconnected player's slot remains reserved for reconnection. */
+  reserved: boolean;
+}
+
 export interface RoomSnapshot {
   state: GameState;
   revision: number;
   slot: number;
+  hostSlot: number | null;
+  members: RoomMember[];
   /** Gameplay failures (cooldown, range, TP) are safe to display to the player. */
   actionErrors?: string[];
   /** Outcomes belong to exactly this packet and its zero-based action indexes. */
@@ -152,9 +165,12 @@ export function parseRoomRequest(value: unknown): RoomRequest {
       }
       return { op: "create", mode: input.mode === "god" ? "god" : "trial" };
     }
-    case "join":
+    case "join": {
       exactKeys(input, ["op", "code"]);
-      return { op: "join", code: secret(input.code, "room code") };
+      const code = normalizeInviteCode(input.code);
+      if (!code) throw new RoomError(400, "Invalid invite code. Paste the full code or invite link.");
+      return { op: "join", code };
+    }
     case "sync": {
       exactKeys(input, ["op", "code", "token", "seq", "actions"]);
       if (typeof input.seq !== "number" || !Number.isSafeInteger(input.seq) || input.seq < 0) {
@@ -171,6 +187,13 @@ export function parseRoomRequest(value: unknown): RoomRequest {
     case "leave":
       exactKeys(input, ["op", "code", "token"]);
       return { op: "leave", code: secret(input.code, "room code"), token: secret(input.token, "session token") };
+    case "reset":
+      exactKeys(input, ["op", "code", "token", "mode"]);
+      if (input.mode !== undefined && input.mode !== "trial" && input.mode !== "god") {
+        throw new RoomError(400, "Unknown encounter mode.");
+      }
+      return { op: "reset", code: secret(input.code, "room code"), token: secret(input.token, "session token"),
+        ...(input.mode === undefined ? {} : { mode: input.mode as "trial" | "god" }) };
     default:
       throw new RoomError(400, "Unknown room operation.");
   }
@@ -228,6 +251,14 @@ function equalHash(a: string, b: string): boolean {
   return difference === 0;
 }
 
+function ensureHost(room: StoredRoom) {
+  if (!Number.isInteger(room.hostSlot) || !room.occupants[room.hostSlot as number]) {
+    const connected = room.occupants.findIndex((occupant, slot) => occupant !== null && room.state.party[slot].human);
+    const first = connected === -1 ? room.occupants.findIndex(occupant => occupant !== null) : connected;
+    room.hostSlot = first === -1 ? null : first;
+  }
+}
+
 function applyPresence(room: StoredRoom, at: number) {
   room.occupants.forEach((occupant, slot) => {
     const absent = !occupant || at - occupant.lastSeen >= TRUST_TIMEOUT_MS;
@@ -238,6 +269,7 @@ function applyPresence(room: StoredRoom, at: number) {
     }
     if (occupant && at - occupant.lastSeen >= OWNERSHIP_TIMEOUT_MS) room.occupants[slot] = null;
   });
+  ensureHost(room);
 }
 
 /** Wall-clock authority, fixed 50ms ticks, bounded CPU after an idle room. */
@@ -255,11 +287,16 @@ export function advanceRoom(room: StoredRoom, now: number): void {
 }
 
 function snapshot(room: StoredRoom, slot: number): RoomSnapshot {
+  ensureHost(room);
   const occupant = room.occupants[slot];
   const results = occupant?.lastResults;
   const actionErrors = results?.filter(result => !result.ok).map(result => result.error ?? "Action unavailable.");
   return {
-    state: structuredClone(room.state), revision: room.revision, slot,
+    state: structuredClone(room.state), revision: room.revision, slot, hostSlot: room.hostSlot ?? null,
+    members: room.occupants.map((occupant, memberSlot) => ({
+      slot: memberSlot, connected: !!occupant && room.state.party[memberSlot].human,
+      reserved: !!occupant && !room.state.party[memberSlot].human,
+    })),
     ...(actionErrors?.length ? { actionErrors } : {}),
     ...(occupant && results ? { actionSeq: occupant.lastSeq, actionResults: structuredClone(results) } : {}),
   };
@@ -280,7 +317,7 @@ export async function handleRoomRequest(
       const state = createGame(request.mode);
       for (let slot = 0; slot < 5; slot++) setHuman(state, slot, slot === 0);
       const room: StoredRoom = {
-        code, revision: 0, state, updatedAt: now, expiresAt: now + ROOM_TTL_MS,
+        code, revision: 0, state, hostSlot: 0, updatedAt: now, expiresAt: now + ROOM_TTL_MS,
         occupants: [{ tokenHash: await hashToken(code, token), lastSeen: now, lastSeq: -1 }, null, null, null, null],
       };
       if (await repository.insert(room)) return { ...snapshot(room, 0), code, token };
@@ -299,6 +336,7 @@ export async function handleRoomRequest(
     const migrated = restoreSave(room.state);
     if (!migrated) throw new RoomError(500, "Room data is incompatible. Create a new encounter.");
     room.state = migrated;
+    ensureHost(room);
     const previousRevision = room.revision;
     let slot: number;
     if (request.op === "join") {
@@ -307,6 +345,7 @@ export async function handleRoomRequest(
       if (slot === -1) throw new RoomError(409, "Party is full. Disconnected slots remain reserved for 45 seconds.");
       room.occupants[slot] = { tokenHash, lastSeen: now, lastSeq: -1 };
       setHuman(room.state, slot, true);
+      ensureHost(room);
     } else {
       slot = room.occupants.findIndex((occupant) => occupant && equalHash(occupant.tokenHash, tokenHash));
       if (slot === -1) throw new RoomError(403, "Invalid or released session. Join the room again.");
@@ -321,16 +360,35 @@ export async function handleRoomRequest(
       if (request.op === "sync" && occupant.lastSeq >= 0 && now - occupant.lastSeen < MIN_SYNC_MS) {
         throw new RoomError(429, "Sync requests are too frequent. Retry shortly.");
       }
+      if (request.op === "reset") {
+        if (room.hostSlot !== slot) throw new RoomError(403, "Only the host can prepare the next encounter.");
+        if (room.state.status === "fighting") throw new RoomError(409, "Finish the current encounter before returning the room to the lobby.");
+        // A lost reset response may be retried after the lobby has resumed
+        // polling. Return the stored snapshot; do not expose speculative ticks.
+        if (room.state.status === "ready" && room.state.mode === (request.mode ?? room.state.mode)) return snapshot(room, slot);
+      }
       advanceRoom(room, now);
       if (request.op === "leave") {
         room.occupants[slot] = null;
         setHuman(room.state, slot, false);
+        ensureHost(room);
+      } else if (request.op === "reset") {
+        const mode = request.mode ?? room.state.mode;
+        room.state = createGame(mode);
+        room.occupants.forEach((member, memberSlot) => {
+          setHuman(room.state, memberSlot, !!member && now - member.lastSeen < TRUST_TIMEOUT_MS);
+          if (member) delete member.lastResults;
+        });
+        occupant.lastSeen = now;
       } else {
         occupant.lastSeen = now;
         occupant.lastSeq = request.seq;
         if (!room.state.party[slot].human) setHuman(room.state, slot, true);
         occupant.lastResults = request.actions.map((action, index) => {
-          const result = applyAction(room.state, slot, action);
+          const result = room.state.status === "ready" && action.type !== "move" &&
+            (action.type !== "start" || room.hostSlot !== slot)
+            ? { ok: false, error: room.hostSlot === slot ? "Use Start encounter to begin the room's run." : "Waiting for the host to start the encounter." }
+            : applyAction(room.state, slot, action);
           return { index, ok: result.ok, ...(!result.ok ? { error: result.error ?? "Action unavailable." } : {}) };
         });
       }
@@ -353,7 +411,7 @@ interface RoomRow {
 }
 
 function payload(room: StoredRoom): string {
-  return JSON.stringify({ state: room.state, occupants: room.occupants });
+  return JSON.stringify({ state: room.state, occupants: room.occupants, hostSlot: room.hostSlot });
 }
 
 /** D1 is the shared authority across workers and devices, never process memory. */
@@ -366,7 +424,7 @@ export class D1RoomRepository implements RoomRepository {
       "SELECT code, revision, payload, updated_at, expires_at FROM rooms WHERE code = ?",
     ).bind(code).first<RoomRow>();
     if (!row) return null;
-    const document = JSON.parse(row.payload) as Pick<StoredRoom, "state" | "occupants">;
+    const document = JSON.parse(row.payload) as Pick<StoredRoom, "state" | "occupants" | "hostSlot">;
     return { ...document, code: row.code, revision: row.revision, updatedAt: row.updated_at, expiresAt: row.expires_at };
   }
 

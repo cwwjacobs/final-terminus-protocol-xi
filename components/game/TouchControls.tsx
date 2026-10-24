@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, type PointerEvent, type MouseEvent } from 'react';
 import type { Action, GameState } from '../../game/types';
 import { getCooldown } from '../../game/content';
-import { abilityDetail, roleAbilities } from './kit-ui';
+import { abilityDetail, roleActionSlots } from './kit-ui';
 import Icon from './Icon';
 import { abilityCue } from './combat-feedback';
 import { commandUnavailable } from './command-menu';
@@ -17,10 +17,11 @@ interface Props {
   onAllyTarget: () => void;
   onAction: (action: Action) => void;
   onFocus: () => void;
+  onUnavailable?: (reason: string) => void;
 }
 
 /** Each surface owns its pointer; an ability never releases the left stick. */
-export default function TouchControls({ state, slot, stick, blocked, allyTarget, onAllyTarget, onAction, onFocus }: Props) {
+export default function TouchControls({ state, slot, stick, blocked, allyTarget, onAllyTarget, onAction, onFocus, onUnavailable }: Props) {
   const knob = useRef<HTMLSpanElement>(null);
   const origin = useRef({ x: 0, y: 0, radius: 1 });
   const reset = () => {
@@ -71,28 +72,26 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
     },
   });
   const player = state.party[slot];
-  const choices = roleAbilities(player.role, allyTarget);
-  // Bacchus keeps six buttons at the right thumb: Revelry sits above movement.
-  const movementAbility = choices.length > 6 ? choices.find(item => item.action.type === 'revelry') : undefined;
-  const mainChoices = choices.filter(item => item !== movementAbility);
-  return <div className="touch-controls" hidden={blocked} aria-label="Touch controls" onContextMenu={event => event.preventDefault()}>
+  const choices = roleActionSlots(player.role, allyTarget);
+  return <div className="touch-controls direct-touch" hidden={blocked} aria-label="Touch controls" onContextMenu={event => event.preventDefault()}>
     <div className="touch-movement">
-      {movementAbility && <button className="touch-revelry" disabled={!!commandUnavailable(state, slot, movementAbility.action)} title={movementAbility.hint} {...press(() => onAction(movementAbility.action))}><Icon name="revelry"/> Revelry <small>{getCooldown(player, movementAbility.action) > 0 ? `${Math.ceil(getCooldown(player, movementAbility.action))}s` : "+1"}</small></button>}
-      <button className={`touch-engage ${player.engaged ? 'on' : ''}`} aria-pressed={player.engaged} disabled={!!commandUnavailable(state, slot, { type: 'engage' })} {...press(() => onAction({ type: 'engage' }))}>{player.engaged ? 'Disengage' : 'Engage'}</button>
       <div className="touch-stick" role="group" aria-label="Movement stick: drag to move" onPointerDown={begin} onPointerMove={update} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
         <span className="touch-stick-cross" aria-hidden="true"><Icon name="cross"/></span><span className="touch-stick-knob" ref={knob} aria-hidden="true"/>
       </div>
     </div>
     <div className="touch-action-cluster">
-      {player.role === 'luminary' && <button className="touch-heal-target" {...press(onAllyTarget)} aria-label="Choose healing target">Mend → {allyTarget === null ? 'Auto' : state.party[allyTarget]?.name}</button>}
+      {player.role === 'luminary' && <button className="touch-heal-target" {...press(onAllyTarget)} aria-label="Choose healing target">Restore → {allyTarget === null ? 'Auto' : state.party[allyTarget]?.name}</button>}
       <div className="touch-ability-grid" aria-label={`${player.name} abilities`}>
-        {mainChoices.map(item => {
+        {choices.map(({ id, command, presentation: item }) => {
           const reason = commandUnavailable(state, slot, item.action);
           const cue = abilityCue(state, slot, item.action, !!reason);
           const cooldown = getCooldown(player, item.action);
           const detail = reason ?? cue?.label ?? abilityDetail(player, item.action);
-          return <button key={item.name} className={`ability touch-ability ${item.color} ${cue?.kind ?? ''}`} disabled={!!reason} aria-label={`${item.name}: ${detail}`} title={detail} {...press(() => onAction(item.action))}>
-            <span className="ability-icon" aria-hidden="true">{cooldown > 0 ? `${cooldown < 1 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s` : <Icon name={item.icon}/>}</span><strong>{item.action.type === 'aegis' ? 'Aegis' : item.name}</strong>{item.action.type === 'magic' && player.rapidWeave && <small className="rapid-charge" aria-label={`${player.rapidWeave.charges[item.action.element]} rapid casts left`}>{player.rapidWeave.charges[item.action.element]}</small>}
+          const name = command === 'engage' ? player.engaged ? 'Disengage' : 'Engage' : item.name;
+          return <button key={id} data-slot={id} className={`direct-touch-ability ${item.color} ${cue?.kind ?? ''}`} aria-disabled={!!reason} aria-pressed={command === 'engage' ? player.engaged : undefined} aria-label={`${name}: ${detail}`} title={detail} {...press(() => { if (reason) onUnavailable?.(reason); else onAction(item.action); })}>
+            <Icon name={command === 'engage' ? player.engaged ? 'engaged' : 'disengaged' : item.icon}/>
+            {cooldown > 0 && <span className="direct-recast" aria-hidden="true">{cooldown < 1 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s</span>}
+            <strong>{name}</strong>{item.action.type === 'magic' && player.rapidWeave && <small className="direct-charges" aria-label={`${player.rapidWeave.charges[item.action.element]} rapid casts left`}>{player.rapidWeave.charges[item.action.element]}</small>}
           </button>;
         })}
       </div>
