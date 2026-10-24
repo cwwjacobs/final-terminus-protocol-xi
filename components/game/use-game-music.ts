@@ -1,6 +1,6 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { createMusicPlayer } from './music-player.ts';
+import { createMusicPlayer, type MusicMedia } from './music-player.ts';
 import { MUSIC_STORAGE_KEY } from './music-settings.ts';
 
 export function useGameMusic() {
@@ -16,6 +16,8 @@ export function useGameMusic() {
   }, [player]);
   const snapshot = useSyncExternalStore(player.subscribe, player.getSnapshot, player.getSnapshot);
   const audioRef = useCallback((element: HTMLAudioElement | null) => player.attachAudio(element), [player]);
+  /** Any media that speaks the element's surface (the adaptive stem engine) can take the element's place. */
+  const attachMedia = useCallback((media: MusicMedia | null) => player.attachAudio(media), [player]);
   useEffect(() => {
     restorePreferences();
     const visibility = () => player.setVisibility(document.hidden);
@@ -26,6 +28,7 @@ export function useGameMusic() {
   return {
     ...snapshot,
     audioRef,
+    attachMedia,
     startMusic: () => { restorePreferences(); player.startMusic(); },
     pauseMusic: () => { restorePreferences(); player.pauseMusic(); },
     toggleMusic: () => { restorePreferences(); player.toggleMusic(); },
