@@ -25,7 +25,7 @@ export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState
       hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0, revelryStacks: 0,
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
-      shieldCharges: 0, recovery: 0, spellRecovery: 0, selfChainUntil: 0,
+      shieldCharges: 0, recovery: 0, spellRecovery: 0, shotElement: 'fire', selfChainUntil: 0,
       rapidWeave: null, elementalCycle: { elements: [], remaining: 0 }, sequence: null,
     })),
     boss: { name: LORE.boss, x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cooldowns: {}, cast: null },
@@ -179,6 +179,10 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     else if (length > 1 || Math.abs(action.x) + Math.abs(action.z) > 0.001) actor.facing = Math.atan2(action.x, action.z);
     return { ok: true };
   }
+  if (action.type === 'selectShot') {
+    actor.shotElement = action.element ?? ELEMENTS[(ELEMENTS.indexOf(actor.shotElement) + 1) % ELEMENTS.length];
+    return { ok: true };
+  }
   if (action.type === 'start') {
     if (state.status !== 'ready') return fail('The encounter has already started.');
     begin(state, slot);
@@ -228,6 +232,16 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
       if (state.status === 'fighting') state.burst = { element: combination.element, remaining: BURST_WINDOW };
     }
     if (state.status === 'fighting') state.chain = { property: combination?.property ?? def.property, opener: slot, weapon: action.id, remaining: CHAIN_WINDOW, openedAt: state.time };
+    return { ok: true };
+  }
+  if (action.type === 'elementalShot') {
+    actor.mp -= definition.mp;
+    actor.cooldowns[key] = definition.cooldown;
+    actor.spellRecovery = 1;
+    const element = actor.shotElement;
+    const burst = state.burst?.element === element && state.burst.remaining > 0;
+    const name = element === 'fire' ? 'Fire Shot' : element === 'ice' ? 'Ice Shot' : 'Lightning Shot';
+    damageBoss(state, slot, burst ? 780 : 230, burst ? 'burst' : 'magic', `${name}${burst ? ' · MAGIC BURST' : ''}`, 'elementalShot');
     return { ok: true };
   }
   if (action.type === 'magic') {

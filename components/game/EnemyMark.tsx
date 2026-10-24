@@ -1,19 +1,14 @@
-import type { CSSProperties, Ref } from 'react';
+import type { CSSProperties } from 'react';
 import type { GameState } from '../../game/types';
 import { enemyMark } from './enemy-mark';
-import { ABILITY_MARKS } from './icons';
+import Icon from './Icon';
 
-export default function EnemyMark({ state, anchor }: { state: GameState; anchor: Ref<HTMLDivElement> }) {
+export default function EnemyMark({ state }: { state: GameState }) {
   const mark = enemyMark(state);
-  return <div ref={anchor} className="enemy-mark-anchor" style={{ opacity: 0 }}>
-    {mark && <div className={`enemy-mark ${mark.kind} ${mark.ready ? 'ready' : 'preparing'}`} style={{ '--mark-color': mark.color } as CSSProperties} role="img" aria-label={mark.label} title={mark.label}>
-      <svg viewBox="0 0 64 64" fill="none" aria-hidden="true">
-        <circle className="mark-back" cx="32" cy="32" r="27"/>
-        <circle className="mark-timer" cx="32" cy="32" r="27" pathLength="100" strokeDasharray={`${mark.fraction * 100} 100`} transform="rotate(-90 32 32)"/>
-        <g className="mark-symbol">
-          {ABILITY_MARKS[mark.symbol].map((shape, index) => <path key={index} d={shape.d}/>)}
-        </g>
-      </svg>
+  return <div className="boss-seal-slot" aria-label="Enemy seal status">
+    {mark && <div className={`boss-seal ${mark.kind}`} style={{ '--mark-color': mark.color } as CSSProperties} aria-label={`${mark.label}, ${mark.remaining.toFixed(1)} seconds remaining`}>
+      <Icon name={mark.symbol}/><span>{mark.kind === 'burst' ? `${mark.symbol} · Magic Burst` : `${mark.symbol} · ${mark.ready ? 'Chain ready' : 'Preparing'}`}</span>
+      <b>{mark.remaining.toFixed(1)}s</b><i style={{ width: `${mark.fraction * 100}%` }}/>
     </div>}
   </div>;
 }

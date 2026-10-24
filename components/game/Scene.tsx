@@ -7,7 +7,6 @@ import { ARENA_RADIUS, BURST_WINDOW, CONE_HALF_ANGLE, MAGIC } from '@/game/conte
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { activeBurst } from './combat-feedback';
-import EnemyMark from './EnemyMark';
 import Icon from './Icon';
 import { roleIcon } from './icons';
 import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
@@ -210,7 +209,6 @@ function createStatusCues(rigs: ActorRig[], quality: 'low' | 'high') {
 export default function Scene(props: SceneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const enemyMarkRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { latest.current = props; });
@@ -540,16 +538,6 @@ export default function Scene(props: SceneProps) {
       targetReticle.quaternion.copy(camera.quaternion);
       decreeMark.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);
-      // One enemy-attached sigil: no screen-centered announcement panel.
-      const mark = enemyMarkRef.current;
-      if (mark) {
-        projected.copy(bossRig.root.position); projected.y += 3.15;
-        ray.copy(projected).sub(camera.position);
-        const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
-        projected.project(camera);
-        mark.style.opacity = inFront && projected.z < 1 && Math.abs(projected.x) < .96 && Math.abs(projected.y) < .94 ? '1' : '0';
-        mark.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-50%)`;
-      }
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
@@ -596,7 +584,6 @@ export default function Scene(props: SceneProps) {
         <span style={{ color: actor.color }}><Icon name={roleIcon(actor.role)} className="label-sigil"/>{actor.name}</span>
       </div>;
     })}
-    <EnemyMark state={props.state} anchor={enemyMarkRef}/>
     {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
   </div>;
 }

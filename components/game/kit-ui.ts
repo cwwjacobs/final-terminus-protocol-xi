@@ -8,6 +8,7 @@ export const utilityAbilities: AbilityPresentation[] = [
   { key: 'revelry', pad: '', name: 'Revelry', icon: 'revelry', color: 'gold', action: { type: 'revelry' }, hint: ABILITY_DEFINITIONS.revelry.description },
   { key: 'criticalDash', pad: '', name: 'Critical Dash', icon: 'criticalDash', color: 'gold', action: { type: 'criticalDash' }, hint: ABILITY_DEFINITIONS.criticalDash.description },
   { key: 'provoke', pad: '', name: 'Provoke', icon: 'provoke', color: 'gold', action: { type: 'provoke' }, hint: ABILITY_DEFINITIONS.provoke.description },
+  { key: 'elementalShot', pad: '', name: 'Elemental Shot', icon: 'fire', color: 'fire', action: { type: 'elementalShot' }, hint: ABILITY_DEFINITIONS.elementalShot.description },
   { key: 'splitVolley', pad: '', name: 'Split Volley', icon: 'splitVolley', color: 'mint', action: { type: 'splitVolley' }, hint: ABILITY_DEFINITIONS.splitVolley.description },
   { key: 'rapidWeave', pad: '', name: 'Rapid Weave', icon: 'rapidWeave', color: 'violet', action: { type: 'rapidWeave' }, hint: ABILITY_DEFINITIONS.rapidWeave.description },
   { key: 'heal', pad: '', name: 'Restore', icon: 'mend', color: 'mint', action: { type: 'heal' }, hint: ABILITY_DEFINITIONS.heal.description },
@@ -61,6 +62,7 @@ export function abilityDetail(actor: Actor, action: Action): string {
   if (action.type === 'magic' && actor.rapidWeave && actor.rapidWeave.charges[action.element] > 0)
     return `${actor.rapidWeave.charges[action.element]} rapid · ${cooldown > 0 ? `${cooldown.toFixed(1)}s` : '70 MP'}`;
   if (cooldown > 0) return `${cooldown < 10 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s recast`;
+  if (action.type === 'elementalShot') return '35 MP · selected element';
   if (action.type === 'weapon') return '1,000+ TP';
   if (action.type === 'magic' || action.type === 'heal') return '70 MP';
   if (action.type === 'aegis') return '120 MP · one hit';

@@ -4,6 +4,7 @@ import type { Action, GameState } from '../../game/types';
 import { getCooldown } from '../../game/content';
 import { abilityDetail, roleActionSlots } from './kit-ui';
 import Icon from './Icon';
+import ShotSelector from './ShotSelector';
 import { abilityCue } from './combat-feedback';
 import { commandUnavailable } from './command-menu';
 import { resetTouchStick, touchAxes, type TouchStickState } from './touch-input';
@@ -18,10 +19,11 @@ interface Props {
   onAction: (action: Action) => void;
   onFocus: () => void;
   onUnavailable?: (reason: string) => void;
+  notice?: string;
 }
 
 /** Each surface owns its pointer; an ability never releases the left stick. */
-export default function TouchControls({ state, slot, stick, blocked, allyTarget, onAllyTarget, onAction, onFocus, onUnavailable }: Props) {
+export default function TouchControls({ state, slot, stick, blocked, allyTarget, onAllyTarget, onAction, onFocus, onUnavailable, notice }: Props) {
   const knob = useRef<HTMLSpanElement>(null);
   const origin = useRef({ x: 0, y: 0, radius: 1 });
   const reset = () => {
@@ -80,6 +82,8 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
       </div>
     </div>
     <div className="touch-action-cluster">
+      {notice && <div className="combat-notice" role="status">{notice}</div>}
+      {player.role === 'hunter' && <ShotSelector element={player.shotElement} onAction={onAction}/>}
       {player.role === 'luminary' && <button className="touch-heal-target" {...press(onAllyTarget)} aria-label="Choose healing target">Restore → {allyTarget === null ? 'Auto' : state.party[allyTarget]?.name}</button>}
       <div className="touch-ability-grid" aria-label={`${player.name} abilities`}>
         {choices.map(({ id, command, presentation: item }) => {
@@ -87,9 +91,11 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
           const cue = abilityCue(state, slot, item.action, !!reason);
           const cooldown = getCooldown(player, item.action);
           const detail = reason ?? cue?.label ?? abilityDetail(player, item.action);
-          const name = command === 'engage' ? player.engaged ? 'Disengage' : 'Engage' : item.name;
+          const shot = item.action.type === 'elementalShot';
+        const shotName = `${player.shotElement === 'fire' ? 'Fire' : player.shotElement === 'ice' ? 'Ice' : 'Lightning'} Shot`;
+        const name = shot ? shotName : command === 'engage' ? player.engaged ? 'Disengage' : 'Engage' : item.name;
           return <button key={id} data-slot={id} className={`direct-touch-ability ${item.color} ${cue?.kind ?? ''}`} aria-disabled={!!reason} aria-pressed={command === 'engage' ? player.engaged : undefined} aria-label={`${name}: ${detail}`} title={detail} {...press(() => { if (reason) onUnavailable?.(reason); else onAction(item.action); })}>
-            <Icon name={command === 'engage' ? player.engaged ? 'engaged' : 'disengaged' : item.icon}/>
+            <Icon name={command === 'engage' ? player.engaged ? 'engaged' : 'disengaged' : shot ? player.shotElement : item.icon}/>
             {cooldown > 0 && <span className="direct-recast" aria-hidden="true">{cooldown < 1 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s</span>}
             <strong>{name}</strong>{item.action.type === 'magic' && player.rapidWeave && <small className="direct-charges" aria-label={`${player.rapidWeave.charges[item.action.element]} rapid casts left`}>{player.rapidWeave.charges[item.action.element]}</small>}
           </button>;

@@ -7,6 +7,8 @@ export type Action =
   | { type: 'engage' }
   | { type: 'weapon'; id: WeaponId }
   | { type: 'magic'; element: Element }
+  | { type: 'elementalShot' }
+  | { type: 'selectShot'; element?: Element }
   | { type: 'revelry' }
   | { type: 'criticalDash' }
   | { type: 'splitVolley' }
@@ -46,6 +48,7 @@ export interface Actor {
   shieldCharges: number;
   recovery: number;
   spellRecovery: number;
+  shotElement: Element;
   selfChainUntil: number;
   rapidWeave: null | { remaining: number; charges: Record<Element, number>; refresh: Record<Element, number> };
   elementalCycle: { elements: Element[]; remaining: number };

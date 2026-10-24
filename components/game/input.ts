@@ -31,6 +31,7 @@ const combat: Partial<Record<Command, Action>> = {
   fire: { type: 'magic', element: 'fire' }, ice: { type: 'magic', element: 'ice' }, lightning: { type: 'magic', element: 'lightning' },
   provoke: { type: 'provoke' }, heal: { type: 'heal' }, guard: { type: 'guard' }, dodge: { type: 'dodge' },
   revelry: { type: 'revelry' }, criticalDash: { type: 'criticalDash' },
+  elementalShot: { type: 'elementalShot' }, selectShot: { type: 'selectShot' },
   splitVolley: { type: 'splitVolley' }, rapidWeave: { type: 'rapidWeave' }, aegis: { type: 'aegis' },
 };
 const continuous = new Set<Command>(['forward', 'backward', 'left', 'right', 'cameraLeft', 'cameraRight', 'cameraUp', 'cameraDown', 'zoomIn', 'zoomOut']);

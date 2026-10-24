@@ -34,6 +34,7 @@ export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: numbe
   'magic:ice': { name: 'Stillwinter', cooldown: 6, mp: 70, description: 'Ice magic; 2 second spell recovery.' },
   'magic:lightning': { name: 'Ion Judgment', cooldown: 6, mp: 70, description: 'Thunder magic; 2 second spell recovery.' },
   criticalDash: { name: 'Critical Dash', cooldown: 45, mp: 0, description: 'Three guaranteed 2× critical hits, gaining TP; return to the starting position.' },
+  elementalShot: { name: 'Elemental Shot', cooldown: 6, mp: 35, description: 'Fire the selected elemental arrow. 35 MP; matching shots Magic Burst. Shared 6 second recast.' },
   splitVolley: { name: 'Split Volley', cooldown: 45, mp: 0, description: 'Five arrows generate 1,250 TP and permit one self-chain for 8 seconds.' },
   rapidWeave: { name: 'Rapid Weave', cooldown: 180, mp: 0, description: '12 seconds: two rapid casts of each element, with 0.5 second recovery.' },
   aegis: { name: 'Aegis', cooldown: 90, mp: 120, description: 'All living allies within 18 units block their next incoming hit.' },
@@ -78,6 +79,7 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (type === 'heal' || type === 'aegis') return role === 'luminary';
   if (type === 'provoke') return role === 'warden';
   if (type === 'revelry' || type === 'criticalDash') return role === 'vanguard';
+  if (type === 'elementalShot' || type === 'selectShot') return role === 'hunter';
   if (type === 'splitVolley') return role === 'hunter';
   if (type === 'rapidWeave') return role === 'arcanist';
   return type === 'guard' || type === 'dodge' || type === 'move' || type === 'engage' || type === 'start';
@@ -112,24 +114,25 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis'].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot'].includes(action.type)) return 'Unknown action.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
   if (actor.hp <= 0) return 'This actor has fallen.';
   if (!canUseActionRole(actor.role, action.type)) return `${actor.name} cannot use this ability.`;
   if (action.type === 'move') return !Number.isFinite(action.x) || !Number.isFinite(action.z) || Math.abs(action.x) > 100 || Math.abs(action.z) > 100 || (action.facing !== undefined && !Number.isFinite(action.facing)) ? 'Movement must contain finite, bounded numbers.' : null;
+  if (action.type === 'selectShot') return action.element === undefined || ELEMENTS.includes(action.element) ? null : 'Unknown shot element.';
   if (action.type === 'engage') return null;
   if (action.type === 'start') return state.status === 'ready' ? null : 'The encounter has already started.';
   if (state.status !== 'fighting') return 'Engage Crown Resonance first.';
   if (action.type === 'weapon' && !Object.hasOwn(WEAPONS, action.id)) return 'Unknown weaponskill.';
   if (action.type === 'magic' && !Object.hasOwn(MAGIC, action.element)) return 'Unknown magic element.';
   if (getCooldown(actor, action) > 1e-8) return `${ABILITY_DEFINITIONS[cooldownKey(action)]?.name ?? action.type} is on cooldown.`;
-  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley'].includes(action.type);
+  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot'].includes(action.type);
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
-  if (action.type === 'magic' && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
+  if ((action.type === 'magic' || action.type === 'elementalShot') && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
   const range = Math.hypot(actor.x - state.boss.x, actor.z - state.boss.z);
-  if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley') {
+  if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley' || action.type === 'elementalShot') {
     if (!actor.engaged) return 'Engage before attacking.';
     if (range > ROLES[actor.role].range) return 'Move into attack range.';
   }

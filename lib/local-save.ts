@@ -58,7 +58,7 @@ export function validSave(raw: unknown): raw is GameState {
   const sequenceIds = new Set<number>();
   for (const actor of state.party) {
     if (!finiteShape(actor, omit(template.party[0], ['cooldowns', 'rapidWeave', 'elementalCycle', 'sequence'])) ||
-      !Object.hasOwn(ROLES, actor.role) ||
+      !Object.hasOwn(ROLES, actor.role) || !ELEMENTS.includes(actor.shotElement) ||
       !integer(actor.revelryStacks, 0, REVELRY.maxStacks) || !integer(actor.shieldCharges, 0, 1) ||
       actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY || actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
       actor.hp < 0 || actor.hp > actor.maxHp || actor.mp < 0 || actor.mp > actor.maxMp || actor.tp < 0 || actor.tp > 3000 ||

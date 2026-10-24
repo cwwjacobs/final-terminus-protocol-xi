@@ -19,6 +19,10 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     const partial = state.status !== 'ready' && state.combatTime > 0;
     state.runStats = createRunStats((state.party as unknown[]).length, partial ? state.combatTime : 0, partial);
   }
+  for (const actor of state.party as unknown[]) {
+    if (!record(actor)) return null;
+    if (!Object.hasOwn(actor, 'shotElement')) actor.shotElement = 'fire';
+  }
   if (state.version === 2) return state;
   if (!record(state.boss)) return null;
   const absent = (object: Record<string, unknown>, key: string, value: unknown) => {
