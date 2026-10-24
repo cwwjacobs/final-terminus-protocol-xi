@@ -23,7 +23,7 @@ function arm(state: GameState, slot: number) {
   const actor = state.party[slot];
   actor.tp = 1000;
   actor.engaged = true;
-  actor.cooldowns.weapon = 0;
+  actor.cooldowns['weapon:cleave'] = actor.cooldowns['weapon:pierce'] = actor.cooldowns['weapon:resonance'] = 0;
 }
 
 test('ready party follows without pulling; engage starts auto attacks and TP; cap is 3000', () => {
@@ -129,7 +129,7 @@ test('matching magic bursts, wrong element does ordinary damage, and burst expir
   stepGame(state, 7);
   before = state.boss.hp;
   applyAction(state, 3, { type: 'magic', element: 'fire' });
-  assert.equal(before - state.boss.hp, 1020);
+  assert.equal(before - state.boss.hp, 1122);
   assert.equal(state.events.at(-1)?.kind, 'burst');
   stepGame(state, 8);
   assert.equal(state.burst, null);
@@ -162,13 +162,13 @@ test('healing prioritizes low health, generates hate, costs MP and cannot resurr
   state.party[2].hp = 0;
   const mp = state.party[4].mp;
   applyAction(state, 4, { type: 'heal' });
-  assert.equal(state.party[1].hp, 890);
+  assert.equal(state.party[1].hp, 1028);
   assert.equal(state.party[2].hp, 0);
   assert.equal(state.party[4].mp, mp - 70);
   const healed = state.events.findLast(event => event.kind === 'heal');
   assert.equal(healed?.actor, 4);
   assert.equal(healed?.target, 1, 'presentation identifies the healed ally separately from the caster');
-  assert.equal(healed?.value, 690);
+  assert.equal(healed?.value, 828);
   assert.ok(state.party[4].ce > 0 && state.party[4].ve > 0);
   assert.equal(applyAction(state, 4, { type: 'heal' }).ok, false);
 });
@@ -343,7 +343,7 @@ test('Dolos autos and closes skillchains at range while vanguard weaponskills st
   hunter.engaged = true; hunter.attackTimer = 0;
   stepGame(state, 0.05);
   assert.ok(state.events.some(e => e.kind === 'auto' && e.actor === 2));
-  assert.equal(hunter.tp, ROLES.hunter.tp);
+  assert.equal(hunter.tp, ROLES.hunter.tp * 1.25);
   arm(state, 0); arm(state, 2);
   applyAction(state, 0, { type: 'weapon', id: 'cleave' });
   stepGame(state, 1.5);

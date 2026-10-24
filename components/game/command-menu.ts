@@ -1,5 +1,6 @@
 import type { Action, GameState } from '../../game/types.ts';
-import { canUseActionRole, MAGIC, MAGIC_RANGE, ROLES, WEAPONS } from '../../game/content.ts';
+import { utilityAbilities, withHealingTarget } from './kit-ui.ts';
+import { actionUnavailable, canUseActionRole, getCooldown, MAGIC, WEAPONS } from '../../game/content.ts';
 
 export type CommandPage = 'root' | 'spells' | 'allies' | 'adversaries' | 'abilities' | 'weapons';
 export type MenuIntent = 'open' | 'close' | 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back';
@@ -20,33 +21,17 @@ const parentPage: Record<CommandPage, CommandPage> = {
   root: 'root', spells: 'root', allies: 'spells', adversaries: 'spells', abilities: 'root', weapons: 'root',
 };
 
-/** Presentation availability only; the kernel still validates every selected action. */
-export function commandUnavailable(state: GameState, slot: number, action: Action): string | null {
-  const actor = state.party[slot];
-  if (!actor || actor.hp <= 0) return 'Character is down';
-  if (state.status === 'victory' || state.status === 'defeat') return 'Prepare another encounter';
-  if (action.type === 'start') return state.status === 'ready' ? null : 'Encounter already started';
-  if (action.type === 'engage') return null;
-  if (!canUseActionRole(actor.role, action.type)) return 'Not in this role’s kit';
-  if (state.status !== 'fighting') return 'Start the encounter first';
-  if ((actor.cooldowns[action.type] ?? 0) > 0) return `${Math.ceil(actor.cooldowns[action.type])}s cooldown`;
-  const distance = Math.hypot(actor.x - state.boss.x, actor.z - state.boss.z);
-  if (action.type === 'weapon') {
-    if (!actor.engaged) return 'Engage first';
-    if (actor.tp < 1000) return 'Requires 1,000 TP';
-    if (distance > ROLES[actor.role].range) return 'Out of weapon range';
-  }
-  if ((action.type === 'magic' || action.type === 'heal') && actor.mp < 70) return 'Requires 70 MP';
-  if (action.type === 'magic' && distance > MAGIC_RANGE) return 'Out of spell range';
-  return null;
-}
+/** Use the same availability rules as accepted combat intents. */
+export const commandUnavailable = actionUnavailable;
 
-export function commandEntries(state: GameState, slot: number, page: CommandPage): CommandEntry[] {
+export function commandEntries(state: GameState, slot: number, page: CommandPage, allyTarget: number | null = null): CommandEntry[] {
   const actor = state.party[slot];
   if (!actor) return [];
   const row = (id: string, label: string, detail: string, action: Action): CommandEntry => {
+    action = withHealingTarget(action, allyTarget);
     const reason = commandUnavailable(state, slot, action);
-    return { id, label, detail: reason ?? detail, action, disabled: !!reason };
+    const cooldown = getCooldown(actor, action);
+    return { id, label, detail: cooldown > 0 ? `${cooldown < 10 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s recast` : reason ?? detail, action, disabled: !!reason };
   };
   if (page === 'root') return [
     actor.engaged
@@ -65,17 +50,13 @@ export function commandEntries(state: GameState, slot: number, page: CommandPage
     { id: 'adversaries', label: 'Adversaries', detail: 'Elemental magic and Magic Bursts', page: 'adversaries' },
   ];
   if (page === 'allies') return canUseActionRole(actor.role, 'heal')
-    ? [row('heal', 'Mend', '70 MP · lowest-health living ally in range', { type: 'heal' })] : [];
+    ? [row('heal', 'Mend', `70 MP · ${allyTarget === null ? 'lowest-health living ally in range' : state.party[allyTarget]?.name ?? 'selected ally'}`, { type: 'heal' })] : [];
   if (page === 'adversaries') return canUseActionRole(actor.role, 'magic')
-    ? (['fire', 'ice', 'lightning'] as const).map(element => row(element, MAGIC[element].name, `${element} · 70 MP · selected enemy`, { type: 'magic', element })) : [];
+    ? (['fire', 'ice', 'lightning'] as const).map(element => row(element, `${element === 'lightning' ? 'Thunder' : element === 'fire' ? 'Fire' : 'Ice'} · ${MAGIC[element].name}`, `${element} · 70 MP · selected enemy`, { type: 'magic', element })) : [];
   if (page === 'weapons') return canUseActionRole(actor.role, 'weapon')
     ? (['cleave', 'pierce', 'resonance'] as const).map(id => row(id, WEAPONS[id].name, '1,000+ TP · spends accumulated TP', { type: 'weapon', id })) : [];
-  return ([
-    ['revelry', 'Revelry', 'Grant one party stack · 45s cooldown'],
-    ['provoke', 'Provoke', 'Draw enemy enmity'],
-    ['guard', 'Guard', 'Reduce incoming damage for 5 seconds'],
-    ['dodge', 'Evade', 'Brief evasion in your movement direction'],
-  ] as const).filter(([type]) => canUseActionRole(actor.role, type)).map(([type, label, detail]) => row(type, label, detail, { type }));
+  return utilityAbilities.filter(item => item.action.type !== 'heal' && canUseActionRole(actor.role, item.action.type))
+    .map(item => row(item.action.type, item.name, item.hint, item.action));
 }
 
 /** Resolves against fresh rows so a cooldown/TP change cannot dispatch stale UI intent. */

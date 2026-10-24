@@ -1,35 +1,48 @@
+import type { Role } from '../../game/types.ts';
+
 export const COMMANDS = [
   { id: 'forward', label: 'Move forward', group: 'Movement', defaultKey: 'KeyW' },
   { id: 'backward', label: 'Move backward', group: 'Movement', defaultKey: 'KeyS' },
   { id: 'left', label: 'Strafe left', group: 'Movement', defaultKey: 'KeyA' },
   { id: 'right', label: 'Strafe right', group: 'Movement', defaultKey: 'KeyD' },
-  { id: 'cameraLeft', label: 'Look left', group: 'Camera', defaultKey: 'ArrowLeft' },
-  { id: 'cameraRight', label: 'Look right', group: 'Camera', defaultKey: 'ArrowRight' },
-  { id: 'cameraUp', label: 'Look up', group: 'Camera', defaultKey: 'ArrowUp' },
-  { id: 'cameraDown', label: 'Look down', group: 'Camera', defaultKey: 'ArrowDown' },
+  { id: 'cameraLeft', label: 'Look left', group: 'Camera', defaultKey: 'KeyJ' },
+  { id: 'cameraRight', label: 'Look right', group: 'Camera', defaultKey: 'KeyL' },
+  { id: 'cameraUp', label: 'Look up', group: 'Camera', defaultKey: 'KeyI' },
+  { id: 'cameraDown', label: 'Look down', group: 'Camera', defaultKey: 'KeyK' },
   { id: 'zoomIn', label: 'Zoom in', group: 'Camera', defaultKey: 'PageUp' },
   { id: 'zoomOut', label: 'Zoom out', group: 'Camera', defaultKey: 'PageDown' },
   { id: 'recenter', label: 'Recenter camera', group: 'Camera', defaultKey: 'KeyV', defaultButton: 11 },
-  { id: 'targetNext', label: 'Next target', group: 'Targeting', defaultKey: 'Tab', defaultButton: 10 },
-  { id: 'targetPrevious', label: 'Previous target', group: 'Targeting', defaultKey: 'Shift+Tab' },
+  { id: 'targetNext', label: 'Next enemy (Tab)', group: 'Targeting', defaultKey: 'Tab', defaultButton: 10 },
+  { id: 'targetPrevious', label: 'Previous enemy (Tab)', group: 'Targeting', defaultKey: 'Shift+Tab' },
+  { id: 'targetEnemyPrevious', label: 'Previous enemy', group: 'Targeting', defaultKey: 'ArrowLeft', defaultButton: 14 },
+  { id: 'targetEnemyNext', label: 'Next enemy', group: 'Targeting', defaultKey: 'ArrowRight', defaultButton: 15 },
+  { id: 'targetAllyPrevious', label: 'Previous ally', group: 'Targeting', defaultKey: 'ArrowUp', defaultButton: 12 },
+  { id: 'targetAllyNext', label: 'Next ally', group: 'Targeting', defaultKey: 'ArrowDown', defaultButton: 13 },
+  { id: 'primary1', label: 'Primary ability 1 · role dependent', group: 'Combat', defaultKey: 'Digit1', defaultButton: 2 },
+  { id: 'primary2', label: 'Primary ability 2 · role dependent', group: 'Combat', defaultKey: 'Digit2', defaultButton: 3 },
+  { id: 'primary3', label: 'Primary ability 3 · role dependent', group: 'Combat', defaultKey: 'Digit3', defaultButton: 5 },
   { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space' },
-  { id: 'cleave', label: 'Arc Cleave', group: 'Combat', defaultKey: 'Digit1', defaultButton: 2 },
-  { id: 'pierce', label: 'Vector Pierce', group: 'Combat', defaultKey: 'Digit2', defaultButton: 3 },
-  { id: 'resonance', label: 'Q Resonance', group: 'Combat', defaultKey: 'Digit3', defaultButton: 5 },
-  { id: 'fire', label: 'Fire magic', group: 'Combat', defaultKey: 'Digit4', defaultButton: 12 },
-  { id: 'ice', label: 'Ice magic', group: 'Combat', defaultKey: 'Digit5', defaultButton: 13 },
-  { id: 'lightning', label: 'Lightning magic', group: 'Combat', defaultKey: 'Digit6', defaultButton: 14 },
+  { id: 'cleave', label: 'Arc Cleave', group: 'Combat', defaultKey: 'Shift+Digit1' },
+  { id: 'pierce', label: 'Vector Pierce', group: 'Combat', defaultKey: 'Shift+Digit2' },
+  { id: 'resonance', label: 'Q Resonance', group: 'Combat', defaultKey: 'Shift+Digit3' },
+  { id: 'fire', label: 'Fire magic', group: 'Combat', defaultKey: 'Digit4' },
+  { id: 'ice', label: 'Ice magic', group: 'Combat', defaultKey: 'Digit5' },
+  { id: 'lightning', label: 'Lightning magic', group: 'Combat', defaultKey: 'Digit6' },
   { id: 'provoke', label: 'Provoke', group: 'Combat', defaultKey: 'KeyR', defaultButton: 7 },
   { id: 'heal', label: 'Mend', group: 'Combat', defaultKey: 'KeyF', defaultButton: 4 },
   { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 6 },
   { id: 'dodge', label: 'Evade', group: 'Combat', defaultKey: 'KeyC', defaultButton: 1 },
-  { id: 'revelry', label: 'Revelry', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 15 },
+  { id: 'revelry', label: 'Revelry', group: 'Combat', defaultKey: 'KeyQ' },
+  { id: 'criticalDash', label: 'Critical Dash', group: 'Combat', defaultKey: 'KeyZ' },
+  { id: 'splitVolley', label: 'Split Volley', group: 'Combat', defaultKey: 'KeyX' },
+  { id: 'rapidWeave', label: 'Rapid Weave', group: 'Combat', defaultKey: 'KeyE' },
+  { id: 'aegis', label: 'Aegis', group: 'Combat', defaultKey: 'KeyT' },
   { id: 'commandMenu', label: 'Open command menu', group: 'Menus', defaultKey: 'Enter', defaultButton: 0 },
 ] as const;
 
 export type Command = (typeof COMMANDS)[number]['id'];
 export interface ControlSettings {
-  version: 3;
+  version: 4;
   keys: Record<Command, string>;
   buttons: Partial<Record<Command, number>>;
   mouseSensitivity: number;
@@ -54,7 +67,7 @@ const safeButton = (value: unknown): value is number => typeof value === 'number
 
 export function defaults(): ControlSettings {
   return {
-    version: 3,
+    version: 4,
     keys: Object.fromEntries(COMMANDS.map(command => [command.id, command.defaultKey])) as Record<Command, string>,
     buttons: Object.fromEntries(COMMANDS.flatMap(command => 'defaultButton' in command ? [[command.id, command.defaultButton]] : [])),
     mouseSensitivity: 1, touchSensitivity: 1, stickSensitivity: 1, zoomSensitivity: 1,
@@ -66,39 +79,94 @@ export function defaults(): ControlSettings {
 
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
+// These are the shipped v1–v3 mappings, not inferred from the current defaults.
+// Only a recognizable untouched preset is migrated; custom layouts retain their choices.
+const oldKeys: Record<string, string> = {
+  forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD',
+  cameraLeft: 'ArrowLeft', cameraRight: 'ArrowRight', cameraUp: 'ArrowUp', cameraDown: 'ArrowDown',
+  zoomIn: 'PageUp', zoomOut: 'PageDown', recenter: 'KeyV', targetNext: 'Tab', targetPrevious: 'Shift+Tab',
+  engage: 'Space', cleave: 'Digit1', pierce: 'Digit2', resonance: 'Digit3',
+  fire: 'Digit4', ice: 'Digit5', lightning: 'Digit6', provoke: 'KeyR', heal: 'KeyF',
+  guard: 'ShiftLeft', dodge: 'KeyC', revelry: 'KeyQ', commandMenu: 'Enter',
+};
+const oldButtons: Record<string, number> = {
+  recenter: 11, targetNext: 10, cleave: 2, pierce: 3, resonance: 5,
+  fire: 12, ice: 13, lightning: 14, provoke: 7, heal: 4, guard: 6, dodge: 1, revelry: 15, commandMenu: 0,
+};
+function legacyPreset(map: Record<string, unknown>, expected: Record<string, string | number>, version: unknown): boolean {
+  const preset = { ...expected };
+  if (version !== 2 && version !== 3) delete preset.revelry;
+  if (version !== 3) {
+    delete preset.commandMenu;
+    if (expected === oldButtons) preset.engage = 0;
+  }
+  // Later fields occasionally appeared before the version bump; they are safe
+  // only if they agree with the shipped binding.
+  return Object.entries(preset).every(([id, binding]) => map[id] === binding)
+    && Object.entries(map).every(([id, binding]) => binding === preset[id] || binding === expected[id]);
+}
+
+export type PrimaryCommand = 'primary1' | 'primary2' | 'primary3';
+export function primaryCommand(role: Role, slot: PrimaryCommand): Command {
+  const index = slot === 'primary1' ? 0 : slot === 'primary2' ? 1 : 2;
+  const actions: readonly Command[] = role === 'arcanist' ? ['fire', 'ice', 'lightning']
+    : role === 'luminary' ? ['heal', 'aegis', 'guard'] : ['cleave', 'pierce', 'resonance'];
+  return actions[index];
+}
+
+/** Explain absent directional/role bindings without changing a saved custom map. */
+export function bindingWarnings(settings: ControlSettings): string[] {
+  const warnings: string[] = [];
+  for (const id of ['targetEnemyPrevious', 'targetEnemyNext', 'targetAllyPrevious', 'targetAllyNext', 'primary1', 'primary2', 'primary3', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis'] as const) {
+    const command = COMMANDS.find(command => command.id === id)!;
+    if (!settings.keys[id] && settings.buttons[id] === undefined) warnings.push(`${command.label} is unbound. Your existing bindings were kept; assign it below or restore defaults.`);
+  }
+  return warnings;
+}
+
 /** Saved bindings are data: discard unknown fields, bound numbers and remove conflicts. */
 export function normalizeControls(value: unknown): ControlSettings {
   const result = defaults();
-  if (!object(value) || (value.version !== undefined && value.version !== 1 && value.version !== 2 && value.version !== 3)) return result;
-  if (object(value.keys)) for (const command of COMMANDS) {
-    const key = value.keys[command.id];
-    if (safeKey(key)) result.keys[command.id] = key;
+  if (!object(value) || (value.version !== undefined && ![1, 2, 3, 4].includes(value.version as number))) return result;
+  const legacy = value.version !== 4;
+  const keys = object(value.keys) ? value.keys : undefined;
+  const buttons = object(value.buttons) ? value.buttons : undefined;
+  const migrateKeys = legacy && keys && legacyPreset(keys, oldKeys, value.version);
+  const migrateButtons = legacy && buttons && legacyPreset(buttons, oldButtons, value.version);
+  if (keys && !migrateKeys) {
+    if (legacy) for (const command of COMMANDS) result.keys[command.id] = oldKeys[command.id] ?? '';
+    for (const command of COMMANDS) if (safeKey(keys[command.id])) result.keys[command.id] = keys[command.id] as string;
   }
-  if (object(value.buttons)) {
+  if (buttons && !migrateButtons) {
     // An omitted entry in an explicitly saved buttons map means unbound.
     result.buttons = {};
-    for (const command of COMMANDS) {
-      const button = value.buttons[command.id];
-      if (safeButton(button)) result.buttons[command.id] = button;
-    }
-    // Older preferences never contained Revelry. Add its new default only if it
-    // does not displace an existing binding; v2 omissions remain deliberate unbinds.
-    if (value.version !== 2 && value.version !== 3 && !Object.hasOwn(value.buttons, 'revelry') &&
+    for (const command of COMMANDS) if (safeButton(buttons[command.id])) result.buttons[command.id] = buttons[command.id] as number;
+    if (legacy && value.version !== 2 && value.version !== 3 && !Object.hasOwn(buttons, 'revelry') &&
         !Object.values(result.buttons).includes(15)) result.buttons.revelry = 15;
-    // The old default A engaged immediately. Move that one legacy binding to
-    // Commands, while preserving other custom buttons and all v3 choices.
-    if (value.version !== 3 && !Object.hasOwn(value.buttons, 'commandMenu')) {
+    if (legacy && value.version !== 3 && !Object.hasOwn(buttons, 'commandMenu')) {
       if (result.buttons.engage === 0) delete result.buttons.engage;
       if (!Object.values(result.buttons).includes(0)) result.buttons.commandMenu = 0;
     }
   }
   const usedKeys = new Set<string>(), usedButtons = new Set<number>();
-  for (const command of COMMANDS) {
-    const key = result.keys[command.id], button = result.buttons[command.id];
+  // Explicit saved choices take priority over defaults introduced by a new release.
+  const ordered = keys && !migrateKeys ? [...COMMANDS.filter(command => safeKey(keys[command.id])), ...COMMANDS.filter(command => !safeKey(keys[command.id]))] : COMMANDS;
+  for (const command of ordered) {
+    const key = result.keys[command.id];
     if (key && usedKeys.has(key)) result.keys[command.id] = '';
     else if (key) usedKeys.add(key);
+  }
+  for (const command of COMMANDS) {
+    const button = result.buttons[command.id];
     if (button !== undefined && usedButtons.has(button)) delete result.buttons[command.id];
     else if (button !== undefined) usedButtons.add(button);
+  }
+  if (legacy && keys && !migrateKeys) for (const command of COMMANDS) {
+    // New keyboard commands are added only when their default is genuinely free.
+    if (!(command.id in oldKeys) && !Object.hasOwn(keys, command.id) && !usedKeys.has(command.defaultKey)) {
+      result.keys[command.id] = command.defaultKey;
+      usedKeys.add(command.defaultKey);
+    }
   }
   for (const key of ['mouseSensitivity', 'touchSensitivity', 'stickSensitivity', 'zoomSensitivity'] as const) {
     const n = value[key];

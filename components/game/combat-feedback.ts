@@ -11,7 +11,7 @@ export function abilityCue(state: GameState, slot: number, action: Action, disab
   if (action.type === 'magic' && activeBurst(state)?.element === action.element)
     return { kind: 'burst-ready', label: 'MAGIC BURST' };
   const chain = state.chain;
-  if (action.type === 'weapon' && chain && chain.remaining > 0 && chain.opener !== slot &&
+  if (action.type === 'weapon' && chain && chain.remaining > 0 && (chain.opener !== slot || (state.party[slot]?.role === 'hunter' && state.party[slot].selfChainUntil > state.time)) &&
       state.time - chain.openedAt + 1e-8 >= CHAIN_MIN_DELAY) {
     const combination = SKILLCHAINS[`${chain.weapon}:${action.id}`];
     if (combination) return { kind: 'chain-ready', label: `Close ${combination.property}` };
@@ -24,6 +24,6 @@ export function abilityCue(state: GameState, slot: number, action: Action, disab
 export function completedChainActors(state: GameState): string {
   const completion = state.events.filter(event => event.kind === 'chain').at(-1);
   if (!completion) return '';
-  const pair = state.events.filter(event => event.kind === 'weapon' && event.id < completion.id).slice(-2);
+  const pair = state.events.filter(event => event.kind === 'weapon' && event.source !== 'criticalDash' && event.source !== 'splitVolley' && event.id < completion.id).slice(-2);
   return pair.map(event => state.party[event.actor ?? -1]?.name).filter(Boolean).join(' → ');
 }

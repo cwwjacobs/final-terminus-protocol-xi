@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ABILITY_MARKS, ICONS, iconMarkup, roleIcon, type IconName } from '../components/game/icons.ts';
+import { utilityAbilities } from '../components/game/kit-ui.ts';
 import { abilities } from '../components/game/catalog.ts';
 import { ROLE_MARKERS } from '../components/game/party-markers.ts';
 import { MAGIC, WEAPONS } from '../game/content.ts';
@@ -8,7 +9,7 @@ import { MAGIC, WEAPONS } from '../game/content.ts';
 const PATH = /^[MmLlHhVvCcSsQqTtAaZz][-\d.,\s MmLlHhVvCcSsQqTtAaZz]*$/;
 
 test('every HUD consumer names a registered outline', () => {
-  for (const ability of abilities) assert.ok(ability.icon in ICONS, `${ability.name} icon ${ability.icon}`);
+  for (const ability of [...abilities, ...utilityAbilities]) assert.ok(ability.icon in ICONS, `${ability.name} icon ${ability.icon}`);
   for (const role of Object.keys(ROLE_MARKERS)) {
     assert.equal(roleIcon(role), role, 'every role has a pictorial emblem');
     assert.equal(ICONS[roleIcon(role)].box, 64, 'sigils are 64-box marks');

@@ -10,7 +10,7 @@ import { activeBurst } from './combat-feedback';
 import EnemyMark from './EnemyMark';
 import Icon from './Icon';
 import { roleIcon } from './icons';
-import { combatNumber, PresentationEvents } from './world-feedback';
+import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
@@ -25,6 +25,8 @@ export interface SceneProps {
   cameraHeight: number;
   shoulderOffset: number;
   selectedTarget: string | null;
+  /** Friendly soft target, independent of the selected enemy/camera lock. */
+  selectedAlly?: number | null;
   targetPulse: number;
   /** Changes when the client replaces an encounter/session, even at equal clocks. */
   presentationEpoch?: number;
@@ -174,6 +176,37 @@ function createEffects(scene: THREE.Scene, quality: 'low' | 'high'): Effect[] {
   return effects;
 }
 
+/** Allocated once, attached to each actor's authoritative world root. Shared
+ * geometry is collected by the scene's existing single-disposal cleanup. */
+function createStatusCues(rigs: ActorRig[], quality: 'low' | 'high') {
+  const barrierGeometry = new THREE.SphereGeometry(1, quality === 'high' ? 24 : 16, 12);
+  const waveGeometry = new THREE.TorusGeometry(.9, .015, 4, 40);
+  const gemGeometry = new THREE.OctahedronGeometry(.075, 0);
+  return rigs.map(rig => {
+    const shield = new THREE.Group(); shield.visible = false; rig.root.add(shield);
+    const material = new THREE.MeshBasicMaterial({ color: '#b5ffed', transparent: true, opacity: .075,
+      blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const shell = mesh(shield, barrierGeometry, material, 0, 1.1); shell.scale.set(.85, 1.15, .85);
+    const waveMaterial = new THREE.MeshBasicMaterial({ color: '#d5fff2', transparent: true, opacity: .5,
+      blending: THREE.AdditiveBlending, depthWrite: false });
+    [.4, 1.1, 1.8].forEach((y, index) => {
+      const wave = mesh(shield, waveGeometry, waveMaterial, 0, y);
+      wave.rotation.x = floorRotation; wave.scale.setScalar(index === 1 ? 1 : .75);
+    });
+    const weave = new THREE.Group(); weave.visible = false; rig.root.add(weave);
+    ring(weave, .78, .81, '#d8abff', .6, .09);
+    const elements = ['fire', 'ice', 'lightning'] as const;
+    const gems = elements.map((element, i) => {
+      const gem = mesh(weave, gemGeometry, new THREE.MeshBasicMaterial({ color: MAGIC[element].color,
+        transparent: true, opacity: .85, blending: THREE.AdditiveBlending, depthWrite: false }));
+      gem.position.set(Math.sin(i * Math.PI * 2 / 3) * .87, .45, Math.cos(i * Math.PI * 2 / 3) * .87);
+      return { element, mesh: gem };
+    });
+    const selected = ring(rig.root, 1.02, 1.09, '#95f5d4', .95, .075); selected.visible = false;
+    return { shield, weave, gems, selected };
+  });
+}
+
 export default function Scene(props: SceneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -226,6 +259,7 @@ export default function Scene(props: SceneProps) {
       const marker = createPartyMarker(actor.role, actor.color, props.quality);
       rigs[i].root.add(marker.root); rigs[i].marker.visible = false; return marker;
     });
+    const statusCues = createStatusCues(rigs, props.quality);
     const heroCache = new HeroAssetCache();
     const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
@@ -243,6 +277,13 @@ export default function Scene(props: SceneProps) {
     const circleWarn = mesh(scene, new THREE.CircleGeometry(1, 80), warnMaterial, 0, .055); circleWarn.rotation.x = floorRotation;
     const coneWarn = mesh(scene, sectorGeometry(CONE_HALF_ANGLE), warnMaterial, 0, .055);
     const warningEdge = ring(scene, .985, 1, '#ffc28a', .85, .06);
+    // Two raid perimeter strokes mean two remaining pulses, read from the cast.
+    const echoEdge = ring(scene, .985, 1, '#b5b0ff', .7, .065);
+    const decreeMaterial = new THREE.MeshBasicMaterial({ color: '#ff9a91', transparent: true, opacity: .9,
+      side: THREE.DoubleSide, depthWrite: false });
+    const decreeMark = mesh(scene, new THREE.RingGeometry(.36, .44, 4), decreeMaterial);
+    const decreeStem = mesh(scene, new THREE.CylinderGeometry(.018, .045, .7, 5), decreeMaterial);
+    echoEdge.visible = decreeMark.visible = decreeStem.visible = false;
     circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
     const effects = createEffects(scene, props.quality);
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
@@ -318,7 +359,8 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
-      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost'].includes(event.kind)) return;
+      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
+      if (event.kind === 'ability' && !['aegis', 'rapidWeave'].includes(event.source ?? '')) return;
       const feedback = combatNumber(event, state);
       if (feedback) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
@@ -328,17 +370,18 @@ export default function Scene(props: SceneProps) {
       // Old saves have no heal recipient. Skip its target effect rather than
       // suggesting that the caster was healed or parsing a human-readable log.
       if (event.kind === 'heal' && !feedback) return;
+      if (event.kind === 'shield' && (typeof event.target !== 'number' || !rigs[event.target])) return;
       const index = effects.findIndex(effect => effect.life <= 0), effect = effects[index < 0 ? event.id % effects.length : index];
       const source = typeof event.actor === 'number' ? state.party[event.actor] : undefined;
-      const support = ['heal', 'guard', 'dodge', 'provoke', 'hit', 'revelry', 'revelry_lost'].includes(event.kind);
-      const recipient = event.kind === 'heal' && typeof event.target === 'number' ? state.party[event.target] : source;
+      const support = ['heal', 'guard', 'dodge', 'provoke', 'hit', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind);
+      const recipient = ['heal', 'shield', 'ability'].includes(event.kind) && typeof event.target === 'number' ? state.party[event.target] : source;
       const targetX = support && recipient ? recipient.x : state.boss.x;
       const targetZ = support && recipient ? recipient.z : state.boss.z;
       effect.root.position.set(targetX, .1, targetZ); effect.root.visible = true;
-      effect.calm = event.kind === 'heal';
+      effect.calm = event.kind === 'heal' || event.kind === 'ability';
       effect.duration = reducedMotion ? .35 : effect.calm ? .9 : ['chain', 'burst', 'revelry'].includes(event.kind) ? 1.05 : .55; effect.life = effect.duration;
-      effect.size = event.kind === 'burst' ? 4.8 : ['chain', 'revelry'].includes(event.kind) ? 3.8 : event.kind === 'weapon' ? 2.8 : 1;
-      effect.ring.material.color.set(effect.calm ? '#bcffdf' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' || event.kind === 'magic' ? '#d8abff' : ['hit', 'revelry_lost'].includes(event.kind) ? '#ff996d' : '#ffe0a1');
+      effect.size = event.kind === 'burst' ? 4.8 : ['chain', 'revelry'].includes(event.kind) ? 3.8 : event.kind === 'shield' ? 2.2 : event.kind === 'weapon' ? 2.8 : 1;
+      effect.ring.material.color.set(event.source === 'rapidWeave' ? '#d8abff' : effect.calm || event.kind === 'shield' ? '#bcffdf' : event.kind === 'burst' ? '#a4dfff' : event.kind === 'chain' || event.kind === 'magic' ? '#d8abff' : ['hit', 'revelry_lost'].includes(event.kind) ? '#ff996d' : event.critical ? '#fff6a7' : '#ffe0a1');
       effect.beam.visible = Boolean(source && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind));
       if (effect.calm) {
         // A quiet, vertical light shaft distinguishes healing from quantum impact.
@@ -352,7 +395,7 @@ export default function Scene(props: SceneProps) {
         effect.beam.scale.set(event.kind === 'auto' ? .7 : 2, distance, event.kind === 'auto' ? .7 : 2);
         effect.beam.quaternion.setFromUnitVectors(up, beamDirection.normalize());
       }
-      if (event.kind !== 'revelry_lost' && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
+      if (!['revelry_lost', 'shield'].includes(event.kind) && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
       if (event.kind === 'hit') bossRig.attack = 1;
     };
 
@@ -360,7 +403,7 @@ export default function Scene(props: SceneProps) {
       if (stopped) return;
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
       animationTime += dt;
-      const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, targetPulse, presentationEpoch } = latest.current;
+      const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, selectedAlly, targetPulse, presentationEpoch } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
       const incoming = eventFeed.read(state, presentationEpoch);
@@ -379,7 +422,7 @@ export default function Scene(props: SceneProps) {
       for (const event of incoming.events) {
         const source = typeof event.actor === 'number' ? event.actor : -1;
         const delay = state.party[source]?.hp > 0 ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
-        if (delay > 0) {
+        if (delay > 0 && !immediateImpact(event)) {
           if (pendingImpacts.length >= effects.length) pendingImpacts.shift();
           pendingImpacts.push({ event, at: animationTime + delay });
         }
@@ -400,6 +443,11 @@ export default function Scene(props: SceneProps) {
           visual.update(dt, speed, actor.hp > 0, rig.attack);
         } else animateActor(rig, dt, now / 1000, speed, actor.hp > 0);
         partyMarkers[i].update(actor, i === slot);
+        const cues = statusCues[i], status = actorStatusFeedback(actor, selectedAlly === i);
+        cues.shield.visible = status.shielded;
+        cues.weave.visible = status.rapidWeave;
+        cues.selected.visible = status.selected;
+        cues.gems.forEach(gem => { gem.mesh.visible = (actor.rapidWeave?.charges[gem.element] ?? 0) > 0; });
       }
       bossRig.root.position.x = THREE.MathUtils.damp(bossRig.root.position.x, state.boss.x, 9, dt);
       bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
@@ -429,17 +477,28 @@ export default function Scene(props: SceneProps) {
         reticleMaterial.color.copy(burstMaterial.color);
       }
 
-      const cast = state.boss.cast;
-      circleWarn.visible = Boolean(cast && cast.kind !== 'cone'); coneWarn.visible = cast?.kind === 'cone';
-      warningEdge.visible = Boolean(cast && cast.kind !== 'cone');
-      if (cast) {
-        const radius = cast.kind === 'raid' ? ARENA_RADIUS : cast.radius;
-        const x = cast.kind === 'raid' ? 0 : cast.x, z = cast.kind === 'raid' ? 0 : cast.z;
+      const cast = state.boss.cast, warning = bossWarning(state);
+      circleWarn.visible = Boolean(warning && warning.kind !== 'cone' && warning.kind !== 'target'); coneWarn.visible = warning?.kind === 'cone';
+      warningEdge.visible = circleWarn.visible;
+      decreeMark.visible = decreeStem.visible = warning?.kind === 'target';
+      echoEdge.visible = warning?.kind === 'raid' && warning.pulses > 1;
+      if (cast && warning) {
+        const radius = warning.kind === 'raid' ? ARENA_RADIUS : warning.radius;
+        const { x, z } = warning;
         circleWarn.position.set(x, .055, z); circleWarn.scale.set(radius, radius, 1);
         coneWarn.position.set(cast.x, .055, cast.z); coneWarn.scale.set(cast.radius, 1, cast.radius); coneWarn.rotation.y = cast.angle;
         warningEdge.position.set(x, .06, z); warningEdge.scale.setScalar(radius);
-        warnMaterial.opacity = .15 + .15 * (1 - cast.remaining / cast.total) + (reducedMotion ? 0 : Math.sin(now * .008) * .035);
+        echoEdge.position.set(x, .065, z); echoEdge.scale.setScalar(Math.max(0, radius - .35));
+        warnMaterial.opacity = .15 + .15 * warning.progress + (reducedMotion ? 0 : Math.sin(now * .008) * .035);
         warnMaterial.color.set(cast.kind === 'raid' ? '#9994ff' : '#f4a575');
+        (warningEdge.material as THREE.MeshBasicMaterial).color.set(cast.kind === 'raid' ? '#b5b0ff' : '#ffc28a');
+        if (warning.kind === 'target') {
+          const target = rigs[warning.target].root.position;
+          const height = (heroVisuals[warning.target]?.labelHeight ?? 2.4) + .65;
+          decreeMark.position.set(target.x, height, target.z);
+          decreeStem.position.set(target.x, height - .7, target.z);
+          decreeMaterial.opacity = .6 + warning.progress * .4;
+        }
       }
       for (let i = pendingImpacts.length - 1; i >= 0; i--) {
         const impact = pendingImpacts[i];
@@ -471,6 +530,7 @@ export default function Scene(props: SceneProps) {
       camera.lookAt(smoothedLook);
       camera.updateMatrixWorld();
       targetReticle.quaternion.copy(camera.quaternion);
+      decreeMark.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);
       // One enemy-attached sigil: no screen-centered announcement panel.
       const mark = enemyMarkRef.current;

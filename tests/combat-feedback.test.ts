@@ -11,7 +11,7 @@ function encounter() {
   return state;
 }
 function weapon(state: GameState, slot: number, id: WeaponId) {
-  state.party[slot].tp = 1000; state.party[slot].cooldowns.weapon = 0;
+  state.party[slot].tp = 1000; state.party[slot].cooldowns[`weapon:${id}`] = 0;
   assert.equal(applyAction(state, slot, { type: 'weapon', id }).ok, true);
 }
 
@@ -54,4 +54,23 @@ test('wrong weaponskills and encounter end cannot create or retain a burst cue',
   state.status = 'defeat';
   assert.equal(activeBurst(state), null);
   assert.equal(abilityCue(state, 3, { type: 'magic', element: 'fire' }, false), null);
+});
+
+
+test('Dolos self-chain cue requires the live one-use permission and existing timing', () => {
+  const state = encounter(); weapon(state, 2, 'pierce');
+  state.party[2].selfChainUntil = state.time + 8;
+  assert.equal(abilityCue(state, 2, { type: 'weapon', id: 'resonance' }, false), null);
+  stepGame(state, 1.5);
+  assert.deepEqual(abilityCue(state, 2, { type: 'weapon', id: 'resonance' }, false), { kind: 'chain-ready', label: 'Close Distortion' });
+  state.party[2].selfChainUntil = state.time;
+  assert.equal(abilityCue(state, 2, { type: 'weapon', id: 'resonance' }, false), null);
+});
+
+
+test('intervening multi-hit abilities do not replace the real chain opener in attribution', () => {
+  const state = encounter(); weapon(state, 0, 'cleave');
+  stepGame(state, .5); assert.equal(applyAction(state, 2, { type: 'splitVolley' }).ok, true);
+  stepGame(state, 1.1); weapon(state, 1, 'pierce');
+  assert.equal(completedChainActors(state), 'Bacchus → Heracles');
 });

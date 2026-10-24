@@ -7,7 +7,7 @@ export interface CombatNumber {
   id: number;
   target: FeedbackTarget;
   text: string;
-  tone: 'damage' | 'hurt' | 'heal' | 'chain' | 'burst';
+  tone: 'damage' | 'critical' | 'hurt' | 'heal' | 'chain' | 'burst';
 }
 
 /** Existing logs are a baseline, not an animation request. Epoch is local UI
@@ -38,12 +38,47 @@ export function combatNumber(event: CombatEvent, state: GameState): CombatNumber
   if (typeof event.value !== 'number' || !Number.isFinite(event.value) || event.value <= 0) return null;
   const amount = event.value > 999_999 ? '999,999+' : Math.round(event.value).toLocaleString('en-US');
   if (['auto', 'weapon', 'magic', 'chain', 'burst'].includes(event.kind)) {
-    const tone = event.kind === 'burst' ? 'burst' : event.kind === 'chain' ? 'chain' : 'damage';
+    const physical = event.kind === 'auto' || event.kind === 'weapon';
+    const tone = event.kind === 'burst' ? 'burst' : event.kind === 'chain' ? 'chain' : physical && event.critical === true ? 'critical' : 'damage';
     return { id: event.id, target: 'boss', text: `${tone === 'burst' ? '✦ ' : tone === 'chain' ? '◇ ' : ''}${amount}`, tone };
   }
   const target = event.kind === 'heal' ? event.target : event.kind === 'hit' ? event.actor : undefined;
   if (typeof target !== 'number' || !Number.isInteger(target) || !state.party[target]) return null;
   return { id: event.id, target, text: `${event.kind === 'heal' ? '+' : '−'}${amount}`, tone: event.kind === 'heal' ? 'heal' : 'hurt' };
+}
+
+/** A scheduled impact already has an authoritative hit time. Replaying a
+ * generic weapon animation must not defer or merge its individual numbers. */
+export function immediateImpact(event: CombatEvent): boolean {
+  return event.source === 'criticalDash' || event.source === 'splitVolley' || event.kind === 'shield';
+}
+
+/** State owns the persistent aura. Receiving a log entry never grants a local
+ * shield, refresh charge, or target; restored snapshots show the same cues. */
+export function actorStatusFeedback(actor: Pick<Actor, 'hp' | 'shieldCharges' | 'rapidWeave'>, selected = false) {
+  const alive = actor.hp > 0;
+  return {
+    shielded: alive && actor.shieldCharges > 0,
+    rapidWeave: alive && !!actor.rapidWeave && actor.rapidWeave.remaining > 0 &&
+      Object.values(actor.rapidWeave.charges).some(charges => charges > 0),
+    selected: alive && selected,
+  };
+}
+
+/** Targeted strikes track their selected actor. A zero-radius targeted cast
+ * must never be drawn as a ground zone the player can step out of. */
+export function bossWarning(state: GameState) {
+  const cast = state.boss.cast;
+  if (!cast) return null;
+  const progress = cast.total > 0 ? Math.max(0, Math.min(1, 1 - cast.remaining / cast.total)) : 1;
+  if (cast.kind === 'circle' && cast.radius === 0) {
+    const target = cast.target;
+    if (typeof target !== 'number' || !Number.isInteger(target) || !state.party[target] || state.party[target].hp <= 0) return null;
+    const actor = state.party[target];
+    return { kind: 'target' as const, target, x: actor.x, z: actor.z, radius: 0, progress, pulses: 1 };
+  }
+  return { kind: cast.kind, target: null, x: cast.kind === 'raid' ? 0 : cast.x,
+    z: cast.kind === 'raid' ? 0 : cast.z, radius: cast.radius, progress, pulses: cast.pulses ?? 1 };
 }
 
 export function partyFeedback(actor: Pick<Actor, 'role' | 'hp' | 'maxHp' | 'tp'>) {

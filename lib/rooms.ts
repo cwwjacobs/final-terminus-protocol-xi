@@ -1,6 +1,6 @@
 import { applyAction, createGame, setHuman, stepGame } from "../game/engine.ts";
 import type { Action, GameState } from "../game/types.ts";
-import { migrateRevelryState } from "./state-migrations.ts";
+import { restoreSave } from "./local-save.ts";
 
 export const ROOM_TTL_MS = 24 * 60 * 60 * 1000;
 export const TRUST_TIMEOUT_MS = 8_000;
@@ -32,6 +32,14 @@ interface Occupant {
   tokenHash: string;
   lastSeen: number;
   lastSeq: number;
+  /** The latest accepted packet's receipt; older stored rooms may omit it. */
+  lastResults?: ActionReceipt[];
+}
+
+export interface ActionReceipt {
+  index: number;
+  ok: boolean;
+  error?: string;
 }
 
 /** Private persistence format. Never serialize this object to a client. */
@@ -57,6 +65,9 @@ export interface RoomSnapshot {
   slot: number;
   /** Gameplay failures (cooldown, range, TP) are safe to display to the player. */
   actionErrors?: string[];
+  /** Outcomes belong to exactly this packet and its zero-based action indexes. */
+  actionSeq?: number;
+  actionResults?: ActionReceipt[];
 }
 
 export interface RoomCredentials extends RoomSnapshot {
@@ -115,7 +126,15 @@ function parseAction(value: unknown): Action {
     }
     return { type: "magic", element: action.element } as Action;
   }
-  if (["engage", "provoke", "heal", "guard", "dodge", "start", "revelry"].includes(action.type as string)) {
+  if (action.type === "heal") {
+    exactKeys(action, ["type", "target"]);
+    if (Object.hasOwn(action, "target") && (!Number.isInteger(action.target) ||
+      (action.target as number) < 0 || (action.target as number) >= 5)) {
+      throw new RoomError(400, "Healing target must be a party slot.");
+    }
+    return { type: "heal", ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
+  }
+  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }
@@ -235,10 +254,14 @@ export function advanceRoom(room: StoredRoom, now: number): void {
   room.updatedAt = end;
 }
 
-function snapshot(room: StoredRoom, slot: number, actionErrors?: string[]): RoomSnapshot {
+function snapshot(room: StoredRoom, slot: number): RoomSnapshot {
+  const occupant = room.occupants[slot];
+  const results = occupant?.lastResults;
+  const actionErrors = results?.filter(result => !result.ok).map(result => result.error ?? "Action unavailable.");
   return {
     state: structuredClone(room.state), revision: room.revision, slot,
     ...(actionErrors?.length ? { actionErrors } : {}),
+    ...(occupant && results ? { actionSeq: occupant.lastSeq, actionResults: structuredClone(results) } : {}),
   };
 }
 
@@ -273,12 +296,11 @@ export async function handleRoomRequest(
     if (room.expiresAt <= now) throw new RoomError(410, "Room expired. Create a new encounter.");
     // Normalize trusted persisted JSON before either simulation or a duplicate
     // packet snapshot. A successful CAS below also persists the additive fields.
-    const migrated = migrateRevelryState(room.state);
+    const migrated = restoreSave(room.state);
     if (!migrated) throw new RoomError(500, "Room data is incompatible. Create a new encounter.");
-    room.state = migrated as unknown as GameState;
+    room.state = migrated;
     const previousRevision = room.revision;
     let slot: number;
-    let actionErrors: string[] | undefined;
     if (request.op === "join") {
       advanceRoom(room, now);
       slot = room.occupants.findIndex((occupant) => occupant === null);
@@ -307,18 +329,17 @@ export async function handleRoomRequest(
         occupant.lastSeen = now;
         occupant.lastSeq = request.seq;
         if (!room.state.party[slot].human) setHuman(room.state, slot, true);
-        actionErrors = [];
-        for (const action of request.actions) {
+        occupant.lastResults = request.actions.map((action, index) => {
           const result = applyAction(room.state, slot, action);
-          if (!result.ok) actionErrors.push(result.error ?? "Action unavailable.");
-        }
+          return { index, ok: result.ok, ...(!result.ok ? { error: result.error ?? "Action unavailable." } : {}) };
+        });
       }
     }
     room.revision = previousRevision + 1;
     if (!await repository.compareAndSwap(room, previousRevision)) continue;
     if (request.op === "leave") return { ok: true };
     if (request.op === "join") return { ...snapshot(room, slot), code: room.code, token };
-    return snapshot(room, slot, actionErrors);
+    return snapshot(room, slot);
   }
   throw new RoomError(409, "Room is busy. Retry this request.");
 }

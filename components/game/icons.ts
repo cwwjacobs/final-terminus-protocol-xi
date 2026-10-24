@@ -59,6 +59,10 @@ export const ICONS = {
   // Utility actions
   revelry: icon(fill('M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z')),
   provoke: icon(stroke('M6 21h12M8 20v-8h8v8M6.5 12h11M6.5 12V4h3v3h2V4h2v3h2V4h2.5v8')),
+  criticalDash: icon(stroke('M3 18 9 6M8 18 14 6M13 18 19 6'), stroke('m17 4 4 2-1 4')),
+  splitVolley: icon(stroke('M4 19 12 4l8 15M12 4v16M8 7l4-3 4 3M3 15l1 4 4-1m9-3 3 4-4-1')),
+  rapidWeave: icon(stroke('M5 8a8 8 0 0 1 14-2M19 3v4h-4M19 16A8 8 0 0 1 5 18M5 21v-4h4'), stroke('m13 8-4 5h4l-2 4 5-6h-4z')),
+  aegis: icon(stroke('M12 3 20 6v6c0 4-4 7-8 9-4-2-8-5-8-9V6z'), stroke('M12 7v9M8 11h8')),
   mend: icon(stroke('M12 4.5v15M4.5 12h15', 3)),
   guard: icon(stroke('M12 3l7 2.8v5.4c0 4.9-3 8.3-7 9.8-4-1.5-7-4.9-7-9.8V5.8z')),
   evade: icon(stroke('M6 18L18 6M9 6h9v9')),
