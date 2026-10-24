@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { HERO_ASSET_MANIFEST, HeroAssetCache, type HeroAssetSource, type HeroVisual } from '../components/game/hero-assets.ts';
+import { HERO_ANIMATION_LIBRARY, HERO_ASSET_MANIFEST, HeroAssetCache, type HeroAssetSource, type HeroVisual } from '../components/game/hero-assets.ts';
 
 const near = (actual: number, expected: number, tolerance = 1e-6) =>
   assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
@@ -62,6 +62,111 @@ function fixture() {
 const bodyOf = (visual: HeroVisual) => visual.object.getObjectByName('body') as THREE.SkinnedMesh<THREE.BufferGeometry, THREE.MeshStandardMaterial[]>;
 const spineOf = (visual: HeroVisual) => visual.object.getObjectByName('spine_01') as THREE.Bone;
 const motionOf = (visual: HeroVisual) => visual.object.children[0];
+
+function animationFixture() {
+  const source = fixture();
+  const hand = new THREE.Bone(); hand.name = 'hand_R';
+  source.spine.add(hand);
+  const library: HeroAssetSource = {
+    scene: new THREE.Group(),
+    animations: [new THREE.AnimationClip('Melee_2H_Attack_Slice', 1, [
+      new THREE.QuaternionKeyframeTrack('hand_R.quaternion', [0, 1], [
+        0, 0, 0, 1, 0, Math.sin(Math.PI / 8), 0, Math.cos(Math.PI / 8),
+      ]),
+    ])],
+  };
+  return { source, library };
+}
+
+test('the checked-in placeholder library and unfitted props stay disabled by default', async () => {
+  const { source, library } = animationFixture();
+  let requests = 0;
+  const cache = new HeroAssetCache(async () => source.asset, {
+    library: async () => { requests++; return library; },
+  });
+  try {
+    const hero = await cache.load('heracles');
+    assert.equal(requests, 0, 'the placeholder file is not requested');
+    assert.equal((await cache.loadLibrary()).size, 0);
+    assert.equal(hero.object.getObjectByName('prop:hand_R'), undefined);
+    assert.equal(hero.playCombat({ kind: 'auto', text: 'Strike' }), 0);
+    hero.update(.2, 3, true, 0);
+    assert.ok(spineOf(hero).position.x > .8, 'existing walk animation remains active');
+  } finally { cache.dispose(); }
+});
+
+test('explicit placeholder preview shares one library load but isolates actions and props', async () => {
+  const { source, library } = animationFixture();
+  const urls: string[] = [];
+  const cache = new HeroAssetCache(async () => source.asset, {
+    library: async url => { urls.push(url); return library; },
+    allowPlaceholderLibrary: true,
+  });
+  try {
+    const [a, b, c] = await Promise.all([cache.load('heracles'), cache.load('heracles'), cache.load('hecate')]);
+    assert.deepEqual(urls, [HERO_ANIMATION_LIBRARY]);
+    for (const hero of [a, b, c]) assert.ok(hero.object.getObjectByName('prop:hand_R'));
+    assert.notEqual(a.object.getObjectByName('prop:hand_R'), b.object.getObjectByName('prop:hand_R'));
+    assert.ok(a.playCombat({ kind: 'auto', text: 'Strike' }) > 0);
+    a.update(.2, 0, true, 0);
+    const handA = a.object.getObjectByName('hand_R')!, handB = b.object.getObjectByName('hand_R')!;
+    assert.ok(handA.quaternion.angleTo(new THREE.Quaternion()) > .01);
+    assert.ok(handB.quaternion.equals(new THREE.Quaternion()), 'one hero does not animate another');
+    assert.ok(source.asset.scene.getObjectByName('hand_R')!.quaternion.equals(new THREE.Quaternion()));
+  } finally { cache.dispose(); }
+});
+
+test('a disabled library overrides explicit placeholder preview', async () => {
+  const { source } = animationFixture();
+  const cache = new HeroAssetCache(async () => source.asset, { library: false, allowPlaceholderLibrary: true });
+  try {
+    assert.equal((await cache.loadLibrary()).size, 0);
+    const hero = await cache.load('heracles');
+    assert.equal(hero.object.getObjectByName('prop:hand_R'), undefined);
+  } finally { cache.dispose(); }
+});
+
+test('synchronous and asynchronous animation library failures preserve the hero fallback', async t => {
+  const warnings = t.mock.method(console, 'warn', () => {});
+  for (const synchronous of [true, false]) {
+    const { source } = animationFixture();
+    let requests = 0;
+    const cache = new HeroAssetCache(async () => source.asset, {
+      library: () => {
+        requests++;
+        if (synchronous) throw new Error('loader failed before returning');
+        return Promise.reject(new Error('library transfer failed'));
+      },
+      allowPlaceholderLibrary: true,
+    });
+    try {
+      const hero = await cache.load('heracles');
+      await cache.load('hecate');
+      assert.equal(requests, 1, 'a failed shared request is not retried for every hero');
+      assert.equal(hero.object.getObjectByName('prop:hand_R'), undefined);
+      assert.equal(hero.playCombat({ kind: 'auto', text: 'Strike' }), 0);
+      hero.update(.2, 3, true, 0);
+      assert.ok(spineOf(hero).position.x > .8);
+    } finally { cache.dispose(); }
+  }
+  assert.equal(warnings.mock.callCount(), 2);
+});
+
+test('an animation library arriving after teardown is disposed without reviving a hero', async () => {
+  const { source } = animationFixture(), library = fixture(), pending = deferred<HeroAssetSource>();
+  const geometry = disposalCount(library.geometry), material = disposalCount(library.paint);
+  const cache = new HeroAssetCache(async () => source.asset, {
+    library: () => pending.promise, allowPlaceholderLibrary: true,
+  });
+  const loading = cache.load('heracles');
+  const rejected = assert.rejects(loading, /disposed/);
+  await Promise.resolve();
+  cache.dispose();
+  pending.resolve(library.asset);
+  await rejected;
+  assert.deepEqual([geometry(), material(), library.bitmapCloses()], [1, 1, 1]);
+  assert.equal((await cache.loadLibrary()).size, 0);
+});
 
 test('five hero identifiers map only to their stable local GLB URLs', () => {
   assert.deepEqual(Object.keys(HERO_ASSET_MANIFEST).sort(), ['ariadne', 'bacchus', 'dolos', 'hecate', 'heracles']);
