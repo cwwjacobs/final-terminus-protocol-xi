@@ -2,10 +2,29 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createTouchStick, touchAxes, normalizeLayout, usesTouchLayout } from '../components/game/touch-input.ts';
 import { bindInput, deadzone, movement } from '../components/game/input.ts';
-import { bindButton, bindKey, buttonLabel, COMMANDS, defaults, keyboardEventBinding, keyLabel, normalizeControls } from '../components/game/control-settings.ts';
+import { bindButton, bindKey, bindingWarnings, buttonLabel, COMMANDS, defaults, keyboardEventBinding, keyLabel, normalizeControls } from '../components/game/control-settings.ts';
 import type { Command, ControlSettings } from '../components/game/control-settings.ts';
-import type { Action } from '../game/types.ts';
+import type { Action, Role } from '../game/types.ts';
 import type { MenuIntent } from '../components/game/command-menu.ts';
+import { createGame, applyAction } from '../game/engine.ts';
+import { withHealingTarget } from '../components/game/kit-ui.ts';
+import { cycleLivingAlly } from '../components/game/targeting.ts';
+
+// Serialized fixtures from the shipped layouts; do not derive migration inputs
+// from current defaults, which would conceal a broken version upgrade.
+function legacyControls(version: 1 | 2 | 3 = 3) {
+  const keys: Record<string, string> = {
+    forward: 'KeyW', backward: 'KeyS', left: 'KeyA', right: 'KeyD',
+    cameraLeft: 'ArrowLeft', cameraRight: 'ArrowRight', cameraUp: 'ArrowUp', cameraDown: 'ArrowDown',
+    zoomIn: 'PageUp', zoomOut: 'PageDown', recenter: 'KeyV', targetNext: 'Tab', targetPrevious: 'Shift+Tab',
+    engage: 'Space', cleave: 'Digit1', pierce: 'Digit2', resonance: 'Digit3', fire: 'Digit4', ice: 'Digit5', lightning: 'Digit6',
+    provoke: 'KeyR', heal: 'KeyF', guard: 'ShiftLeft', dodge: 'KeyC', revelry: 'KeyQ', commandMenu: 'Enter',
+  };
+  const buttons: Record<string, number> = { recenter: 11, targetNext: 10, cleave: 2, pierce: 3, resonance: 5, fire: 12, ice: 13, lightning: 14, provoke: 7, heal: 4, guard: 6, dodge: 1, revelry: 15, commandMenu: 0 };
+  if (version === 1) { delete keys.revelry; delete buttons.revelry; }
+  if (version !== 3) { delete keys.commandMenu; delete buttons.commandMenu; buttons.engage = 0; }
+  return { ...defaults(), version, keys, buttons };
+}
 
 test('controller deadzone suppresses drift, bounds malformed axes and preserves full travel', () => {
   assert.equal(deadzone(0.1), 0); assert.equal(deadzone(-0.18), 0);
@@ -62,7 +81,7 @@ test('saved settings normalize bounds, invalid types and duplicate key/button bi
   assert.equal(settings.cameraHeight, 5); assert.equal(settings.shoulderOffset, -3); assert.equal(settings.defaultDistance, 4);
   assert.equal(settings.invertMouseX, true); assert.equal(settings.invertMouseY, false);
   assert.equal('extra' in settings, false);
-  for (const bad of [null, [], 'bad', { version: 4 }]) assert.deepEqual(normalizeControls(bad), defaults());
+  for (const bad of [null, [], 'bad', { version: 5 }]) assert.deepEqual(normalizeControls(bad), defaults());
   const unbound = bindButton(bindKey(defaults(), 'engage', ''), 'engage', undefined);
   assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(unbound))), unbound);
 });
@@ -82,19 +101,40 @@ test('rebinding swaps a conflict or unbinds it, leaves source settings intact an
   assert.deepEqual(bindButton(original, 'engage', -1), original);
 });
 
-test('legacy controls gain Revelry without displacing saved bindings or resurrecting v2 unbinds', () => {
-  const legacy = JSON.parse(JSON.stringify(defaults()));
-  legacy.version = 1;
-  delete legacy.keys.revelry;
-  delete legacy.buttons.revelry;
-  const migrated = normalizeControls(legacy);
-  assert.equal(migrated.version, 3);
-  assert.equal(migrated.keys.revelry, 'KeyQ');
-  assert.equal(migrated.buttons.revelry, 15);
+test('untouched v1-v3 presets migrate to directional targeting and role slots, retaining camera preferences', () => {
+  for (const version of [1, 2, 3] as const) {
+    const old = legacyControls(version);
+    old.mouseSensitivity = 1.7; old.invertPadY = true;
+    const migrated = normalizeControls(old);
+    assert.deepEqual(migrated, { ...defaults(), mouseSensitivity: 1.7, invertPadY: true });
+    assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(migrated))), migrated);
+  }
+});
+
+test('custom v3 keys and buttons survive migration and conflicting additions are visibly unbound', () => {
+  const old = legacyControls();
+  old.keys.forward = 'KeyE'; old.keys.revelry = ''; old.buttons.heal = 8;
+  delete old.buttons.guard;
+  const migrated = normalizeControls(old);
+  assert.equal(migrated.version, 4);
+  for (const [id, key] of Object.entries(old.keys)) assert.equal(migrated.keys[id as Command], key);
+  assert.deepEqual(migrated.buttons, old.buttons);
+  assert.equal(migrated.keys.rapidWeave, '', 'must not steal a deliberately bound E key');
+  assert.equal(migrated.keys.targetAllyNext, '', 'must not steal custom camera arrows');
+  assert.equal(migrated.keys.primary1, '', 'must not steal existing explicit weaponskill keys');
+  assert.ok(bindingWarnings(migrated).some(message => message.includes('Next ally')));
+  assert.ok(bindingWarnings(migrated).some(message => message.includes('Primary ability 1')));
+  assert.ok(bindingWarnings(migrated).some(message => message.includes('Rapid Weave')));
+  assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(migrated))), migrated);
+});
+
+test('legacy custom controls gain missing commands without displacing saved bindings or resurrecting v4 unbinds', () => {
+  const legacy = legacyControls(1);
   legacy.keys.forward = 'KeyQ'; legacy.buttons.targetPrevious = 15;
-  const conflicted = normalizeControls(legacy);
-  assert.equal(conflicted.keys.forward, 'KeyQ'); assert.equal(conflicted.keys.revelry, '');
-  assert.equal(conflicted.buttons.targetPrevious, 15); assert.equal(conflicted.buttons.revelry, undefined);
+  const migrated = normalizeControls(legacy);
+  assert.equal(migrated.version, 4);
+  assert.equal(migrated.keys.forward, 'KeyQ'); assert.equal(migrated.keys.revelry, '');
+  assert.equal(migrated.buttons.targetPrevious, 15); assert.equal(migrated.buttons.revelry, undefined);
   const unbound = bindButton(bindKey(migrated, 'revelry', ''), 'revelry', undefined);
   assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(unbound))), unbound);
 });
@@ -112,7 +152,7 @@ test('keyboard capture and labels agree for Shift+Tab, modifier release and rese
 test('legacy default A migrates from engage to Commands without losing unrelated remaps', () => {
   assert.equal(defaults().keys.commandMenu, 'Enter');
   assert.equal(defaults().buttons.commandMenu, 0); assert.equal(defaults().buttons.engage, undefined);
-  const old = { ...defaults(), version: 2, keys: { ...defaults().keys }, buttons: { ...defaults().buttons, engage: 0, heal: 8 } };
+  const old = legacyControls(2); old.buttons.heal = 8;
   Reflect.deleteProperty(old.keys, 'commandMenu'); Reflect.deleteProperty(old.buttons, 'commandMenu');
   const migrated = normalizeControls(old);
   assert.equal(migrated.buttons.commandMenu, 0); assert.equal(migrated.buttons.engage, undefined);
@@ -123,7 +163,7 @@ test('legacy default A migrates from engage to Commands without losing unrelated
   assert.equal(custom.keys.heal, 'Enter'); assert.equal(custom.keys.commandMenu, '');
   const explicit = bindButton(bindKey(migrated, 'commandMenu', ''), 'engage', 0);
   assert.equal(explicit.buttons.engage, 0); assert.equal(explicit.buttons.commandMenu, undefined);
-  assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(explicit))), explicit, 'v3 choices and unbinds survive reload');
+  assert.deepEqual(normalizeControls(JSON.parse(JSON.stringify(explicit))), explicit, 'v4 choices and unbinds survive reload');
 });
 
 type FakeEvent = { prevented: boolean; preventDefault: () => void } & Record<string, unknown>;
@@ -141,18 +181,18 @@ function surface() {
   };
 }
 
-function harness(initialSettings: ControlSettings = defaults()) {
+function harness(initialSettings: ControlSettings = defaults(), routing?: { send?: (action: Action) => void; command?: (command: Command) => void }) {
   const win = surface(), doc = { ...surface(), activeElement: { tagName: 'BODY', isContentEditable: false, closest: (() => null) as (selector?: string) => object | null }, hidden: false, hasFocus: () => true };
   const pad = { connected: true, index: 0, axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) };
   const touch = createTouchStick();
-  const state = { touchEnabled: true, settings: initialSettings, enabled: true, commandOpen: false, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
+  const state = { touchEnabled: true, settings: initialSettings, enabled: true, commandOpen: false, role: 'vanguard' as Role, facing: 1.23, yaw: Math.PI, pad: null as typeof pad | null };
   const menuInputs: MenuIntent[] = [];
   const sent: Action[] = [], commands: Command[] = [], looks: number[][] = [], zooms: number[] = [], connections: boolean[] = [];
   let callback: FrameRequestCallback | null = null, now = performance.now() + 100;
   const replacements = { window: win, document: doc, navigator: { getGamepads: () => state.pad ? [state.pad] : [] }, requestAnimationFrame: (fn: FrameRequestCallback) => { callback = fn; return 1; }, cancelAnimationFrame: () => { callback = null; } };
   const descriptors = Object.fromEntries(Object.keys(replacements).map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   for (const [key, value] of Object.entries(replacements)) Object.defineProperty(globalThis, key, { value, configurable: true });
-  const cleanup = bindInput({ touch: { stick: touch, enabled: () => state.touchEnabled }, send: action => sent.push(action), getFacing: () => state.facing, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => commands.push(command), commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
+  const cleanup = bindInput({ touch: { stick: touch, enabled: () => state.touchEnabled }, send: action => { sent.push(action); routing?.send?.(action); }, getFacing: () => state.facing, getRole: () => state.role, getCameraYaw: () => state.yaw, getSettings: () => state.settings, onPad: present => connections.push(present), enabled: () => state.enabled, onCommand: command => { commands.push(command); routing?.command?.(command); }, commandMenu: { isOpen: () => state.commandOpen, onInput: intent => { menuInputs.push(intent); if (intent === 'open') state.commandOpen = true; if (intent === 'back' || intent === 'close') state.commandOpen = false; } }, onLook: (x, y) => { looks.push([x, y]); state.yaw += x; }, onZoom: delta => zooms.push(delta) });
   return {
     state, touch, sent, commands, looks, zooms, connections, menuInputs, win, doc, pad,
     frame() { now += 60; assert.ok(callback); callback(now); },
@@ -171,10 +211,10 @@ function harness(initialSettings: ControlSettings = defaults()) {
 test('camera movement preserves idle actor facing and camera-relative strafe uses the corrected basis', () => {
   const h = harness();
   try {
-    h.key('ArrowRight'); h.frame();
+    h.key('KeyL'); h.frame();
     assert.ok(h.looks.at(-1)![0] < 0); assert.equal(h.move().facing, 1.23);
     assert.equal(h.move().x, 0); assert.equal(h.move().z, 0);
-    h.key('ArrowRight', 'keyup'); h.state.yaw = Math.PI;
+    h.key('KeyL', 'keyup'); h.state.yaw = Math.PI;
     h.key('KeyD'); h.frame();
     assert.ok(h.move().x > 0.99); assert.equal(h.move().facing, Math.PI);
     h.key('KeyD', 'keyup'); h.key('KeyW'); h.frame(); assert.ok(h.move().z < -0.99);
@@ -199,20 +239,115 @@ test('Tab cycles targets in gameplay, Shift+Tab never also guards, and menus pre
   } finally { h.close(); }
 });
 
-test('Revelry keyboard and controller bindings emit one intent per press and respect menus', () => {
+test('combat arrows and D-pad split ally and enemy selection without firing magic or moving the camera', () => {
   const h = harness();
+  try {
+    for (const code of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']) { h.key(code); h.key(code, 'keyup'); }
+    assert.deepEqual(h.commands, ['targetAllyPrevious', 'targetAllyNext', 'targetPrevious', 'targetNext']);
+    h.state.pad = h.pad; h.frame();
+    for (const button of [12, 13, 14, 15]) { h.pad.buttons[button].pressed = true; h.frame(); h.pad.buttons[button].pressed = false; h.frame(); }
+    assert.deepEqual(h.commands.slice(4), ['targetAllyPrevious', 'targetAllyNext', 'targetPrevious', 'targetNext']);
+    assert.ok(h.sent.every(action => action.type === 'move'));
+    assert.equal(h.looks.length, 0);
+    h.state.commandOpen = true; h.key('ArrowUp'); h.key('ArrowRight');
+    assert.deepEqual(h.menuInputs, ['up', 'right']);
+    assert.equal(h.commands.length, 8);
+    h.state.commandOpen = false; h.doc.activeElement.tagName = 'INPUT';
+    assert.equal(h.key('ArrowDown').prevented, false);
+    assert.equal(h.commands.length, 8);
+  } finally { h.close(); }
+});
+
+test('primary keyboard and X/Y/RB slots resolve the current role on each press', () => {
+  const h = harness();
+  const expected: Record<Role, Action[]> = {
+    vanguard: [{ type: 'weapon', id: 'cleave' }, { type: 'weapon', id: 'pierce' }, { type: 'weapon', id: 'resonance' }],
+    warden: [{ type: 'weapon', id: 'cleave' }, { type: 'weapon', id: 'pierce' }, { type: 'weapon', id: 'resonance' }],
+    hunter: [{ type: 'weapon', id: 'cleave' }, { type: 'weapon', id: 'pierce' }, { type: 'weapon', id: 'resonance' }],
+    arcanist: [{ type: 'magic', element: 'fire' }, { type: 'magic', element: 'ice' }, { type: 'magic', element: 'lightning' }],
+    luminary: [{ type: 'heal' }, { type: 'aegis' }, { type: 'guard' }],
+  };
+  try {
+    h.state.pad = h.pad; h.frame();
+    for (const role of Object.keys(expected) as Role[]) {
+      h.state.role = role;
+      const before = h.sent.filter(action => action.type !== 'move').length;
+      for (const code of ['Digit1', 'Digit2', 'Digit3']) { h.key(code); h.key(code, 'keyup'); }
+      for (const button of [2, 3, 5]) { h.pad.buttons[button].pressed = true; h.frame(); h.pad.buttons[button].pressed = false; h.frame(); }
+      assert.deepEqual(h.sent.filter(action => action.type !== 'move').slice(before), [...expected[role], ...expected[role]]);
+    }
+    h.state.settings = bindButton(bindKey(h.state.settings, 'primary1', 'KeyH'), 'primary1', 8); h.frame();
+    h.state.role = 'arcanist'; h.key('KeyH');
+    assert.deepEqual(h.sent.at(-1), { type: 'magic', element: 'fire' });
+  } finally { h.close(); }
+});
+
+test('Mend routes the selected ally from keyboard and role/controller slots while menu arrows stay isolated', () => {
+  for (const route of ['KeyF', 'Digit1', 2, 4] as const) {
+    const game = createGame(); applyAction(game, 4, { type: 'start' });
+    game.party[0].hp -= 500; game.party[1].hp = 100;
+    const before = game.party[0].hp;
+    let selected: number | null = null;
+    const applied: Action[] = [];
+    const h = harness(defaults(), {
+      command: command => {
+        if (command === 'targetAllyNext' || command === 'targetAllyPrevious') selected = cycleLivingAlly(selected, game.party, command === 'targetAllyPrevious' ? -1 : 1);
+      },
+      send: input => {
+        if (input.type === 'move') return;
+        const action = withHealingTarget(input, selected);
+        applied.push(action);
+        const result = applyAction(game, 4, action);
+        assert.equal(result.ok, true, result.error);
+        if (action.type === 'heal' && action.target !== undefined) selected = null;
+      },
+    });
+    try {
+      h.state.role = 'luminary';
+      h.key('ArrowDown'); h.key('ArrowDown', 'keyup');
+      assert.equal(selected, 0);
+      h.state.commandOpen = true;
+      h.key('ArrowDown'); h.key('ArrowDown', 'keyup'); h.key('Digit1'); h.key('Digit1', 'keyup');
+      assert.equal(selected, 0, 'menu navigation cannot replace the selected ally');
+      assert.deepEqual(h.menuInputs, ['down']);
+      assert.equal(applied.length, 0, 'a primary shortcut cannot leak through the command menu');
+      h.state.commandOpen = false;
+      if (typeof route === 'number') {
+        h.state.pad = h.pad; h.frame();
+        h.pad.buttons[route].pressed = true; h.frame();
+      } else { h.key(route); h.key(route, 'keyup'); }
+      assert.deepEqual(applied, [{ type: 'heal', target: 0 }]);
+      assert.ok(game.party[0].hp > before, 'Mend must heal the selected ally');
+      assert.equal(game.party[1].hp, 100, 'manual Mend must not substitute the lowest-health ally');
+      assert.equal(selected, null, 'a successful manual heal returns to automatic selection');
+    } finally { h.close(); }
+  }
+});
+
+test('new techniques have independent remappable intents without using the D-pad', () => {
+  const h = harness();
+  try {
+    for (const code of ['KeyZ', 'KeyX', 'KeyE', 'KeyT']) { h.key(code); h.key(code, 'keydown', { repeat: true }); h.key(code, 'keyup'); }
+    assert.deepEqual(h.sent, [{ type: 'criticalDash' }, { type: 'splitVolley' }, { type: 'rapidWeave' }, { type: 'aegis' }]);
+    h.state.commandOpen = true; h.key('KeyE');
+    assert.equal(h.sent.length, 4);
+  } finally { h.close(); }
+});
+
+test('Revelry keyboard and controller bindings emit one intent per press and respect menus', () => {
+  const h = harness(bindButton(defaults(), 'revelry', 8));
   try {
     h.key('KeyQ'); h.key('KeyQ', 'keydown', { repeat: true }); h.key('KeyQ', 'keyup');
     assert.equal(h.sent.filter(action => action.type === 'revelry').length, 1);
     h.state.pad = h.pad; h.frame();
-    h.pad.buttons[15].pressed = true; h.frame(); h.frame();
+    h.pad.buttons[8].pressed = true; h.frame(); h.frame();
     assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
     h.state.enabled = false; h.key('KeyQ');
-    h.pad.buttons[15].pressed = false; h.frame(); h.pad.buttons[15].pressed = true; h.frame();
+    h.pad.buttons[8].pressed = false; h.frame(); h.pad.buttons[8].pressed = true; h.frame();
     assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
     h.state.enabled = true; h.frame();
     assert.equal(h.sent.filter(action => action.type === 'revelry').length, 2);
-    h.pad.buttons[15].pressed = false; h.frame();
+    h.pad.buttons[8].pressed = false; h.frame();
     h.state.settings = bindKey(h.state.settings, 'revelry', 'KeyT'); h.frame();
     h.key('KeyQ'); h.key('KeyT');
     assert.equal(h.sent.filter(action => action.type === 'revelry').length, 3);

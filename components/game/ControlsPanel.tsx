@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { COMMANDS, bindButton, bindKey, buttonLabel, defaults, keyboardEventBinding, keyLabel, type Command, type ControlSettings } from './control-settings';
+import { COMMANDS, bindButton, bindKey, bindingWarnings, buttonLabel, defaults, keyboardEventBinding, keyLabel, type Command, type ControlSettings } from './control-settings';
 import Icon from './Icon';
 
 interface Props { value: ControlSettings; onChange: (value: ControlSettings) => void; onRecenter: () => void }
@@ -50,7 +50,9 @@ export default function ControlsPanel({ value, onChange, onRecenter }: Props) {
       </div>
     </details>
     <h3>Make the controls yours</h3>
-    <p>Choose a key button, then press its replacement. Escape cancels. By default, Tab cycles enemies; Shift + Tab cycles back. A single enemy remains selected and flashes its marker on every press. Menu Tab keeps normal keyboard navigation.</p>
+    <p>Choose a key button, then press its replacement. Escape cancels. By default, ← / → and D-pad left / right cycle enemies; ↑ / ↓ and D-pad up / down cycle living allies. Tab / Shift + Tab also cycle enemies. Ally selection never changes your enemy lock. I / K look up / down; J / L look left / right. A single enemy remains selected and flashes its marker on every press. Menu Tab keeps normal keyboard navigation.</p>
+    <p>Primary abilities use 1 / 2 / 3 and X / Y / RB: martial roles use weaponskills, Hecate uses Fire / Ice / Lightning, and Ariadne uses Mend / Aegis / Guard. Other techniques remain available through Commands and the bindings below.</p>
+    {bindingWarnings(value).length > 0 && <div className="binding-notice" role="status">{bindingWarnings(value).map(warning => <p key={warning}>{warning}</p>)}</div>}
     <p className="binding-notice" role="status">{capturing ? `Listening for ${COMMANDS.find(c => c.id === capturing)?.label}…` : notice}</p>
     {Array.from(new Set(COMMANDS.map(c => c.group))).map(group => <details className="control-options" key={group} open={group === 'Targeting'}><summary>{group}</summary>
       <div className="binding-head" aria-hidden="true"><span>Action</span><span>Keyboard</span><span>Controller</span></div>

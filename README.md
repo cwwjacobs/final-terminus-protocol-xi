@@ -41,7 +41,7 @@ Open the URL printed by the server. For a local preview of the built Worker, use
 
 1. Choose **Enter the encounter**, use Space, or open **Commands → Attack**. Move within weapon range and stay engaged to auto attack. Enter/controller A opens Commands; a separate press confirms the highlighted choice.
 2. At **1,000 TP**, choose a weaponskill. It spends all accumulated TP; higher TP increases its damage.
-3. A **different party member** uses the matching follow-up weaponskill **1.5–8 seconds** after the opener.
+3. A **different party member** uses the matching follow-up weaponskill **1.5–8 seconds** after the opener. Dolos can earn one self-close with Split Volley.
 4. Cast the matching element during the resulting **8-second Magic Burst window**. Trusts coordinate their own chains, bursts, healing and enmity management.
 5. Move out of ground circles and cones, guard raid pulses, and keep the party alive through all three boss phases.
 
@@ -53,7 +53,7 @@ Open the URL printed by the server. For a local preview of the built Worker, use
 
 Damage and healing generate enmity. Provoke adds a large temporary spike; volatile enmity decays while cumulative enmity persists until reduced by combat. The party panel shows relative threat and the current target.
 
-In solo play, click any party member to control their role; the previous character becomes a trust. **Settings** lets you prepare a fresh trial or god encounter, pause local simulation, save, select performance graphics or enable character wireframes. Online play assigns each player one slot.
+Party selections choose a friendly Mend target. To change characters in solo play, open **Party → Take control**; the previous character becomes a trust. **Settings** lets you prepare a fresh trial or god encounter, pause local simulation, save, select performance graphics or enable character wireframes. Online play assigns each player one slot.
 
 The god encounter has a **7:30 combat deadline**. Coherence Collapse warns at 30 seconds remaining and begins its final cast at 10 seconds. Defeat Crown Resonance before it completes; the collapse cannot be guarded or evaded. Preparation time does not consume this deadline.
 
@@ -64,16 +64,19 @@ Open **Settings → Controls & camera** to remap keyboard keys and controller bu
 | Action | Default keyboard / mouse | Standard controller |
 | --- | --- | --- |
 | Move relative to camera | WASD | Left stick |
-| Orbit and pitch camera | Drag battlefield; arrow keys | Right stick horizontal and vertical |
+| Orbit and pitch camera | Drag battlefield; I / J / K / L | Right stick horizontal and vertical |
 | Zoom | Mouse wheel; Page Up / Page Down | Assign buttons in Controls & camera |
 | Recenter behind character | V | Right-stick click |
-| Cycle enemy target | Tab; Shift + Tab reverses | Left-stick click |
+| Cycle enemy target | Left / Right arrows; Tab / Shift + Tab | D-pad Left / Right; left-stick click |
+| Cycle friendly Mend target | Up / Down arrows | D-pad Up / Down |
 | Open Commands | Enter | A |
 | Navigate Commands | Arrow keys | D-pad |
 | Select / back in Commands | Enter / Escape | A / B |
 | Engage / disengage | Space; Commands → Attack / Disengage | Commands → Attack / Disengage |
-| Arc Cleave / Vector Pierce / Resonance | 1 / 2 / 3 | X / Y / RB |
-| Fire / Ice / Lightning | 4 / 5 / 6 | D-pad Up / Down / Left |
+| Role primary actions | 1 / 2 / 3 | X / Y / RB |
+| Fire / Ice / Thunder | Hecate primaries; 4 / 5 / 6 | Hecate: X / Y / RB |
+| Critical Dash / Split Volley / Rapid Weave / Aegis | Z / X / E / T | Commands; remappable |
+| Revelry | Q | Commands; remappable |
 | Provoke | R | RT |
 | Mend | F | LB |
 | Guard | Left Shift (release) | LT |
@@ -85,13 +88,29 @@ Tab always selects/cycles the available enemy, including when Crown Resonance is
 
 Click a key binding and press a replacement; Escape cancels. Conflicts swap the previous key/button where possible or clear the displaced binding. Ctrl/Meta/Alt/browser shortcuts remain reserved. Modifier-only combat keys activate on release so Shift + Tab does not also trigger Guard. Menus preserve normal Tab navigation and suppress gameplay; wheel zoom applies only on the battlefield. Lost focus clears held input.
 
-Controller labels use the standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical hardware remains unverified. Left/right stick axes are fixed, while action buttons and their inversion/sensitivity settings are configurable. Within Commands, arrows/D-pad navigate, Enter/A selects, and Escape/B goes back; these navigation controls are fixed. Settings dialogs retain normal keyboard and Tab navigation. The menu opener is remappable; older saved default A-to-engage bindings migrate to A-to-Commands.
+Controller labels use the standard Xbox-style browser mapping. Press a controller button to expose it to the browser. Physical hardware remains unverified. Left/right stick axes are fixed, while action buttons and their inversion/sensitivity settings are configurable. Within Commands, arrows/D-pad navigate, Enter/A selects, and Escape/B goes back; these navigation controls are fixed. Settings dialogs retain normal keyboard and Tab navigation. The menu opener is remappable; untouched older defaults migrate to the current directional targeting and role-primary layout. Custom mappings stay intact, with a notice for newly unbound commands.
 
-The compact console keeps resources and Revelry visible; **Show quick actions** expands the hotbar. Commands has Attack, Spells → Allies / Adversaries, Abilities, Weapon Abilities, Items and Disengage. Available actions follow the controlled role. Mend retains its existing lowest-health-ally targeting. Items is explicitly unavailable until inventory exists. Combat continues while choosing; movement, camera and combat shortcuts are suppressed while Commands owns input.
+The compact console keeps resources and Revelry visible; **Show quick actions** expands the hotbar. Commands has Attack, Spells → Allies / Adversaries, Abilities, Weapon Abilities, Items and Disengage. Available actions follow the controlled role. Mend automatically chooses the lowest HP percentage in range, or honors the selected friendly target. A successful manual Mend returns targeting to Auto; rejected targets remain selected. Items is explicitly unavailable until inventory exists. Combat continues while choosing; movement, camera and combat shortcuts are suppressed while Commands owns input.
 
 World feedback shows damage and healing at their targets, with separate chain/burst labels. Ground markers distinguish role and selection; gold TP cues apply to living weapon users, while low HP has a steady warning. Feedback pools are bounded, and reduced-motion preferences suppress number lift and decorative expansion. See [docs/QOL-PORT.md](docs/QOL-PORT.md).
 
 Buttons in the HUD also perform combat actions. Bacchus, Heracles and Dolos use weaponskills; Hecate casts magic; Ariadne heals; Heracles provokes. Everyone can engage, move, guard and evade.
+
+## Character mechanics
+
+Every activated ability has an individual cooldown. Ordinary physical criticals deal 1.5× damage; extra auto hits cannot recursively trigger themselves.
+
+| Character | Secondary traits and technique |
+| --- | --- |
+| Bacchus | 10% crit, 15% extra half-strength auto hit. Critical Dash: three guaranteed 2× hits, TP per hit, return to start; 45s recast. Revelry remains available. |
+| Heracles | 5% crit, 10% extra auto hit, +30% enmity, 10% physical damage reduction. |
+| Dolos | 15% crit, +25% outgoing TP. Split Volley: five arrows, 1,250 TP total, one self-chain permission for 8s; 45s recast. |
+| Hecate | Three distinct spells within 12s refund 140 MP; +10% matching burst damage. Fire/Ice/Thunder each have 6s recasts and 2s normal spell recovery. Rapid Weave permits two rapid casts per element with 0.5s recovery, for 12s; 180s recast. |
+| Ariadne | +20% healing below 35% HP; 25% less healing enmity. Luminous Aegis grants each living ally within 18 units one hit of invulnerability; 120 MP, 90s recast. |
+
+Regent's Decree marks one ally in phases 2–3. Terminal Echo adds two raid pulses a second apart in phase 3; a single shield charge blocks only the first eligible hit. Collapse still defeats the party at the deadline.
+
+The approved map and evidence are in [mechanics UKSL](docs/mechanics-uksl.md) and [mechanics verification](docs/MECHANICS-VERIFICATION.md). Character animation work is owned separately by Claude.
 
 ## Online parties and saves
 
@@ -110,6 +129,6 @@ Solo state and graphics preferences are saved in this browser's local storage. S
 - The renderer instances scenery, batches procedural parts, pools effects and caps pixel ratio. Painted heroes use cached GLBs, shared geometry/textures and independent skeletons, mixers and mutable materials; the scaffold remains available. The five asset files total **21,204,844 bytes and 124,998 triangles** before scene/render passes. These are asset measurements, not a performance benchmark. High quality enables shadows and up to 1.5× pixel ratio; Performance uses up to 1× and disables shadows. The HUD exposes FPS, draw calls and triangle counts.
 - Automated tests exercise chain/burst windows, enmity, trust behavior, telegraphs, deterministic replay, complete scripted encounters, room concurrency, ownership, isolation and malformed input.
 
-The active programmed player simulation currently finishes the trial in **116.50 seconds** and the god encounter in **363.85 seconds**, across three phases. The idle-leader god scenario loses at the **450-second** collapse deadline. That is evidence that the loop can sustain a roughly six-minute scripted fight and requires participation under those test policies; it is **not a human balance study or a guaranteed play duration**. Browser gameplay, multi-device network conditions and physical controller behavior require their own verification; passing the kernel tests does not prove them.
+The fixed-seed active input simulations for all five controlled roles finish trial in **108–115 seconds** and god in **320–330 seconds**, with all five party members alive. Reproduce them with `node --experimental-strip-types scripts/verify-mechanics-encounters.mjs`. The idle-leader god scenario loses at the **450-second** collapse deadline. That is evidence that the loop can sustain a roughly six-minute scripted fight and requires participation under those test policies; it is **not a human balance study or a guaranteed play duration**. Browser gameplay, multi-device network conditions and physical controller behavior require their own verification; passing the kernel tests does not prove them.
 
 There is no open world, progression economy, inventory, matchmaking, finished animation library or persistent account progression yet. The module boundaries are described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For small, targeted changes to balance, kits, art, maps or transport, use [docs/UPGRADING.md](docs/UPGRADING.md).

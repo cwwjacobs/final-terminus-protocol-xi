@@ -6,6 +6,7 @@ const SVG = 'http://www.w3.org/2000/svg';
 const colors: Record<CombatNumber['tone'], { face: string; depth: string }> = {
   damage: { face: '#fff0ce', depth: '#8c6a2a' }, hurt: { face: '#ffac9b', depth: '#8a3a2c' }, heal: { face: '#bcffdf', depth: '#2d7a58' },
   chain: { face: '#e2baff', depth: '#6b3d9c' }, burst: { face: '#bceeff', depth: '#2c6a90' },
+  critical: { face: '#fff6a7', depth: '#a75e13' },
 };
 /** Camera distance at which a number is drawn at its base size; the default follow distance. */
 const REFERENCE_DISTANCE = 12;
@@ -95,7 +96,7 @@ export class FloatingFeedback {
   private write(index: number, feedback: CombatNumber): void {
     const label = this.labels[index], layout = layoutGlyphs(feedback.text), tone = colors[feedback.tone];
     const em = feedback.tone === 'burst' || feedback.tone === 'chain' ? 21 : 19;
-    label.dataset.value = feedback.text;
+    label.dataset.value = feedback.text; label.dataset.tone = feedback.tone;
     label.setAttribute('viewBox', `0 ${GLYPH_TOP} ${layout.width + DEPTH_X} ${GLYPH_HEIGHT + DEPTH_Y}`);
     label.setAttribute('width', ((layout.width + DEPTH_X) * em / GLYPH_EM).toFixed(1));
     label.setAttribute('height', ((GLYPH_HEIGHT + DEPTH_Y) * em / GLYPH_EM).toFixed(1));

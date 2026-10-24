@@ -214,9 +214,9 @@ test('closer and mage use their own stacks once for skillchains and Magic Bursts
   assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 770);
   assert.equal(state.events.find(e => e.kind === 'chain')?.value, 693, '630 chain base scales once, not from already boosted770 weaponskill');
   applyAction(state, 3, { type: 'magic', element: 'fire' });
-  assert.equal(state.events.at(-1)?.value, 1275);
+  assert.equal(state.events.at(-1)?.value, 1403, 'Magic Burst includes Hecate’s 10% trait bonus.');
   assert.equal(state.events.at(-1)?.kind, 'burst');
-  state.party[3].cooldowns.magic = 0;
+  stepGame(state, 2);
   applyAction(state, 3, { type: 'magic', element: 'ice' });
   assert.equal(state.events.at(-1)?.value, 313);
   assert.equal(state.events.at(-1)?.kind, 'magic');
@@ -236,7 +236,7 @@ test('physical and magical damage channels stay distinct when role attack bases 
     assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 1435, '700 ×205 Physical attack /100');
     assert.equal(state.events.find(e => e.kind === 'chain')?.value, 977, '630 ×155 Magic attack /100');
     applyAction(state, 3, { type: 'magic', element: 'fire' });
-    assert.equal(state.events.at(-1)?.value, 1581, '1020 ×155 Magic attack /100');
+    assert.equal(state.events.at(-1)?.value, 1739, '1020 ×155 Magic attack /100 ×1.1 burst trait');
   } finally {
     Object.assign(ROLES.hunter, hunter);
     Object.assign(ROLES.arcanist, arcanist);

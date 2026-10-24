@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createGame } from '../game/engine.ts';
-import { combatNumber, CombatNumberPool, partyFeedback, PresentationEvents, type CombatEvent, type CombatNumber } from '../components/game/world-feedback.ts';
+import { actorStatusFeedback, bossWarning, combatNumber, CombatNumberPool, immediateImpact, partyFeedback, PresentationEvents, type CombatEvent, type CombatNumber } from '../components/game/world-feedback.ts';
 import { FloatingFeedback, depthScale, punchScale } from '../components/game/floating-feedback.ts';
 import { GLYPHS, MAX_GLYPHS_PER_NUMBER, layoutGlyphs } from '../components/game/combat-glyphs.ts';
 
@@ -65,6 +65,66 @@ test('malformed/non-damage events cannot create false numbers or arbitrary targe
   for (const value of [0, -3, NaN, Infinity]) assert.equal(combatNumber({ ...damage(1), value }, state), null);
   for (const target of [-1, 5, .5, NaN])
     assert.equal(combatNumber({ ...damage(1), kind: 'heal', target }, state), null);
+});
+
+test('physical criticals use their explicit flag and each scheduled hit retains its own number', () => {
+  const state = createGame('trial'), pool = new CombatNumberPool(8);
+  for (let i = 0; i < 3; i++) {
+    const event = { ...damage(i + 1), kind: 'weapon', source: 'criticalDash', critical: true, value: 224 };
+    const number = combatNumber(event, state)!;
+    assert.deepEqual(number, { id: i + 1, target: 'boss', text: '224', tone: 'critical' });
+    assert.equal(immediateImpact(event), true);
+    pool.spawn(number, { x: 0, y: 3, z: 0 });
+  }
+  assert.deepEqual(pool.slots.filter(slot => slot.feedback).map(slot => slot.feedback?.id), [1, 2, 3]);
+  assert.equal(new Set(pool.slots.filter(slot => slot.feedback).map(slot => slot.lane)).size, 3);
+  assert.equal(combatNumber({ ...damage(4), text: 'CRITICAL DASH x3!!' }, state)?.tone, 'damage', 'human-readable text cannot invent a critical');
+  assert.equal(combatNumber({ ...damage(5), kind: 'magic', critical: true }, state)?.tone, 'damage', 'physical critical styling never leaks into magic');
+  assert.equal(immediateImpact({ ...damage(6), kind: 'weapon', source: 'splitVolley' }), true);
+  assert.equal(immediateImpact({ ...damage(7), kind: 'weapon' }), false);
+  assert.equal(combatNumber({ ...damage(8), kind: 'shield', target: 2, value: 0 }, state), null, 'a prevented hit is not HP damage');
+});
+
+test('persistent shield, refresh and friendly-selection cues follow living actor state', () => {
+  const actor = createGame('trial').party[3];
+  assert.deepEqual(actorStatusFeedback(actor), { shielded: false, rapidWeave: false, selected: false });
+  actor.shieldCharges = 1;
+  actor.rapidWeave = { remaining: 8, charges: { fire: 2, ice: 2, lightning: 2 }, refresh: { fire: 0, ice: 0, lightning: 0 } };
+  assert.deepEqual(actorStatusFeedback(actor, true), { shielded: true, rapidWeave: true, selected: true });
+  actor.shieldCharges = 0;
+  assert.equal(actorStatusFeedback(actor).shielded, false, 'consumption removes the shield without waiting for a presentation timer');
+  actor.rapidWeave.charges = { fire: 0, ice: 0, lightning: 0 };
+  assert.equal(actorStatusFeedback(actor).rapidWeave, false);
+  actor.rapidWeave.charges.fire = 1; actor.rapidWeave.remaining = 0;
+  assert.equal(actorStatusFeedback(actor).rapidWeave, false, 'expired charges cannot imply an available refresh');
+  actor.hp = 0; actor.shieldCharges = 1; actor.rapidWeave.remaining = 8;
+  assert.deepEqual(actorStatusFeedback(actor, true), { shielded: false, rapidWeave: false, selected: false });
+});
+
+test('Decree tracks its cast-start actor and fizzles visually on death instead of becoming ground avoidance', () => {
+  const state = createGame('trial');
+  state.boss.cast = { name: 'A label is not targeting data', kind: 'circle', abilityId: 'regentsDecree', target: 1,
+    x: 99, z: 99, radius: 0, angle: 0, remaining: 2, total: 3 };
+  state.party[1].x = 4; state.party[1].z = 6;
+  const warning = bossWarning(state)!;
+  assert.equal(warning.kind, 'target'); assert.equal(warning.target, 1); assert.equal(warning.radius, 0);
+  assert.equal(warning.x, 4); assert.equal(warning.z, 6);
+  state.party[1].x = 7; state.boss.target = 2;
+  assert.equal(bossWarning(state)?.x, 7, 'marker follows the chosen actor');
+  assert.equal(bossWarning(state)?.target, 1, 'enmity changes cannot transfer the marker');
+  state.party[1].hp = 0;
+  assert.equal(bossWarning(state), null);
+});
+
+test('Echo pulse count and progress come from each authoritative cast stage', () => {
+  const state = createGame('trial');
+  state.boss.cast = { name: 'Echo', kind: 'raid', abilityId: 'terminalEcho', pulses: 2,
+    x: 5, z: 5, radius: 25, angle: 0, remaining: 4, total: 4 };
+  assert.deepEqual(bossWarning(state), { kind: 'raid', target: null, x: 0, z: 0, radius: 25, progress: 0, pulses: 2 });
+  state.boss.cast.pulses = 1; state.boss.cast.remaining = .5; state.boss.cast.total = 1;
+  assert.equal(bossWarning(state)?.pulses, 1); assert.equal(bossWarning(state)?.progress, .5);
+  state.boss.cast = null;
+  assert.equal(bossWarning(state), null);
 });
 
 test('fixed number pool copies coordinates, spaces concurrent targets and evicts oldest', () => {

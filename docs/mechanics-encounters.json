@@ -1,0 +1,122 @@
+[
+  {
+    "mode": "trial",
+    "role": "Bacchus",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 113.05,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 35,
+    "bursts": 17,
+    "newHits": 24
+  },
+  {
+    "mode": "trial",
+    "role": "Heracles",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 113.45,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 35,
+    "bursts": 17,
+    "newHits": 24
+  },
+  {
+    "mode": "trial",
+    "role": "Dolos",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 108.6,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 33,
+    "bursts": 19,
+    "newHits": 24
+  },
+  {
+    "mode": "trial",
+    "role": "Hecate",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 108.45,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 34,
+    "bursts": 19,
+    "newHits": 24
+  },
+  {
+    "mode": "trial",
+    "role": "Ariadne",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 114.1,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 35,
+    "bursts": 16,
+    "newHits": 24
+  },
+  {
+    "mode": "god",
+    "role": "Bacchus",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 326.2,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 104,
+    "bursts": 59,
+    "newHits": 59
+  },
+  {
+    "mode": "god",
+    "role": "Heracles",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 327.45,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 104,
+    "bursts": 58,
+    "newHits": 64
+  },
+  {
+    "mode": "god",
+    "role": "Dolos",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 327.65,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 99,
+    "bursts": 55,
+    "newHits": 64
+  },
+  {
+    "mode": "god",
+    "role": "Hecate",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 320.65,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 101,
+    "bursts": 58,
+    "newHits": 59
+  },
+  {
+    "mode": "god",
+    "role": "Ariadne",
+    "seed": 123,
+    "status": "victory",
+    "seconds": 329.05,
+    "bossHp": 0,
+    "alive": 5,
+    "chains": 103,
+    "bursts": 60,
+    "newHits": 59
+  }
+]

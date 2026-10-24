@@ -41,16 +41,17 @@ test('nested spells preserve ally/adversary meaning and back closes one level at
   menu = navigateCommands(menu, 'left', []).state; assert.equal(menu.page, 'root');
   menu = navigateCommands(menu, 'back', []).state; assert.equal(menu.open, false);
   const ally = commandEntries(game, 4, 'allies');
-  assert.deepEqual(ally[0].action, { type: 'heal' }); assert.match(ally[0].detail, /encounter/);
+  assert.deepEqual(ally[0].action, { type: 'heal' }); assert.match(ally[0].detail, /Engage/);
   applyAction(game, 4, { type: 'start' });
+  game.party[0].hp -= 100; game.party[0].x = game.party[4].x; game.party[0].z = game.party[4].z;
   assert.match(commandEntries(game, 4, 'allies')[0].detail, /lowest-health/);
 });
 
 test('role-filtered pages expose only existing permissions, with honest empty categories', () => {
   const game = createGame();
-  assert.deepEqual(commandEntries(game, 0, 'abilities').map(row => row.id), ['revelry', 'guard', 'dodge']);
+  assert.deepEqual(commandEntries(game, 0, 'abilities').map(row => row.id), ['revelry', 'criticalDash', 'guard', 'dodge']);
   assert.deepEqual(commandEntries(game, 1, 'abilities').map(row => row.id), ['provoke', 'guard', 'dodge']);
-  for (const slot of [2, 3, 4]) assert.deepEqual(commandEntries(game, slot, 'abilities').map(row => row.id), ['guard', 'dodge']);
+  for (const [slot, signature] of [[2, 'splitVolley'], [3, 'rapidWeave'], [4, 'aegis']] as const) assert.deepEqual(commandEntries(game, slot, 'abilities').map(row => row.id), [signature, 'guard', 'dodge']);
   for (const slot of [0, 1, 2]) assert.equal(commandEntries(game, slot, 'weapons').length, 3);
   for (const slot of [3, 4]) assert.deepEqual(commandEntries(game, slot, 'weapons'), []);
   for (const slot of [0, 1, 2, 4]) assert.deepEqual(commandEntries(game, slot, 'adversaries'), []);
@@ -66,8 +67,9 @@ test('fresh resource/cooldown state blocks stale selections without mutating com
   const before = JSON.stringify(game);
   assert.equal(navigateCommands(menu, 'confirm', commandEntries(game, 0, 'weapons')).action, undefined);
   assert.equal(JSON.stringify(game), before);
-  game.party[0].tp = 1000; game.party[0].cooldowns.weapon = 2;
-  assert.equal(commandUnavailable(game, 0, { type: 'weapon', id: 'cleave' }), '2s cooldown');
+  game.party[0].tp = 1000; game.party[0].cooldowns['weapon:cleave'] = 2;
+  assert.match(commandUnavailable(game, 0, { type: 'weapon', id: 'cleave' })!, /cooldown/);
+  assert.equal(commandUnavailable(game, 0, { type: 'weapon', id: 'pierce' }), null, 'independent weaponskill recast');
   game.party[3].mp = 69;
   assert.equal(commandEntries(game, 3, 'adversaries')[0].disabled, true);
   game.party[0].hp = 0;

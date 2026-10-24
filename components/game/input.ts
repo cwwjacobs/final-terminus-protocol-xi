@@ -1,5 +1,5 @@
-import type { Action } from '../../game/types.ts';
-import { COMMANDS, keyboardEventBinding, normalizeControls } from './control-settings.ts';
+import type { Action, Role } from '../../game/types.ts';
+import { COMMANDS, keyboardEventBinding, normalizeControls, primaryCommand } from './control-settings.ts';
 import type { Command, ControlSettings } from './control-settings.ts';
 import type { MenuIntent } from './command-menu.ts';
 import { resetTouchStick, type InputMode, type TouchStickState } from './touch-input.ts';
@@ -11,6 +11,7 @@ export const movement = (x: number, z: number, yaw: number) => ({ x: bounded(-Ma
 export interface InputOptions {
   send: (action: Action) => void;
   getFacing: () => number;
+  getRole?: () => Role;
   getCameraYaw: () => number;
   getSettings: () => ControlSettings;
   onPad: (present: boolean) => void;
@@ -28,7 +29,8 @@ const combat: Partial<Record<Command, Action>> = {
   pierce: { type: 'weapon', id: 'pierce' }, resonance: { type: 'weapon', id: 'resonance' },
   fire: { type: 'magic', element: 'fire' }, ice: { type: 'magic', element: 'ice' }, lightning: { type: 'magic', element: 'lightning' },
   provoke: { type: 'provoke' }, heal: { type: 'heal' }, guard: { type: 'guard' }, dodge: { type: 'dodge' },
-  revelry: { type: 'revelry' },
+  revelry: { type: 'revelry' }, criticalDash: { type: 'criticalDash' },
+  splitVolley: { type: 'splitVolley' }, rapidWeave: { type: 'rapidWeave' }, aegis: { type: 'aegis' },
 };
 const continuous = new Set<Command>(['forward', 'backward', 'left', 'right', 'cameraLeft', 'cameraRight', 'cameraUp', 'cameraDown', 'zoomIn', 'zoomOut']);
 const modifier = (code: string) => code === 'ShiftLeft' || code === 'ShiftRight';
@@ -66,6 +68,9 @@ export function bindInput(options: InputOptions): () => void {
   }
   function fire(command: Command) {
     if (command === 'commandMenu' && commandMenu) { clearHeld(); commandMenu.onInput('open'); return; }
+    if (command === 'primary1' || command === 'primary2' || command === 'primary3') command = primaryCommand(options.getRole?.() ?? 'vanguard', command);
+    if (command === 'targetEnemyNext') command = 'targetNext';
+    if (command === 'targetEnemyPrevious') command = 'targetPrevious';
     const action = combat[command];
     if (action) send(action);
     else if (!continuous.has(command)) onCommand(command);

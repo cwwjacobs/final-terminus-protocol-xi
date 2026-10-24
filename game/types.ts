@@ -8,8 +8,12 @@ export type Action =
   | { type: 'weapon'; id: WeaponId }
   | { type: 'magic'; element: Element }
   | { type: 'revelry' }
+  | { type: 'criticalDash' }
+  | { type: 'splitVolley' }
+  | { type: 'rapidWeave' }
+  | { type: 'aegis' }
   | { type: 'provoke' }
-  | { type: 'heal' }
+  | { type: 'heal'; target?: number }
   | { type: 'guard' }
   | { type: 'dodge' }
   | { type: 'start' };
@@ -39,6 +43,13 @@ export interface Actor {
   guardUntil: number;
   dodgeUntil: number;
   aiTimer: number;
+  shieldCharges: number;
+  recovery: number;
+  spellRecovery: number;
+  selfChainUntil: number;
+  rapidWeave: null | { remaining: number; charges: Record<Element, number>; refresh: Record<Element, number> };
+  elementalCycle: { elements: Element[]; remaining: number };
+  sequence: null | { id: number; kind: 'criticalDash' | 'splitVolley'; elapsed: number; nextHit: number; landedHits: number; originX: number; originZ: number };
 }
 
 export interface BossCast {
@@ -50,10 +61,15 @@ export interface BossCast {
   z: number;
   radius: number;
   angle: number;
+  abilityId?: string;
+  target?: number;
+  pulses?: number;
 }
 
 export interface GameState {
-  version: 1;
+  version: 2;
+  rng: number;
+  sequenceSeq: number;
   time: number;
   combatTime: number;
   tick: number;
@@ -74,11 +90,12 @@ export interface GameState {
     attackTimer: number;
     specialTimer: number;
     castCount: number;
+    cooldowns: Record<string, number>;
     cast: BossCast | null;
   };
   chain: null | { property: string; opener: number; remaining: number; weapon: WeaponId; openedAt: number };
   burst: null | { element: Element; remaining: number };
-  events: { id: number; time: number; kind: string; text: string; actor?: number; value?: number; target?: number }[];
+  events: { id: number; time: number; kind: string; text: string; actor?: number; value?: number; target?: number; source?: string; critical?: boolean; sequenceId?: number; hitIndex?: number }[];
 }
 
 export interface ActionResult { ok: boolean; error?: string }
