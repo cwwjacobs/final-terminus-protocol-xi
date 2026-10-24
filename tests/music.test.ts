@@ -24,11 +24,11 @@ class Media extends EventTarget implements MusicMedia {
 const settle = async () => { await Promise.resolve(); await Promise.resolve(); };
 
 test('music settings bound volume, reject malformed types and retain explicit silence', () => {
-  assert.deepEqual(normalizeMusicSettings(null), { enabled: true, muted: false, volume: .3 });
+  assert.deepEqual(normalizeMusicSettings(null), { enabled: true, muted: false, volume: .1 });
   assert.deepEqual(normalizeMusicSettings({ enabled: false, muted: true, volume: 0 }), { enabled: false, muted: true, volume: 0 });
   assert.equal(normalizeMusicSettings({ volume: 8 }).volume, 1);
   assert.equal(normalizeMusicSettings({ volume: -8 }).volume, 0);
-  for (const volume of [NaN, Infinity, '1', null]) assert.equal(normalizeMusicSettings({ volume }).volume, .3);
+  for (const volume of [NaN, Infinity, '1', null]) assert.equal(normalizeMusicSettings({ volume }).volume, .1);
   assert.deepEqual(normalizeMusicSettings({ enabled: 'yes', muted: 1, volume: .5, token: 'ignored' }), { enabled: true, muted: false, volume: .5 });
   assert.equal(MUSIC_SOURCE, '/audio/siege-of-the-gilded-hall.mp3');
 });
@@ -38,7 +38,7 @@ test('attaching the supplied track does not autoplay; gesture unlock reports act
   player.attachAudio(media);
   assert.equal(media.plays, 0);
   assert.equal(media.loop, true); assert.equal(media.preload, 'none');
-  assert.equal(media.volume, .3);
+  assert.equal(media.volume, .1);
   assert.equal(player.getSnapshot().playing, false);
   player.unlockMusic();
   await settle();

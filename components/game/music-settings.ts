@@ -11,7 +11,7 @@ export interface MusicSettings {
 export const DEFAULT_MUSIC_SETTINGS: Readonly<MusicSettings> = {
   enabled: true,
   muted: false,
-  volume: 0.3,
+  volume: 0.1,
 };
 
 export function normalizeMusicSettings(raw: unknown): MusicSettings {
