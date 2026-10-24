@@ -1,0 +1,40 @@
+.controls-panel .mapper-intro{margin:8px 0 10px;font-size:12px;line-height:1.5}
+.controls-panel .mapper-device{display:flex;gap:6px;flex-wrap:wrap}
+.controls-panel .mapper-device button{margin:0;min-height:36px;padding:7px 14px;border-radius:6px;font-size:12px}
+.controls-panel .mapper-device button[aria-pressed=true]{border-color:var(--gold);color:#f3dca4;background:#d2b47a1f}
+.controls-panel .mapper-device-help,.controls-panel .mapper-hint{margin:8px 0;font-size:11px;line-height:1.5;color:var(--muted)}
+.controls-panel .mapper-notice{min-height:32px;margin:10px 0 0;padding:7px 10px;border-left:2px solid var(--mint);background:#80e9df08;font-size:11px;line-height:1.5}
+.controls-panel .mapper-section{border-top:1px solid var(--line);margin-top:12px;padding-top:3px}
+.controls-panel .mapper-section summary{cursor:pointer;min-height:38px;padding:10px 0;font-size:13px;color:#ead4a1}
+.controls-panel .mapper-section summary span{float:right;font-size:10px;color:var(--muted);text-transform:capitalize;padding-top:2px}
+.controls-panel .mapper-section summary:focus-visible{outline:2px solid var(--mint);outline-offset:2px;border-radius:3px}
+.controls-panel .mapper-column-head,.controls-panel .mapper-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(144px,44%);align-items:center;gap:10px}
+.controls-panel .mapper-column-head{padding:6px 0;font-size:9px;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.controls-panel .mapper-row{padding:5px 0;border-top:1px solid #ffffff09;min-height:44px}
+.controls-panel .mapper-action{font-size:12px;line-height:1.35}
+.controls-panel .mapper-action small{display:block;margin-top:2px;font-size:10px;color:var(--muted)}
+.controls-panel .mapper-key-buttons{display:flex;gap:4px;min-width:0}
+.controls-panel .mapper-key-buttons button{margin:0;flex:1;min-width:0;min-height:34px;padding:7px 9px;font-size:12px;border-radius:4px;overflow-wrap:anywhere}
+.controls-panel .mapper-key-buttons .mapper-unbind{flex:0 0 32px;min-width:32px;padding:7px;color:var(--muted)}
+.controls-panel .mapper-key-buttons .listening{border-color:var(--mint);color:var(--mint);background:#80e9df14}
+.controls-panel .mapper-key-buttons button:disabled{opacity:.3}
+.controls-panel .mapper-row select{width:100%;min-width:0;min-height:34px;padding:7px 8px;background:#100c209c;color:var(--ink);border:1px solid var(--line);border-radius:4px;font-size:12px}
+.controls-panel .mapper-warning{margin:8px 0;padding:7px 10px;border-left:2px solid var(--gold);background:#d2b47a0b;color:#f0d49b;font-size:11px;line-height:1.5}
+.controls-panel .mapper-ranges{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px 22px;margin:18px 0}
+.controls-panel .mapper-ranges .control-range{font-size:11px}
+.controls-panel .mapper-ranges .control-range input{margin-top:9px}
+.controls-panel .mapper-advanced h4{font-size:12px;font-weight:normal;color:#ead4a1;margin:20px 0 6px}
+.controls-panel .mapper-inversion{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+.controls-panel .mapper-inversion .checkbox{font-size:11px;margin:8px 0;gap:8px}
+.controls-panel .mapper-reset{margin-top:18px;padding-top:10px;border-top:1px solid var(--line)}
+.controls-panel .mapper-reset button{margin:0 0 4px;min-height:36px;padding:7px 10px}
+.controls-panel .mapper-reset small{display:block;color:var(--muted);font-size:10px;line-height:1.5}
+.controls-panel .mapper-touch h3{font-size:20px;margin:16px 0 8px}
+.controls-panel .mapper-touch p{font-size:12px;line-height:1.6}
+@media(max-width:480px){
+ .controls-panel .mapper-column-head,.controls-panel .mapper-row{grid-template-columns:minmax(0,1fr) minmax(128px,46%);gap:6px}
+ .controls-panel .mapper-action{font-size:11px}
+ .controls-panel .mapper-section summary span{font-size:9px}
+ .controls-panel .mapper-key-buttons button,.controls-panel .mapper-row select{font-size:11px;padding:7px 6px}
+ .controls-panel .mapper-ranges,.controls-panel .mapper-inversion{grid-template-columns:1fr}
+}

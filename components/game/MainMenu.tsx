@@ -1,18 +1,21 @@
 'use client';
 import { useEffect, useRef, type ReactNode } from 'react';
 import type { GameState, Mode } from '../../game/types.ts';
-import { ROLES } from '../../game/content.ts';
+import { PARTY } from '../../game/content.ts';
 import Icon from './Icon';
 import { roleIcon } from './icons';
+import HeroPicker from './HeroPicker';
 import { trapDialogTab } from './dialog-navigation';
 import './main-menu.css';
 
-export type MainMenuView = 'home' | 'solo' | 'host' | 'join' | 'lobby';
+export type MainMenuView = 'home' | 'heroes' | 'solo' | 'host' | 'join' | 'lobby';
 export interface MainMenuMember { slot: number; connected: boolean; reserved: boolean }
 export interface MainMenuProps {
   view: MainMenuView;
   state: GameState;
   slot: number;
+  selectedHeroSlot: number;
+  controlLabel?: string;
   mode: Mode;
   roomCode?: string;
   hostSlot?: number | null;
@@ -26,6 +29,7 @@ export interface MainMenuProps {
   onView: (view: MainMenuView) => void;
   onMode: (mode: Mode) => void;
   onSlot: (slot: number) => void;
+  onRoomHero?: (slot: number) => void;
   onSolo: () => void;
   onHost: () => void;
   onJoin: () => void;
@@ -42,11 +46,12 @@ export interface MainMenuProps {
 }
 
 const titles: Record<MainMenuView, string> = {
-  home: 'TERMINUS XI', solo: 'Solo expedition', host: 'Host a party', join: 'Join a party', lobby: 'Party lobby',
+  home: 'TERMINUS XI', heroes: 'Choose your hero', solo: 'Solo expedition', host: 'Host a party', join: 'Join a party', lobby: 'Party lobby',
 };
 
 export default function MainMenu(props: MainMenuProps) {
-  const { view, state, slot, mode, roomCode, hostSlot, members, busy, error, inviteInput, canResume, canReconnect, footer } = props;
+  const { view, state, slot, selectedHeroSlot, controlLabel, mode, roomCode, hostSlot, members, busy, error, inviteInput, canResume, canReconnect, footer } = props;
+  const selectedHero = PARTY[selectedHeroSlot] ?? PARTY[0];
   const panel = useRef<HTMLElement>(null);
   useEffect(() => { panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus({ preventScroll: true }); }, [view]);
   const connected = members ? members.filter(member => member.connected).length : state.party.filter(actor => actor.human).length;
@@ -68,13 +73,14 @@ export default function MainMenu(props: MainMenuProps) {
           {view === 'lobby' && <button type="button" className="main-menu-leave" disabled={busy} onClick={props.onLeave}>Leave party <Icon name="close"/></button>}
         </div>
         <div className="main-menu-title-row">{view === 'home' && <Icon name="sigil"/>}<h1 id="main-menu-title">{titles[view]}</h1></div>
-        <p>{view === 'home' ? 'Memory fades. Power remains.' : view === 'lobby' ? `${connected} / 5 players · trusts fill open places` : 'Choose your next encounter.'}</p>
+        <p>{view === 'home' ? 'Memory fades. Power remains.' : view === 'lobby' ? `${connected} / 5 players · trusts fill open places` : view === 'heroes' ? 'Five heroes. One place in the party is yours.' : 'Choose your next encounter.'}</p>
       </header>
 
       <div className="main-menu-content">
         {error && <p className="main-menu-error" role="alert">{error}</p>}
         {view === 'home' && <div className="main-menu-choices">
-          {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}>Resume encounter <Icon name="arrow"/></button>}
+          {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}><span>Resume encounter<small>Continue as {state.party[slot]?.name ?? selectedHero.name}</small></span><Icon name="arrow"/></button>}
+          <button type="button" className="main-menu-choose-hero" disabled={busy} onClick={() => props.onView('heroes')}><span className="main-menu-chosen-sigil" style={{ color: selectedHero.color }}><Icon name={roleIcon(selectedHero.role)}/></span><span>Choose hero<small>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></small></span><Icon name="arrow"/></button>
           <button type="button" className={canResume ? '' : 'primary'} data-autofocus={!canResume || undefined} disabled={busy} onClick={() => props.onView('solo')}><span>Play solo<small>You and four trusts</small></span><Icon name="arrow"/></button>
           <div className="main-menu-online-choices">
             <button type="button" disabled={busy} onClick={() => props.onView('host')}><Icon name="party"/><span>Host a party<small>1–5 players</small></span></button>
@@ -83,19 +89,22 @@ export default function MainMenu(props: MainMenuProps) {
           {canReconnect && props.onReconnect && <button type="button" className="main-menu-reconnect" disabled={busy} onClick={props.onReconnect}>{busy ? 'Reconnecting…' : 'Reconnect saved party'}</button>}
         </div>}
 
+        {view === 'heroes' && <>
+          <HeroPicker selectedSlot={selectedHeroSlot} onSelect={props.onSlot} busy={busy} autoFocus/>
+          <p className="main-menu-note">Your choice is saved for solo play and new parties. Each party has one of each hero.</p>
+        </>}
+
         {view === 'solo' && <>
           {chooseMode}
-          <fieldset className="main-menu-heroes"><legend>Your character</legend>
-            {state.party.map((actor, index) => <button type="button" key={actor.id} data-autofocus={index === slot || undefined} disabled={busy} aria-pressed={index === slot} onClick={() => props.onSlot(index)} title={ROLES[actor.role].description}>
-              <span className="main-menu-hero-sigil" style={{ color: actor.color }}><Icon name={roleIcon(actor.role)}/></span>
-              <span>{actor.name}<small>{actor.role}</small></span><span className="main-menu-selection" aria-hidden="true">{index === slot ? '●' : ''}</span>
-            </button>)}
-          </fieldset>
+          <h2 className="main-menu-section-title">Your hero</h2>
+          <HeroPicker selectedSlot={selectedHeroSlot} onSelect={props.onSlot} busy={busy} autoFocus/>
           <p className="main-menu-note">The other four characters fight alongside you as trusts.</p>
         </>}
 
         {view === 'host' && <>
           {chooseMode}
+          <h2 className="main-menu-section-title">Your hero</h2>
+          <HeroPicker selectedSlot={selectedHeroSlot} onSelect={props.onSlot} busy={busy}/>
           <p className="main-menu-explanation">Create a room, copy its invite, and start when your party is ready. Play with 1–5 people; trusts cover every open place.</p>
         </>}
 
@@ -103,6 +112,11 @@ export default function MainMenu(props: MainMenuProps) {
           <label className="main-menu-invite-label" htmlFor="main-menu-invite">Invite code or link</label>
           <input data-autofocus id="main-menu-invite" className="main-menu-invite-input" value={inviteInput} disabled={busy} onChange={event => props.onInviteInput(event.target.value)} placeholder="Paste your party invite" maxLength={2048} autoComplete="off" autoCapitalize="none" spellCheck={false}/>
           <p className="main-menu-note">Paste the code or the full invite link shared by your host.</p>
+          <details className="main-menu-hero-details">
+            <summary>Preferred hero <span>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></span></summary>
+            <HeroPicker selectedSlot={selectedHeroSlot} onSelect={props.onSlot} busy={busy}/>
+          </details>
+          <p className="main-menu-note">If {selectedHero.name} is taken, you’ll join as an available hero. You can choose another open hero in the lobby.</p>
         </form>}
 
         {view === 'lobby' && <>
@@ -123,17 +137,26 @@ export default function MainMenu(props: MainMenuProps) {
               </li>;
             })}
           </ul>
+          {state.status === 'ready' && props.onRoomHero ? <details className="main-menu-hero-details">
+            <summary>Choose hero <span>{state.party[slot]?.name ?? selectedHero.name}</span></summary>
+            <HeroPicker selectedSlot={slot} ownSlot={slot} members={members ?? state.party.map((actor, index) => ({ slot: index, connected: actor.human, reserved: false }))} lobby busy={busy} onSelect={props.onRoomHero}/>
+            <p className="main-menu-note">One player per hero. Trust places are available; reconnecting players keep their places.</p>
+          </details> : <p className="main-menu-note">{isHost ? 'Prepare the next run to change heroes.' : 'Your host must prepare the next run before heroes can change.'}</p>}
           <p className="main-menu-note">{state.mode === 'god' ? 'God encounter · 7:30 collapse deadline' : 'Resonance trial · no deadline'}. {isHost ? 'You can start with any number of players.' : 'Your host starts the encounter.'}</p>
         </>}
       </div>
 
       <footer className="main-menu-footer">
+        {view === 'heroes' && <button type="button" className="primary main-menu-launch" disabled={busy} onClick={() => props.onView('home')}>Continue as {selectedHero.name}<Icon name="arrow"/></button>}
         {view === 'solo' && <button type="button" className="primary main-menu-launch" disabled={busy} onClick={props.onSolo}>Start solo encounter <Icon name="arrow"/></button>}
         {view === 'host' && <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy} onClick={props.onHost}>{busy ? 'Creating room…' : 'Create party room'}<Icon name="arrow"/></button>}
         {view === 'join' && <button type="submit" form="main-menu-join-form" className="primary main-menu-launch" disabled={busy || !inviteInput.trim()}>{busy ? 'Joining…' : 'Join party'}<Icon name="arrow"/></button>}
         {view === 'lobby' && (isHost ? <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy} onClick={props.onStart}>{busy ? 'Preparing…' : state.status==='victory'||state.status==='defeat' ? 'Prepare next run' : 'Start encounter'}<Icon name="arrow"/></button>
           : <p className="main-menu-waiting" role="status">Waiting for the host to start…</p>)}
-        {view === 'home' && <nav className="main-menu-links" aria-label="Game options"><button type="button" onClick={props.onControls}>Controls</button><button type="button" onClick={props.onSettings}>Settings</button><button type="button" onClick={props.onGuide}>How to play</button></nav>}
+        {view === 'home' && <>
+          <button type="button" className="main-menu-controls" disabled={busy} onClick={props.onControls}><span>Controls &amp; keybinds{controlLabel && <small>{controlLabel}</small>}</span><Icon name="arrow"/></button>
+          <nav className="main-menu-links" aria-label="Game options"><button type="button" onClick={props.onSettings}>Settings</button><button type="button" onClick={props.onGuide}>How to play</button></nav>
+        </>}
         {footer && <div className="main-menu-extra">{footer}</div>}
       </footer>
     </section>

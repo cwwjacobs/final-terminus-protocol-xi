@@ -24,8 +24,9 @@ export class RoomError extends Error {
 }
 
 export type RoomRequest =
-  | { op: "create"; mode: "trial" | "god" }
-  | { op: "join"; code: string }
+  | { op: "create"; mode: "trial" | "god"; slot?: number }
+  | { op: "join"; code: string; slot?: number }
+  | { op: "selectHero"; code: string; token: string; slot: number }
   | { op: "sync"; code: string; token: string; seq: number; actions: Action[] }
   | { op: "reset"; code: string; token: string; mode?: "trial" | "god" }
   | { op: "leave"; code: string; token: string };
@@ -110,6 +111,13 @@ function secret(value: unknown, label: string): string {
   return value;
 }
 
+function heroSlot(value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value >= 5) {
+    throw new RoomError(400, "Hero must be a party slot from 0 to 4.");
+  }
+  return value;
+}
+
 function parseAction(value: unknown): Action {
   const action = record(value);
   if (action.type === "move") {
@@ -159,18 +167,22 @@ export function parseRoomRequest(value: unknown): RoomRequest {
   const input = record(value);
   switch (input.op) {
     case "create": {
-      exactKeys(input, ["op", "mode"]);
+      exactKeys(input, ["op", "mode", "slot"]);
       if (input.mode !== undefined && input.mode !== "trial" && input.mode !== "god") {
         throw new RoomError(400, "Unknown encounter mode.");
       }
-      return { op: "create", mode: input.mode === "god" ? "god" : "trial" };
+      return { op: "create", mode: input.mode === "god" ? "god" : "trial",
+        ...(Object.hasOwn(input, "slot") ? { slot: heroSlot(input.slot) } : {}) };
     }
     case "join": {
-      exactKeys(input, ["op", "code"]);
+      exactKeys(input, ["op", "code", "slot"]);
       const code = normalizeInviteCode(input.code);
       if (!code) throw new RoomError(400, "Invalid invite code. Paste the full code or invite link.");
-      return { op: "join", code };
+      return { op: "join", code, ...(Object.hasOwn(input, "slot") ? { slot: heroSlot(input.slot) } : {}) };
     }
+    case "selectHero":
+      exactKeys(input, ["op", "code", "token", "slot"]);
+      return { op: "selectHero", code: secret(input.code, "room code"), token: secret(input.token, "session token"), slot: heroSlot(input.slot) };
     case "sync": {
       exactKeys(input, ["op", "code", "token", "seq", "actions"]);
       if (typeof input.seq !== "number" || !Number.isSafeInteger(input.seq) || input.seq < 0) {
@@ -315,12 +327,14 @@ export async function handleRoomRequest(
       const code = randomSecret();
       const token = randomSecret();
       const state = createGame(request.mode);
-      for (let slot = 0; slot < 5; slot++) setHuman(state, slot, slot === 0);
+      const hostSlot = request.slot ?? 0;
+      for (let slot = 0; slot < 5; slot++) setHuman(state, slot, slot === hostSlot);
+      const occupants: StoredRoom["occupants"] = Array.from({ length: 5 }, () => null);
+      occupants[hostSlot] = { tokenHash: await hashToken(code, token), lastSeen: now, lastSeq: -1 };
       const room: StoredRoom = {
-        code, revision: 0, state, hostSlot: 0, updatedAt: now, expiresAt: now + ROOM_TTL_MS,
-        occupants: [{ tokenHash: await hashToken(code, token), lastSeen: now, lastSeq: -1 }, null, null, null, null],
+        code, revision: 0, state, hostSlot, updatedAt: now, expiresAt: now + ROOM_TTL_MS, occupants,
       };
-      if (await repository.insert(room)) return { ...snapshot(room, 0), code, token };
+      if (await repository.insert(room)) return { ...snapshot(room, hostSlot), code, token };
     }
     throw new RoomError(503, "Unable to allocate a room. Try again.");
   }
@@ -341,7 +355,8 @@ export async function handleRoomRequest(
     let slot: number;
     if (request.op === "join") {
       advanceRoom(room, now);
-      slot = room.occupants.findIndex((occupant) => occupant === null);
+      slot = request.slot !== undefined && room.occupants[request.slot] === null
+        ? request.slot : room.occupants.findIndex((occupant) => occupant === null);
       if (slot === -1) throw new RoomError(409, "Party is full. Disconnected slots remain reserved for 45 seconds.");
       room.occupants[slot] = { tokenHash, lastSeen: now, lastSeq: -1 };
       setHuman(room.state, slot, true);
@@ -367,6 +382,11 @@ export async function handleRoomRequest(
         // polling. Return the stored snapshot; do not expose speculative ticks.
         if (room.state.status === "ready" && room.state.mode === (request.mode ?? room.state.mode)) return snapshot(room, slot);
       }
+      if (request.op === "selectHero") {
+        if (room.state.status !== "ready") throw new RoomError(409, "Return to the lobby before choosing a hero.");
+        // Retrying an already accepted choice does not mutate the lobby or lease.
+        if (request.slot === slot) return snapshot(room, slot);
+      }
       advanceRoom(room, now);
       if (request.op === "leave") {
         room.occupants[slot] = null;
@@ -380,6 +400,22 @@ export async function handleRoomRequest(
           if (member) delete member.lastResults;
         });
         occupant.lastSeen = now;
+      } else if (request.op === "selectHero") {
+        if (room.occupants[request.slot] !== null) {
+          throw new RoomError(409, "That hero is occupied or reserved for a reconnecting player.");
+        }
+        const oldSlot = slot;
+        room.occupants[oldSlot] = null;
+        room.occupants[request.slot] = occupant;
+        setHuman(room.state, oldSlot, false);
+        setHuman(room.state, request.slot, true);
+        for (const actorSlot of [oldSlot, request.slot]) {
+          room.state.party[actorSlot].moveX = 0;
+          room.state.party[actorSlot].moveZ = 0;
+        }
+        if (room.hostSlot === oldSlot) room.hostSlot = request.slot;
+        occupant.lastSeen = now;
+        slot = request.slot;
       } else {
         occupant.lastSeen = now;
         occupant.lastSeq = request.seq;

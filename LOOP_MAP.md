@@ -1,17 +1,12 @@
-# LOOP_MAP — Direct controls, menu, music and 1–5 player rooms
+# LOOP_MAP — Main-menu hero and control picker
 
-Goal: Implement the researched direct-control design with every character ability mapped and visible, preserve transparent glass, add the supplied music with mute/volume, and provide a clear solo/host/join/lobby/encounter/results flow for 1–5 players.
-Kernel: Preserve combat mechanics, run statistics, deterministic server authority, saves/custom controls, 5 party slots filled by players or trusts, and obvious Back/Close/Leave actions. Input from menus must never fire combat actions. No duplicate activation surfaces in the default HUD.
-Out of scope: New animations, new combat skills, matchmaking, chat, account systems, audio effects beyond the supplied music.
-Authorization: User approved the researched plan with “make it work please sanely” and explicitly requested music, menu and multiplayer rooms/invite codes. Earlier GREEN/GO and main/publication authorization remain active.
+Goal: Main menu visibly exposes Choose hero and Controls & keybinds; one hero picker shows all five characters and persists the choice. Solo and room creation use that hero; joining prefers it when available, and lobby players can choose available hero places. Controls open with input layout and active hero's hotkeys before camera options.
+Kernel: Keep compact glass styling, direct role ability mappings, saved custom bindings, menu/back flow, music and scoreboard, authoritative five-slot rooms, host permission, reconnect reservations and session-token privacy.
+Out of scope: Combat balance, hero models/animations, duplicate characters, matchmaking.
+Authorization: User explicitly requested hero picker, main menu and hotkey mapper/control picker on the main menu. Prior GO, main synchronization and publication authorization persist.
 
-| Loop | Goal | Files it may touch | Exit check | Status |
+| Loop | Goal | Allowed files | Exit check | Status |
 |---|---|---|---|---|
-| 2 | Ship coherent direct controls and start/room/music experience | components/game/* control/HUD/menu/music files, app/globals.css, lib/rooms.ts and room metadata/validation, app/api/rooms/route.ts if required, tests/* relevant to changed behavior, public/audio/siege-of-the-gilded-hall.mp3, docs/*, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | mapped |
+| 3 | Deliver hero choice and discoverable controls across local/room flows | components/game/MainMenu.tsx, HeroPicker.tsx, main-menu.css, hero-picker.css, ControlsPanel.tsx, controls-panel.css, GameClient.tsx, control-settings.ts helpers if needed, lib/rooms.ts, related tests, docs/*, LOOP_MAP.md, RECEIPTS.md, GAUNTLET.md | npm test && npm run typecheck && node /root/.codex/plugins/cache/openai-curated-remote/sites/1.1.2/scripts/build-site.mjs | Receipt attached: 252 tests, typecheck and production build pass; independent review complete, awaiting Operator seal |
 
-Whole-build check: the command above plus browser checks of menu → solo or room → combat → results, mapped-action discoverability and music controls. Exercise room capacity, independent client slots, reconnect and invite handling with authoritative tests. Browser/real-device limits must be explicit; never substitute a blank WebGL canvas for visual proof.
-
-Implementation tasks may run concurrently in separate files inside this authorized loop. The owner integrates GameClient and global styles. A separate reviewer reads code and receipts before publication. Existing scoreboard loop1 receipts remain in RECEIPTS.md.
-
-## Repair 2.A — quiet completed-room keepalives
-Live results exposed repeated “The encounter is over” messages because every poll included idle movement after combat ended. Send movement only during fighting, allow explicit start in the lobby, and discard stale combat commands in results. Keep busy result buttons labeled for their actual action. Scope: GameClient.tsx, EncounterResult.tsx, room-sync.ts, tests/room-sync.test.ts, receipt/reviewer documents. Exit check: aggregate tests, typecheck and production build.
+Whole-build: command above and browser main-menu → hero picker → controls mapping → local/room hero checks where available. Independent review must check room slot transfer, host identity, stale snapshots and custom binding preservation. Hardware/3D/simultaneous-client browser limits remain explicit. Parallel tasks own separate files in one authorized loop; root integrates and publishes.
