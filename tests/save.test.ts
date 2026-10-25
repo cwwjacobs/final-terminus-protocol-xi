@@ -73,6 +73,116 @@ test('healing target metadata is optional for legacy saves and bounded to a part
   }
 });
 
+test('presentation metadata remains optional for current and migrated historical event logs', () => {
+  const original = createGame();
+  original.events.push(
+    { id: 1, time: 0, kind: 'weapon', text: 'Arc Cleave', actor: 0, value: 660 },
+    { id: 2, time: 0, kind: 'cast', text: 'Null Impact — leave the marked ground.', source: 'nullBloom' },
+    { id: 3, time: 0, kind: 'heal', text: 'Restore', actor: 4, target: 0, value: 690 },
+  );
+  original.eventSeq = 3;
+  for (const saved of [original, asLegacy(original)]) {
+    const before = structuredClone(saved);
+    const restored = restoreSave(saved);
+    assert.ok(restored);
+    assert.deepEqual(restored.events, original.events);
+    assert.deepEqual(saved, before, 'loading does not rewrite historical event identities');
+  }
+});
+
+test('emitted ability identity and committed boss pulse areas survive saves without affecting continuation', () => {
+  const original = createGame('trial', 1);
+  original.party.forEach((actor, i) => {
+    actor.human = true; actor.engaged = true; actor.x = i * .2; actor.z = -1; actor.attackTimer = 1000;
+  });
+  applyAction(original, 0, { type: 'start' });
+  original.boss.attackTimer = original.boss.specialTimer = 1000;
+  original.party[0].tp = 1000;
+  original.party[0].hp -= 1000;
+  for (const [actor, action] of [
+    [0, { type: 'weapon', id: 'cleave' }], [3, { type: 'magic', element: 'fire' }],
+    [2, { type: 'elementalShot' }], [4, { type: 'aegis' }], [4, { type: 'heal', target: 0 }],
+  ] as const) assert.equal(applyAction(original, actor, action).ok, true);
+  original.boss.cast = {
+    name: 'Terminal Echo', abilityId: 'terminalEcho', kind: 'raid', x: 0, z: -4,
+    radius: 100, angle: 0, total: 4, remaining: .05, pulses: 2,
+  };
+  stepGame(original, 1.05);
+  assert.equal(original.boss.cast, null);
+  assert.deepEqual(original.events.filter(event => event.kind === 'boss_impact').map(event => event.area?.pulses), [2, 1]);
+  assert.ok(original.events.some(event => event.weaponId === 'cleave'));
+  assert.ok(original.events.some(event => event.abilityId === 'magic:fire' && event.element === 'fire'));
+  assert.ok(original.events.some(event => event.abilityId === 'aegis' && event.target === 0));
+  const restored = restoreSave(JSON.parse(JSON.stringify(original)));
+  assert.ok(restored);
+  assert.deepEqual(restored, original);
+  stepGame(original, .1); stepGame(restored, .1);
+  assert.deepEqual(restored, original, 'restoring presentation metadata never replays combat damage or spends resources');
+});
+
+test('supplied presentation identifiers are finite enums and agree with explicit weapon or spell metadata', () => {
+  const event = { id: 1, time: 0, kind: 'weapon', text: 'Arc Cleave', actor: 0 };
+  for (const field of ['abilityId', 'weaponId', 'element']) {
+    for (const value of [undefined, null, [], {}, 1, '', 'unknown', 'x'.repeat(100_000)]) {
+      const saved = { ...createGame(), events: [{ ...event, [field]: value }] };
+      assert.equal(validSave(saved), false, `${field}: ${typeof value}`);
+      assert.equal(restoreSave(saved), null, `${field}: ${typeof value}`);
+    }
+  }
+  for (const metadata of [
+    { abilityId: 'weapon:cleave', weaponId: 'pierce' },
+    { abilityId: 'magic:fire', element: 'ice' },
+  ]) assert.equal(restoreSave({ ...createGame(), events: [{ ...event, ...metadata }] }), null);
+  for (const metadata of [
+    { abilityId: 'weapon:cleave', weaponId: 'cleave' },
+    { abilityId: 'magic:ice', element: 'ice' },
+    { abilityId: 'chain', weaponId: 'pierce', element: 'fire' },
+    { abilityId: 'elementalShot', element: 'lightning' },
+    { abilityId: 'staticStorm' },
+  ]) assert.ok(restoreSave({ ...createGame(), events: [{ ...event, ...metadata }] }));
+});
+
+test('committed presentation areas accept arena, raid and duration boundaries with detached roundtrips', () => {
+  for (const [kind, abilityId, radius, total] of [
+    ['circle', 'regentsDecree', 0, 3], ['cone', 'severingArc', 12, 3], ['raid', 'collapse', 100, 10],
+  ] as const) {
+    const area = { kind, abilityId, x: ARENA_RADIUS, z: 0, radius, angle: -Math.PI, total, target: 0, pulses: 2 };
+    const original = { ...createGame(), events: [{ id: 1, time: 0, kind: 'boss_impact', text: 'Resolves.', abilityId, area }] };
+    const restored = restoreSave(original);
+    assert.ok(restored);
+    assert.deepEqual(restored, original);
+    assert.notEqual(restored.events[0].area, area, 'resumed effects never share a mutable area with the saved snapshot');
+  }
+});
+
+test('malformed presentation areas cannot become unbounded geometry or emitter duration', () => {
+  const area = { kind: 'circle', abilityId: 'nullBloom', x: 0, z: 0, radius: 5, angle: 0, total: 3 };
+  const event = { id: 1, time: 0, kind: 'boss_impact', text: 'Resolves.', abilityId: 'nullBloom', area };
+  const invalid: [string, unknown][] = [
+    ['kind', 'sphere'], ['x', NaN], ['x', Infinity], ['x', ARENA_RADIUS + 1],
+    ['z', -ARENA_RADIUS - 1], ['radius', -1], ['radius', 101], ['radius', Infinity],
+    ['angle', NaN], ['angle', Math.PI * 2 + .01], ['angle', -100],
+    ['total', 0], ['total', -1], ['total', 10.01], ['total', Infinity],
+    ['target', null], ['target', -1], ['target', 5], ['target', .5],
+    ['pulses', undefined], ['pulses', 0], ['pulses', 3], ['pulses', 1.5],
+    ['abilityId', undefined], ['abilityId', 'magic:fire'], ['abilityId', 'terminalEcho'],
+    ['remaining', 3],
+  ];
+  for (const [field, value] of invalid) {
+    const saved = { ...createGame(), events: [{ ...event, area: { ...area, [field]: value } }] };
+    assert.equal(validSave(saved), false, `${field}: ${String(value)}`);
+    assert.equal(restoreSave(saved), null, `${field}: ${String(value)}`);
+  }
+  for (const invalidArea of [undefined, null, [], {}, 'area', { ...area, x: ARENA_RADIUS, z: ARENA_RADIUS }]) {
+    assert.equal(restoreSave({ ...createGame(), events: [{ ...event, area: invalidArea }] }), null);
+  }
+  for (const field of ['kind', 'x', 'z', 'radius', 'angle', 'total']) {
+    const incomplete = { ...area }; Reflect.deleteProperty(incomplete, field);
+    assert.equal(restoreSave({ ...createGame(), events: [{ ...event, area: incomplete }] }), null, `missing ${field}`);
+  }
+  assert.equal(restoreSave({ ...createGame(), events: [{ ...event, kind: 'heal' }] }), null, 'boss geometry belongs only to boss cast or impact events');
+});
+
 test('finite but unsafe clocks and remainder cannot drive an unbounded restore loop', () => {
   for (const field of ['tick', 'eventSeq'] as const) {
     for (const value of [-1, 0.5, Number.MAX_SAFE_INTEGER + 1]) {

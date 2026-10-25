@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { bacchusLocomotionClip, BACCHUS_POSE_BONES, bacchusStrike, createBacchusCombat, type CombatCue } from './bacchus-combat.ts';
 import { ActionLayer } from './action-layer.ts';
 import { createHeroProps, type HeroProps } from './hero-props.ts';
+import { createHeroMotion, heroLocomotionClip } from './hero-motion.ts';
 import { PARTY } from '../../game/content.ts';
 import type { Role } from '../../game/types.ts';
 import animationReceipt from '../../public/assets/animations/hero-animations.json' with { type: 'json' };
@@ -29,6 +30,8 @@ export interface HeroVisual {
   update(dt: number, speed: number, alive: boolean, attack: number): void;
   /** Returns the presentation-only delay until a strike's visual impact. */
   playCombat(cue: CombatCue): number;
+  /** Copy a real skeleton/weapon attachment position in world space. */
+  getAnchor(kind: 'hand' | 'weapon', out: THREE.Vector3): boolean;
   resetCombat(): void;
   setWireframe(value: boolean): void;
   dispose(): void;
@@ -132,6 +135,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   const skeletons = new Set<THREE.Skeleton>();
   let mixer: THREE.AnimationMixer | undefined;
   let combat: ReturnType<typeof createBacchusCombat> = null;
+  let bodyMotion: ReturnType<typeof createHeroMotion> = null;
   let layer: ActionLayer | undefined;
   let props: HeroProps | null = null;
   let disposed = false;
@@ -152,7 +156,13 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       if (disposed || !Number.isFinite(dt) || dt <= 0) return;
       const delta = Math.min(dt, .25);
       if (!alive) {
-        if (aliveBefore) combat?.stop();
+        if (aliveBefore) {
+          combat?.stop();
+          // The upper-body fall can keep advancing without walking in place
+          // underneath it. resetActions() resumes both loops on revival.
+          if (idle) idle.paused = true;
+          if (walk) walk.paused = true;
+        }
         aliveBefore = false;
         motion.rotation.x = 0;
         if (layer?.holding) {
@@ -161,6 +171,10 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
           motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, 0, 8, delta);
           return;
         }
+        if (bodyMotion) {
+          if (!bodyMotion.holding) bodyMotion.play({ kind: 'down', text: '' });
+          bodyMotion.beforeUpdate(delta);mixer?.update(delta);
+        }
         // Freeze the imported pose; do not write over authored bone channels.
         motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, Math.PI * .46, 8, delta);
         return;
@@ -168,7 +182,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       motion.rotation.z = THREE.MathUtils.damp(motion.rotation.z, 0, 8, delta);
       const velocity = Number.isFinite(speed) ? Math.max(0, speed) : 0;
       moving = moving ? velocity > .08 : velocity > .2;
-      if (!aliveBefore) { resetActions(); combat?.reset(); layer?.reset(); aliveBefore = true; }
+      if (!aliveBefore) { resetActions(); combat?.reset(); bodyMotion?.reset(); layer?.reset(); aliveBefore = true; }
       if (layer) layer.update(delta, velocity, moving);
       else {
         const targetWeight = moving && walk ? 1 : 0;
@@ -178,20 +192,32 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
         walk?.setEffectiveTimeScale(THREE.MathUtils.clamp(velocity / 3, .65, 1.65));
       }
       combat?.beforeUpdate(delta);
+      bodyMotion?.beforeUpdate(delta);
       mixer?.update(delta);
       combat?.afterUpdate(delta);
       // A small group-level accent, not an authored strike or weapon animation.
       const pulse = Number.isFinite(attack) ? THREE.MathUtils.clamp(attack, 0, 1) : 0;
-      motion.rotation.x = combat ? 0 : -.045 * Math.sin(pulse * Math.PI);
+      motion.rotation.x = combat || bodyMotion ? 0 : -.045 * Math.sin(pulse * Math.PI);
     },
     playCombat(cue) {
       if (disposed) return 0;
       // The death clip is the one action a fallen actor still plays.
       if (!aliveBefore && cue.kind !== 'down') return 0;
-      if (combat && bacchusStrike(cue)) return combat.play(cue);
+      if (combat && (bacchusStrike(cue) || !layer)) return combat.play(cue);
+      if (bodyMotion) return bodyMotion.play(cue);
       return layer?.play(cue) ?? 0;
     },
-    resetCombat() { if (!disposed) { combat?.reset(); layer?.reset(); } },
+    getAnchor(kind, out) {
+      if (disposed) return false;
+      const node = kind === 'weapon' ? model.getObjectByName(id === 'bacchus' ? 'bacchus-thyrsus' : 'hero-weapon-tip')
+        : model.getObjectByName(id === 'dolos' ? 'hand_L' : 'hand_R');
+      if (!node) return false;
+      object.updateWorldMatrix(true, true);
+      if (kind === 'weapon' && id === 'bacchus') out.set(0, 1.72, 0).applyMatrix4(node.matrixWorld);
+      else node.getWorldPosition(out);
+      return out.toArray().every(Number.isFinite);
+    },
+    resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); } },
     setWireframe(value) {
       if (disposed) return;
       materials.forEach(material => {
@@ -202,7 +228,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     dispose() {
       if (disposed) return;
       disposed = true;
-      combat?.dispose(); layer?.dispose(); props?.dispose();
+      combat?.dispose(); bodyMotion?.dispose(); layer?.dispose(); props?.dispose();
       mixer?.stopAllAction();
       mixer?.uncacheRoot(model);
       object.removeFromParent();
@@ -235,13 +261,16 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     Object.defineProperty(visual, 'labelHeight', { value: labelHeight, enumerable: true });
     mixer = new THREE.AnimationMixer(model);
     if (id === 'bacchus') combat = createBacchusCombat(model, object, mixer, asset.animations.find(clip => clip.name.toLowerCase() === 'idle'));
-    else if (library.size > 0) props = createHeroProps(id, model);
+    else {
+      if (library.size === 0) bodyMotion = createHeroMotion(id, model, mixer, asset.animations.find(clip => clip.name.toLowerCase() === 'idle'));
+      if (bodyMotion || library.size > 0) props = createHeroProps(id, model);
+    }
     if (library.size > 0) {
       // The shared library owns locomotion blending and one-shot actions. Bacchus's
       // polearm layer keeps its bones; the library may only move the rest of him.
       layer = new ActionLayer(mixer, role, asset.animations, library, { reserved: combat ? BACCHUS_POSE_BONES : [] });
     } else {
-      const locomotion = combat ? asset.animations.map(bacchusLocomotionClip) : asset.animations;
+      const locomotion = combat ? asset.animations.map(bacchusLocomotionClip) : bodyMotion ? asset.animations.map(heroLocomotionClip) : asset.animations;
       const idleClip = locomotion.find(clip => clip.name.toLowerCase() === 'idle');
       const walkClip = locomotion.find(clip => clip.name.toLowerCase() === 'walk');
       idle = idleClip ? mixer.clipAction(idleClip) : undefined;

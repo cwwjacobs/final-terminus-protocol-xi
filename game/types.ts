@@ -72,6 +72,14 @@ export interface BossCast {
   pulses?: number;
 }
 
+/** Presentation-only identity and a copied boss impact area. Optional for old saves. */
+export interface CombatPresentationMetadata {
+  abilityId?: string;
+  weaponId?: WeaponId;
+  element?: Element;
+  area?: Pick<BossCast, 'kind' | 'x' | 'z' | 'radius' | 'angle' | 'target' | 'total' | 'pulses' | 'abilityId'>;
+}
+
 export interface ActorRunStats {
   /** Effective HP removed/restored; overkill and overhealing are excluded. */
   damage: number;
@@ -118,7 +126,7 @@ export interface GameState {
   };
   chain: null | { property: string; opener: number; remaining: number; weapon: WeaponId; openedAt: number };
   burst: null | { element: Element; remaining: number };
-  events: { id: number; time: number; kind: string; text: string; actor?: number; value?: number; target?: number; source?: string; critical?: boolean; sequenceId?: number; hitIndex?: number }[];
+  events: ({ id: number; time: number; kind: string; text: string; actor?: number; value?: number; target?: number; source?: string; critical?: boolean; sequenceId?: number; hitIndex?: number } & CombatPresentationMetadata)[];
 }
 
 export interface ActionResult { ok: boolean; error?: string }

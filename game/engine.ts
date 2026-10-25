@@ -2,16 +2,22 @@ import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, 
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
 import { createStaticStorm, nextStaticInterval, STATIC_CHARGE_SECONDS, staticArcTargets } from './static-storm.ts';
-import type { Action, ActionResult, Actor, BossCast, GameState, Mode, WeaponId } from './types.ts';
+import type { Action, ActionResult, Actor, BossCast, CombatPresentationMetadata, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
 const distance = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 const angleDifference = (a: number, b: number) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
 const fail = (error: string): ActionResult => ({ ok: false, error });
 
-function event(state: GameState, kind: string, text: string, actor?: number, value?: number, target?: number, source?: string, critical?: boolean, sequenceId?: number, hitIndex?: number) {
-  state.events.push({ id: ++state.eventSeq, time: state.combatTime, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }), ...(target === undefined ? {} : { target }), ...(source === undefined ? {} : { source }), ...(critical === undefined ? {} : { critical }), ...(sequenceId === undefined ? {} : { sequenceId }), ...(hitIndex === undefined ? {} : { hitIndex }) });
+function event(state: GameState, kind: string, text: string, actor?: number, value?: number, target?: number, source?: string, critical?: boolean, sequenceId?: number, hitIndex?: number, metadata: CombatPresentationMetadata = {}) {
+  const abilityId = metadata.abilityId ?? (kind === 'auto' ? 'auto' : source ?? (['revelry', 'provoke', 'heal', 'guard', 'dodge'].includes(kind) ? kind : undefined));
+  state.events.push({ id: ++state.eventSeq, time: state.combatTime, kind, text, ...(actor === undefined ? {} : { actor }), ...(value === undefined ? {} : { value }), ...(target === undefined ? {} : { target }), ...(source === undefined ? {} : { source }), ...(critical === undefined ? {} : { critical }), ...(sequenceId === undefined ? {} : { sequenceId }), ...(hitIndex === undefined ? {} : { hitIndex }), ...(abilityId === undefined ? {} : { abilityId }), ...metadata });
   if (state.events.length > 60) state.events.splice(0, state.events.length - 60);
+}
+
+function castArea(cast: BossCast): NonNullable<CombatPresentationMetadata['area']> {
+  const { kind, x, z, radius, angle, total, target, pulses, abilityId } = cast;
+  return { kind, x, z, radius, angle, total, ...(target === undefined ? {} : { target }), ...(pulses === undefined ? {} : { pulses }), ...(abilityId === undefined ? {} : { abilityId }) };
 }
 
 export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState {
@@ -109,7 +115,7 @@ function finishIfNeeded(state: GameState) {
   }
 }
 
-function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto' | 'weapon' | 'chain' | 'magic' | 'burst', label: string, source?: string, guaranteedCritical = false, sequenceId?: number, hitIndex?: number): number {
+function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto' | 'weapon' | 'chain' | 'magic' | 'burst', label: string, source?: string, guaranteedCritical = false, sequenceId?: number, hitIndex?: number, metadata: CombatPresentationMetadata = {}): number {
   if (state.status !== 'fighting' || state.boss.hp <= 0 || state.party[slot].hp <= 0) return 0;
   const stats = getAttackStats(state.party[slot]);
   const attack = kind === 'chain' || kind === 'magic' || kind === 'burst' ? stats.matk : stats.patk;
@@ -120,7 +126,7 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   state.boss.hp -= damage;
   state.runStats.party[slot].damage += damage;
   threat(state.party[slot], damage * 0.65, damage * 0.8);
-  event(state, kind, `${state.party[slot].name}: ${label} · ${damage}`, slot, damage, undefined, source, physical ? critical : undefined, sequenceId, hitIndex);
+  event(state, kind, `${state.party[slot].name}: ${label} · ${damage}`, slot, damage, undefined, source, physical ? critical : undefined, sequenceId, hitIndex, metadata);
   finishIfNeeded(state);
   return damage;
 }
@@ -227,11 +233,11 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     const damage = def.damage * (1 + (spent - TP_COST) / 4000);
     const previous = state.chain;
     const combination = previous && (previous.opener !== slot || (actor.role === 'hunter' && actor.selfChainUntil > state.time)) && state.time - previous.openedAt + 1e-8 >= CHAIN_MIN_DELAY && previous.remaining > 0 ? SKILLCHAINS[`${previous.weapon}:${action.id}`] : undefined;
-    damageBoss(state, slot, damage, 'weapon', def.name);
+    damageBoss(state, slot, damage, 'weapon', def.name, undefined, false, undefined, undefined, { abilityId: key, weaponId: action.id });
     if (state.status !== 'fighting') return { ok: true };
     if (combination) {
       if (previous?.opener === slot) actor.selfChainUntil = 0;
-      damageBoss(state, slot, damage * 0.9, 'chain', `${combination.property} skillchain`);
+      damageBoss(state, slot, damage * 0.9, 'chain', `${combination.property} skillchain`, undefined, false, undefined, undefined, { abilityId: 'chain', weaponId: action.id, element: combination.element });
       if (state.status === 'fighting') state.burst = { element: combination.element, remaining: BURST_WINDOW };
     }
     if (state.status === 'fighting') state.chain = { property: combination?.property ?? def.property, opener: slot, weapon: action.id, remaining: CHAIN_WINDOW, openedAt: state.time };
@@ -244,7 +250,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     const element = actor.shotElement;
     const burst = state.burst?.element === element && state.burst.remaining > 0;
     const name = element === 'fire' ? 'Fire Shot' : element === 'ice' ? 'Ice Shot' : 'Lightning Shot';
-    damageBoss(state, slot, burst ? 780 : 230, burst ? 'burst' : 'magic', `${name}${burst ? ' · MAGIC BURST' : ''}`, 'elementalShot');
+    damageBoss(state, slot, burst ? 780 : 230, burst ? 'burst' : 'magic', `${name}${burst ? ' · MAGIC BURST' : ''}`, 'elementalShot', false, undefined, undefined, { abilityId: 'elementalShot', element });
     return { ok: true };
   }
   if (action.type === 'magic') {
@@ -269,7 +275,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
       event(state, 'ability', `${actor.name} completes an Elemental Cycle.`, slot, 140, undefined, 'elementalCycle');
     }
     const burst = state.burst?.element === action.element && state.burst.remaining > 0;
-    damageBoss(state, slot, burst ? 1020 : 250, burst ? 'burst' : 'magic', `${MAGIC[action.element].name}${burst ? ' · MAGIC BURST' : ''}`);
+    damageBoss(state, slot, burst ? 1020 : 250, burst ? 'burst' : 'magic', `${MAGIC[action.element].name}${burst ? ' · MAGIC BURST' : ''}`, undefined, false, undefined, undefined, { abilityId: key, element: action.element });
     return { ok: true };
   }
   if (action.type === 'criticalDash' || action.type === 'splitVolley') {
@@ -490,10 +496,10 @@ function bossStep(state: GameState, dt: number) {
   if (state.mode === 'god' && state.combatTime >= GOD_ENRAGE_TIME - GOD_ENRAGE_CAST) {
     const remaining = Math.max(0, GOD_ENRAGE_TIME - state.combatTime);
     if (remaining > 0) {
-      if (boss.cast?.name !== 'Coherence Collapse') event(state, 'cast', 'Coherence Collapse — 10 seconds remain. Defeat Crown Resonance; this collapse cannot be guarded or evaded.');
+      if (boss.cast?.name !== 'Coherence Collapse') event(state, 'cast', 'Coherence Collapse — 10 seconds remain. Defeat Crown Resonance; this collapse cannot be guarded or evaded.', undefined, undefined, undefined, 'collapse');
       boss.cast = { abilityId: 'collapse', name: 'Coherence Collapse', kind: 'raid', x: boss.x, z: boss.z, radius: 100, angle: boss.facing, total: GOD_ENRAGE_CAST, remaining };
     } else {
-      event(state, 'enrage', 'Coherence Collapse. The Regent outlasts the party; the local arena gives way.');
+      event(state, 'enrage', 'Coherence Collapse. The Regent outlasts the party; the local arena gives way.', undefined, undefined, undefined, 'collapse');
       for (let i = 0; i < state.party.length; i++) {
         const actor = state.party[i];
         if (actor.hp > 0) {
@@ -525,6 +531,8 @@ function bossStep(state: GameState, dt: number) {
     boss.cast.remaining = Math.max(0, boss.cast.remaining - dt);
     if (boss.cast.remaining <= 1e-8) {
       const cast = boss.cast;
+      // Copy the committed area before the cast clears or a second pulse mutates it.
+      event(state, 'boss_impact', `${cast.name} resolves.`, undefined, undefined, cast.target, cast.abilityId, undefined, undefined, undefined, { abilityId: cast.abilityId ?? 'bossImpact', area: castArea(cast) });
       const decree = cast.abilityId === 'regentsDecree';
       const echo = cast.abilityId === 'terminalEcho';
       const base = decree ? 1000 : echo ? 300 : cast.kind === 'raid' ? 260 : cast.kind === 'cone' ? 620 : 740;
@@ -578,7 +586,7 @@ function bossStep(state: GameState, dt: number) {
       ...(ability.id === 'terminalEcho' ? { pulses: 2 } : {}),
     };
     boss.specialTimer = 12 - boss.phase;
-    event(state, 'cast', `${ability.name} — ${ability.id === 'regentsDecree' ? 'protect the marked ally' : ability.kind === 'raid' ? 'guard the pulse' : ability.kind === 'cone' ? 'leave the cone' : 'leave the marked ground'}.`, undefined, undefined, ability.id === 'regentsDecree' ? boss.target : undefined, ability.id);
+    event(state, 'cast', `${ability.name} — ${ability.id === 'regentsDecree' ? 'protect the marked ally' : ability.kind === 'raid' ? 'guard the pulse' : ability.kind === 'cone' ? 'leave the cone' : 'leave the marked ground'}.`, undefined, undefined, ability.id === 'regentsDecree' ? boss.target : undefined, ability.id, undefined, undefined, undefined, { area: castArea(boss.cast) });
     break;
   }
 }
