@@ -8,7 +8,7 @@ export function activeBurst(state: GameState) {
 
 export function abilityCue(state: GameState, slot: number, action: Action, disabled: boolean) {
   if (disabled || state.status !== 'fighting') return null;
-  if (action.type === 'magic' && activeBurst(state)?.element === action.element)
+  if ((action.type === 'magic' && activeBurst(state)?.element === action.element) || (action.type === 'elementalShot' && activeBurst(state)?.element === state.party[slot]?.shotElement))
     return { kind: 'burst-ready', label: 'MAGIC BURST' };
   const chain = state.chain;
   if (action.type === 'weapon' && chain && chain.remaining > 0 && (chain.opener !== slot || (state.party[slot]?.role === 'hunter' && state.party[slot].selfChainUntil > state.time)) &&

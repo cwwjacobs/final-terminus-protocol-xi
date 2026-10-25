@@ -7,6 +7,7 @@ export function enemyMark(state: GameState) {
   if (state.status !== 'fighting' || state.boss.hp <= 0) return null;
   const burst = activeBurst(state);
   if (burst) return {
+    remaining: burst.remaining,
     kind: 'burst' as const, symbol: burst.element, color: MAGIC[burst.element].color,
     fraction: Math.max(0, Math.min(1, burst.remaining / BURST_WINDOW)), ready: true,
     label: `${burst.element} magic burst window`,
@@ -16,6 +17,7 @@ export function enemyMark(state: GameState) {
   const next = WEAPONS[chain.weapon].next;
   const ready = state.time - chain.openedAt + 1e-8 >= CHAIN_MIN_DELAY;
   return {
+    remaining: chain.remaining,
     kind: 'chain' as const, symbol: next, color: '#e2c88b',
     fraction: Math.max(0, Math.min(1, chain.remaining / CHAIN_WINDOW)), ready,
     label: `${WEAPONS[next].name} chain ${ready ? 'opening' : 'preparing'}`,

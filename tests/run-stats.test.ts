@@ -100,7 +100,7 @@ test('damage taken measures actual HP loss after guarding, physical reduction, s
   assert.deepEqual(state.runStats.party.map(row => row.taken), state.party.map((actor, slot) => before[slot] - actor.hp));
   assert.equal(state.runStats.party[0].taken, 0);
   assert.equal(state.runStats.party[2].taken, 0);
-  assert.equal(state.runStats.party[3].taken, 105);
+  assert.equal(state.runStats.party[3].taken, 110);
   assert.equal(state.runStats.party[4].taken, 1);
   assert.equal(state.runStats.party[4].deaths, 1);
   pulse(state);
@@ -109,7 +109,7 @@ test('damage taken measures actual HP loss after guarding, physical reduction, s
   applyAction(physical, 1, { type: 'provoke' });
   physical.boss.attackTimer = 0;
   stepGame(physical, .05);
-  assert.equal(physical.runStats.party[1].taken, 162);
+  assert.equal(physical.runStats.party[1].taken, 170);
 });
 
 test('Coherence Collapse records remaining HP loss and one death per living character', () => {

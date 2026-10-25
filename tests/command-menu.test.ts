@@ -51,10 +51,10 @@ test('role-filtered pages expose only existing permissions, with honest empty ca
   const game = createGame();
   assert.deepEqual(commandEntries(game, 0, 'abilities').map(row => row.id), ['revelry', 'criticalDash', 'guard', 'dodge']);
   assert.deepEqual(commandEntries(game, 1, 'abilities').map(row => row.id), ['provoke', 'guard', 'dodge']);
-  for (const [slot, signature] of [[2, 'splitVolley'], [3, 'rapidWeave'], [4, 'aegis']] as const) assert.deepEqual(commandEntries(game, slot, 'abilities').map(row => row.id), [signature, 'guard', 'dodge']);
+  for (const [slot, signature] of [[2, 'splitVolley'], [3, 'rapidWeave'], [4, 'aegis']] as const) assert.deepEqual(commandEntries(game, slot, 'abilities').map(row => row.id), [...(slot === 2 ? ['elementalShot'] : slot === 4 ? ['shimmerWave', 'mendingThread'] : []), signature, 'guard', 'dodge']);
   for (const slot of [0, 1, 2]) assert.equal(commandEntries(game, slot, 'weapons').length, 3);
   for (const slot of [3, 4]) assert.deepEqual(commandEntries(game, slot, 'weapons'), []);
-  for (const slot of [0, 1, 2, 4]) assert.deepEqual(commandEntries(game, slot, 'adversaries'), []);
+  for (const slot of [0, 1, 4]) assert.deepEqual(commandEntries(game, slot, 'adversaries'), []);
   for (const slot of [0, 1, 2, 3]) assert.deepEqual(commandEntries(game, slot, 'allies'), []);
 });
 

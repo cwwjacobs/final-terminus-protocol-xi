@@ -462,3 +462,8 @@ button.brand{padding:0;border:0;background:none;box-shadow:none;text-align:left}
 .legacy-commands{position:absolute;right:18px;bottom:160px;z-index:25;width:min(300px,calc(100vw - 32px))}
 .game-shell[data-front=true]>.toast{z-index:180;bottom:max(12px,env(safe-area-inset-bottom))}
 .game-shell[data-layout=touch] .music-controls button{min-height:44px}
+
+.boss-seal-slot{min-height:29px;margin-top:7px}.boss-seal{position:relative;display:flex;align-items:center;gap:7px;min-height:25px;padding:3px 7px 5px;border-radius:3px;background:#110e20c9;color:var(--mark-color);font:11px Arial,sans-serif;overflow:hidden}.boss-seal>.ui-icon{font-size:16px}.boss-seal>span{text-transform:capitalize}.boss-seal>b{margin-left:auto;font-variant-numeric:tabular-nums;font-size:12px}.boss-seal>i{position:absolute;left:0;bottom:0;height:2px;background:var(--mark-color)}
+.game-shell[data-layout=desktop] .boss-panel .target-select{position:static;transform:none;display:block;margin:3px auto 0}.game-shell[data-layout=desktop] .boss-detail{margin-top:5px}
+.game-shell[data-layout=touch] .boss-seal-slot{min-height:24px;margin-top:5px}.game-shell[data-layout=touch] .boss-seal{font-size:10px;min-height:22px;padding:2px 6px 4px}.game-shell[data-layout=touch] .direct-combat-hud{top:calc(100px + env(safe-area-inset-top,0px))}
+@media(max-height:540px) and (min-width:600px){.game-shell[data-layout=touch] .direct-combat-hud{top:calc(12px + env(safe-area-inset-top,0px))}}

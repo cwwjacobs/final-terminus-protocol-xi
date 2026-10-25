@@ -51,6 +51,7 @@ export function commandEntries(state: GameState, slot: number, page: CommandPage
   ];
   if (page === 'allies') return canUseActionRole(actor.role, 'heal')
     ? [row('heal', 'Mend', `70 MP · ${allyTarget === null ? 'lowest-health living ally in range' : state.party[allyTarget]?.name ?? 'selected ally'}`, { type: 'heal' })] : [];
+  if (page === 'adversaries' && actor.role === 'hunter') return (['fire', 'ice', 'lightning'] as const).map(element => row(element, `Select ${element} shot`, 'Choose element; use Elemental Shot to fire', { type: 'selectShot', element }));
   if (page === 'adversaries') return canUseActionRole(actor.role, 'magic')
     ? (['fire', 'ice', 'lightning'] as const).map(element => row(element, `${element === 'lightning' ? 'Thunder' : element === 'fire' ? 'Fire' : 'Ice'} · ${MAGIC[element].name}`, `${element} · 70 MP · selected enemy`, { type: 'magic', element })) : [];
   if (page === 'weapons') return canUseActionRole(actor.role, 'weapon')

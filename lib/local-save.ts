@@ -46,6 +46,8 @@ export function validSave(raw: unknown): raw is GameState {
     !integer(state.rng, 0, 0xffffffff) || state.time < 0 || state.combatTime < 0 ||
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
 
+  const storm = state.storm;
+  if (!record(storm) || !exactKeys(storm, ['rng', 'remaining', 'charge']) || !integer(storm.rng, 0, 0xffffffff) || !nonnegative(storm.remaining) || storm.remaining > 300 + FLOAT_TOLERANCE || !nonnegative(storm.charge) || storm.charge > 2 + FLOAT_TOLERANCE) return false;
   const stats = state.runStats;
   if (!record(stats) || !exactKeys(stats, ['startedAt', 'partial', 'party']) ||
     !nonnegative(stats.startedAt) || stats.startedAt > state.combatTime + FLOAT_TOLERANCE ||
@@ -57,14 +59,16 @@ export function validSave(raw: unknown): raw is GameState {
 
   const sequenceIds = new Set<number>();
   for (const actor of state.party) {
-    if (!finiteShape(actor, omit(template.party[0], ['cooldowns', 'rapidWeave', 'elementalCycle', 'sequence'])) ||
-      !Object.hasOwn(ROLES, actor.role) ||
+    if (!finiteShape(actor, omit(template.party[0], ['cooldowns', 'rapidWeave', 'elementalCycle', 'sequence', 'mendingThread'])) ||
+      !Object.hasOwn(ROLES, actor.role) || !ELEMENTS.includes(actor.shotElement) ||
       !integer(actor.revelryStacks, 0, REVELRY.maxStacks) || !integer(actor.shieldCharges, 0, 1) ||
       actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY || actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
       actor.hp < 0 || actor.hp > actor.maxHp || actor.mp < 0 || actor.mp > actor.maxMp || actor.tp < 0 || actor.tp > 3000 ||
       Math.hypot(actor.moveX, actor.moveZ) > 1 + FLOAT_TOLERANCE || !withinArena(actor.x, actor.z) ||
       !cooldowns(actor.cooldowns) || !nonnegative(actor.recovery) || !nonnegative(actor.spellRecovery) ||
       !nonnegative(actor.selfChainUntil)) return false;
+    const thread = actor.mendingThread;
+    if (thread !== null && (!record(thread) || !exactKeys(thread, ['remaining', 'tickIn', 'source']) || !finite(thread.remaining) || thread.remaining <= 0 || thread.remaining > 12 || !finite(thread.tickIn) || thread.tickIn <= 0 || thread.tickIn > 2 + FLOAT_TOLERANCE || !slot(thread.source) || state.party[thread.source].role !== 'luminary')) return false;
     const weave = actor.rapidWeave;
     if (weave !== null) {
       if (!record(weave) || !exactKeys(weave, ['remaining', 'charges', 'refresh']) ||

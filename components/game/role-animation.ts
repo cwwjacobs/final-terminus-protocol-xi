@@ -92,6 +92,9 @@ export function actionKey(event: { kind: string; text: string; source?: string }
   // Signature actions need dedicated choreography; don't infer an ordinary
   // weaponskill from their display text or replace their authoritative timing.
   if (['criticalDash', 'splitVolley', 'rapidWeave', 'aegis'].includes(event.source ?? '')) return null;
+  if (event.source === 'mendingThread') return event.kind === 'ability' ? 'heal' : null;
+  if (event.source === 'shimmerWave') return event.kind === 'shimmer_wave' ? 'heal' : null;
+  if (event.source === 'elementalShot') return 'auto';
   switch (event.kind) {
     case 'auto': return 'auto';
     case 'weapon': {

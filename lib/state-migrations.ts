@@ -1,3 +1,4 @@
+import { createStaticStorm } from '../game/static-storm.ts';
 import { REVELRY } from '../game/content.ts';
 import { createRunStats } from '../game/run-stats.ts';
 
@@ -18,6 +19,12 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     if (!timer(state.combatTime)) return null;
     const partial = state.status !== 'ready' && state.combatTime > 0;
     state.runStats = createRunStats((state.party as unknown[]).length, partial ? state.combatTime : 0, partial);
+  }
+  if (!Object.hasOwn(state, 'storm')) state.storm = createStaticStorm(Number.isInteger(state.rng) ? state.rng as number : LEGACY_SEED);
+  for (const actor of state.party as unknown[]) {
+    if (!record(actor)) return null;
+    if (!Object.hasOwn(actor, 'mendingThread')) actor.mendingThread = null;
+    if (!Object.hasOwn(actor, 'shotElement')) actor.shotElement = 'fire';
   }
   if (state.version === 2) return state;
   if (!record(state.boss)) return null;

@@ -140,6 +140,11 @@ function parseAction(value: unknown): Action {
     }
     return { type: "weapon", id: action.id } as Action;
   }
+  if (action.type === "selectShot") {
+    exactKeys(action, ["type", "element"]);
+    if (action.element !== undefined && !["fire", "ice", "lightning"].includes(action.element as string)) throw new RoomError(400, "Unknown shot element.");
+    return { type: "selectShot", ...(action.element === undefined ? {} : { element: action.element }) } as Action;
+  }
   if (action.type === "magic") {
     exactKeys(action, ["type", "element"]);
     if (!["fire", "ice", "lightning"].includes(action.element as string)) {
@@ -147,15 +152,15 @@ function parseAction(value: unknown): Action {
     }
     return { type: "magic", element: action.element } as Action;
   }
-  if (action.type === "heal") {
+  if (action.type === "heal" || action.type === "mendingThread") {
     exactKeys(action, ["type", "target"]);
     if (Object.hasOwn(action, "target") && (!Number.isInteger(action.target) ||
       (action.target as number) < 0 || (action.target as number) >= 5)) {
       throw new RoomError(400, "Healing target must be a party slot.");
     }
-    return { type: "heal", ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
+    return { type: action.type, ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
   }
-  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis"].includes(action.type as string)) {
+  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }

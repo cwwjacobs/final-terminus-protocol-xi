@@ -34,11 +34,14 @@ export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: numbe
   'magic:ice': { name: 'Stillwinter', cooldown: 6, mp: 70, description: 'Ice magic; 2 second spell recovery.' },
   'magic:lightning': { name: 'Ion Judgment', cooldown: 6, mp: 70, description: 'Thunder magic; 2 second spell recovery.' },
   criticalDash: { name: 'Critical Dash', cooldown: 45, mp: 0, description: 'Three guaranteed 2× critical hits, gaining TP; return to the starting position.' },
+  elementalShot: { name: 'Elemental Shot', cooldown: 6, mp: 35, description: 'Fire the selected elemental arrow. 35 MP; matching shots Magic Burst. Shared 6 second recast.' },
   splitVolley: { name: 'Split Volley', cooldown: 45, mp: 0, description: 'Five arrows generate 1,250 TP and permit one self-chain for 8 seconds.' },
   rapidWeave: { name: 'Rapid Weave', cooldown: 180, mp: 0, description: '12 seconds: two rapid casts of each element, with 0.5 second recovery.' },
   aegis: { name: 'Aegis', cooldown: 90, mp: 120, description: 'All living allies within 18 units block their next incoming hit.' },
   revelry: { name: 'Revelry', cooldown: 45, mp: 0, description: 'Grant a stacking party attack bonus.' },
   provoke: { name: 'Provoke', cooldown: 18, mp: 0, description: 'Generate enmity.' },
+  shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
+  mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', cooldown: 5, mp: 70, description: 'Heal a selected ally, or the lowest health percentage in range.' },
   guard: { name: 'Guard', cooldown: 14, mp: 0, description: '65% damage reduction for 5 seconds.' },
   dodge: { name: 'Evade', cooldown: 4, mp: 0, description: 'Evade with brief invulnerability.' },
@@ -75,9 +78,10 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (!Object.hasOwn(ROLES, role)) return false;
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
-  if (type === 'heal' || type === 'aegis') return role === 'luminary';
+  if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
   if (type === 'provoke') return role === 'warden';
   if (type === 'revelry' || type === 'criticalDash') return role === 'vanguard';
+  if (type === 'elementalShot' || type === 'selectShot') return role === 'hunter';
   if (type === 'splitVolley') return role === 'hunter';
   if (type === 'rapidWeave') return role === 'arcanist';
   return type === 'guard' || type === 'dodge' || type === 'move' || type === 'engage' || type === 'start';
@@ -112,31 +116,33 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis'].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread'].includes(action.type)) return 'Unknown action.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
   if (actor.hp <= 0) return 'This actor has fallen.';
   if (!canUseActionRole(actor.role, action.type)) return `${actor.name} cannot use this ability.`;
   if (action.type === 'move') return !Number.isFinite(action.x) || !Number.isFinite(action.z) || Math.abs(action.x) > 100 || Math.abs(action.z) > 100 || (action.facing !== undefined && !Number.isFinite(action.facing)) ? 'Movement must contain finite, bounded numbers.' : null;
+  if (action.type === 'selectShot') return action.element === undefined || ELEMENTS.includes(action.element) ? null : 'Unknown shot element.';
   if (action.type === 'engage') return null;
   if (action.type === 'start') return state.status === 'ready' ? null : 'The encounter has already started.';
   if (state.status !== 'fighting') return 'Engage Crown Resonance first.';
   if (action.type === 'weapon' && !Object.hasOwn(WEAPONS, action.id)) return 'Unknown weaponskill.';
   if (action.type === 'magic' && !Object.hasOwn(MAGIC, action.element)) return 'Unknown magic element.';
   if (getCooldown(actor, action) > 1e-8) return `${ABILITY_DEFINITIONS[cooldownKey(action)]?.name ?? action.type} is on cooldown.`;
-  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley'].includes(action.type);
+  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot'].includes(action.type);
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
-  if (action.type === 'magic' && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
+  if ((action.type === 'magic' || action.type === 'elementalShot') && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
   const range = Math.hypot(actor.x - state.boss.x, actor.z - state.boss.z);
-  if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley') {
+  if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley' || action.type === 'elementalShot') {
     if (!actor.engaged) return 'Engage before attacking.';
     if (range > ROLES[actor.role].range) return 'Move into attack range.';
   }
   if ((action.type === 'magic' || action.type === 'provoke') && range > MAGIC_RANGE) return 'Move into magic range.';
   if (action.type === 'weapon' && actor.tp < TP_COST) return 'A weaponskill requires 1,000 TP.';
   if (actor.mp < (ABILITY_DEFINITIONS[cooldownKey(action)]?.mp ?? 0)) return 'Not enough MP.';
-  if (action.type === 'heal') {
+  if (action.type === 'shimmerWave' && !state.party.some(p => p.hp > 0 && p.hp < p.maxHp && Math.hypot(actor.x - p.x, actor.z - p.z) <= MAGIC_RANGE)) return 'No wounded ally in range.';
+  if (action.type === 'heal' || action.type === 'mendingThread') {
     const valid = (p: Actor) => p.hp > 0 && p.hp < p.maxHp && Math.hypot(actor.x - p.x, actor.z - p.z) <= MAGIC_RANGE;
     if (action.target !== undefined) {
       if (!Number.isInteger(action.target) || !state.party[action.target] || !valid(state.party[action.target])) return 'Selected ally cannot be healed.';
@@ -155,6 +161,8 @@ export const ACTIONS = {
   rapidWeave: ABILITY_DEFINITIONS.rapidWeave,
   aegis: ABILITY_DEFINITIONS.aegis,
   provoke: { name: 'Provoke', description: 'Generate cumulative and volatile enmity. 18 second cooldown.' },
+  shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
+  mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', description: '70 MP. Heal the most wounded living ally within 18 units.' },
   guard: { name: 'Guard', description: 'Reduce incoming damage by 65% for 5 seconds.' },
   dodge: { name: 'Dodge', description: 'Evade in your movement direction, or away from the boss. Brief invulnerability.' },

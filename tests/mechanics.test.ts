@@ -185,7 +185,7 @@ test('Aegis covers living allies in range, blocks exactly one hit and preserves 
   pulse(s, 2);
   assert.equal(a.hp, hp); assert.equal(a.tp, tp); assert.equal(a.ce, ce); assert.equal(a.revelryStacks, 3); assert.equal(a.shieldCharges, 0);
   stepGame(s, 1);
-  assert.equal(a.hp, hp - 300); assert.equal(a.tp, tp + 45); assert.equal(a.revelryStacks, 0);
+  assert.equal(a.hp, hp - 315); assert.equal(a.tp, tp + 45); assert.equal(a.revelryStacks, 0);
 });
 
 test('evasion precedes Aegis and Coherence Collapse bypasses both and clears windows', () => {
@@ -217,7 +217,7 @@ test('Heracles receives 10% physical mitigation and generates 30% extra enmity',
   const s = combat(); applyAction(s, 1, { type: 'provoke' });
   assert.equal(s.party[1].ce, 390); assert.equal(s.party[1].ve, 3640);
   s.boss.attackTimer = 0; stepGame(s, .05);
-  assert.equal(s.party[1].maxHp - s.party[1].hp, 162);
+  assert.equal(s.party[1].maxHp - s.party[1].hp, 170);
 });
 
 test('Decree locks one ally, respects physical mitigation and fizzles when that ally has died', () => {
@@ -226,7 +226,7 @@ test('Decree locks one ally, respects physical mitigation and fizzles when that 
     s.boss.cast = { name: "Regent's Decree", abilityId: 'regentsDecree', kind: 'circle', target: 1, remaining: .05, total: 3, x: 0, z: -1, radius: 0, angle: 0 };
     if (dead) s.party[1].hp = 0;
     stepGame(s, .05);
-    assert.equal(s.party[1].hp, dead ? 0 : before[1] - 900);
+    assert.equal(s.party[1].hp, dead ? 0 : before[1] - 945);
     assert.equal(s.party[0].hp, before[0]); assert.equal(s.boss.cast, null);
   }
 });
@@ -241,7 +241,7 @@ test('committed Echo pulses and dead-target Decree finish even after every threa
   assert.equal(echo.boss.cast?.pulses, 1);
   stepGame(echo, 1);
   assert.equal(echo.boss.target, -1);
-  assert.equal(echo.party[1].hp, afterFirst - 300);
+  assert.equal(echo.party[1].hp, afterFirst - 315);
   assert.equal(echo.boss.cast, null);
 
   const decree = combat();

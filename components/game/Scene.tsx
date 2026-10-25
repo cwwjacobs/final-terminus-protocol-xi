@@ -7,10 +7,10 @@ import { ARENA_RADIUS, BURST_WINDOW, CONE_HALF_ANGLE, MAGIC } from '@/game/conte
 import { ActorAssets, animateActor, createActor, createCrownResonance, type ActorRig } from './actors';
 import { HeroAssetCache, type HeroVisual } from './hero-assets';
 import { activeBurst } from './combat-feedback';
-import EnemyMark from './EnemyMark';
 import Icon from './Icon';
 import { roleIcon } from './icons';
 import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
+import { createStormEffects } from './storm-effects';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
@@ -210,7 +210,6 @@ function createStatusCues(rigs: ActorRig[], quality: 'low' | 'high') {
 export default function Scene(props: SceneProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
-  const enemyMarkRef = useRef<HTMLDivElement>(null);
   const latest = useRef(props);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => { latest.current = props; });
@@ -286,6 +285,7 @@ export default function Scene(props: SceneProps) {
     echoEdge.visible = decreeMark.visible = decreeStem.visible = false;
     circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
     const effects = createEffects(scene, props.quality);
+    const stormEffects = createStormEffects(scene, props.quality);
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
     let reducedMotion = motionPreference.matches;
@@ -367,8 +367,9 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
+      stormEffects.event(event, state);
       if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
-      if (event.kind === 'ability' && !['aegis', 'rapidWeave'].includes(event.source ?? '')) return;
+      if (event.kind === 'ability' && !['aegis', 'rapidWeave', 'mendingThread'].includes(event.source ?? '')) return;
       const feedback = combatNumber(event, state);
       if (feedback) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
@@ -418,7 +419,7 @@ export default function Scene(props: SceneProps) {
       if (state.time < lastTime) initializedCamera = false;
       lastTime = state.time;
       if (incoming.reset) {
-        pendingImpacts.length = 0; numbers.reset();
+        pendingImpacts.length = 0; numbers.reset(); stormEffects.reset();
         heroVisuals.forEach(visual => visual?.resetCombat());
         effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
       }
@@ -540,16 +541,6 @@ export default function Scene(props: SceneProps) {
       targetReticle.quaternion.copy(camera.quaternion);
       decreeMark.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);
-      // One enemy-attached sigil: no screen-centered announcement panel.
-      const mark = enemyMarkRef.current;
-      if (mark) {
-        projected.copy(bossRig.root.position); projected.y += 3.15;
-        ray.copy(projected).sub(camera.position);
-        const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
-        projected.project(camera);
-        mark.style.opacity = inFront && projected.z < 1 && Math.abs(projected.x) < .96 && Math.abs(projected.y) < .94 ? '1' : '0';
-        mark.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-50%)`;
-      }
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
@@ -560,6 +551,7 @@ export default function Scene(props: SceneProps) {
         label.style.opacity = visible ? (i === slot ? '.55' : '.9') : '0';
         label.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-100%)`;
       }
+      stormEffects.update(dt, state, reducedMotion);
       renderer.render(scene, camera); frames++;
       if (now - reportAt >= 1000) {
         latest.current.onTelemetry?.({ fps: Math.round(frames * 1000 / (now - reportAt)), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
@@ -570,7 +562,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose();
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
       // Detach them before generic arena cleanup to avoid disposing them twice.
@@ -596,7 +588,6 @@ export default function Scene(props: SceneProps) {
         <span style={{ color: actor.color }}><Icon name={roleIcon(actor.role)} className="label-sigil"/>{actor.name}</span>
       </div>;
     })}
-    <EnemyMark state={props.state} anchor={enemyMarkRef}/>
     {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
   </div>;
 }

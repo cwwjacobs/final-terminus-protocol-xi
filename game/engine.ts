@@ -1,6 +1,7 @@
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
+import { createStaticStorm, nextStaticInterval, STATIC_CHARGE_SECONDS, staticArcTargets } from './static-storm.ts';
 import type { Action, ActionResult, Actor, BossCast, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
@@ -19,13 +20,14 @@ export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState
   const maxHp = safeMode === 'god' ? 310000 : 105000;
   return {
     version: 2, rng: seed >>> 0, sequenceSeq: 0, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready', runStats: createRunStats(PARTY.length),
+    storm: createStaticStorm(seed),
     party: PARTY.map((p, i) => ({
       id: p.id, name: p.name, role: p.role, color: p.color,
       x: (i - 2) * 2, z: 9 + Math.abs(i - 2), facing: Math.PI,
       hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0, revelryStacks: 0,
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
-      shieldCharges: 0, recovery: 0, spellRecovery: 0, selfChainUntil: 0,
+      shieldCharges: 0, mendingThread: null, recovery: 0, spellRecovery: 0, shotElement: 'fire', selfChainUntil: 0,
       rapidWeave: null, elementalCycle: { elements: [], remaining: 0 }, sequence: null,
     })),
     boss: { name: LORE.boss, x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cooldowns: {}, cast: null },
@@ -77,6 +79,7 @@ function cancelSequence(actor: Actor, returnHome = true) {
 function clearTransient(actor: Actor) {
   cancelSequence(actor);
   actor.shieldCharges = 0;
+  actor.mendingThread = null;
   actor.selfChainUntil = 0;
   actor.rapidWeave = null;
   actor.elementalCycle = { elements: [], remaining: 0 };
@@ -179,6 +182,10 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     else if (length > 1 || Math.abs(action.x) + Math.abs(action.z) > 0.001) actor.facing = Math.atan2(action.x, action.z);
     return { ok: true };
   }
+  if (action.type === 'selectShot') {
+    actor.shotElement = action.element ?? ELEMENTS[(ELEMENTS.indexOf(actor.shotElement) + 1) % ELEMENTS.length];
+    return { ok: true };
+  }
   if (action.type === 'start') {
     if (state.status !== 'ready') return fail('The encounter has already started.');
     begin(state, slot);
@@ -228,6 +235,16 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
       if (state.status === 'fighting') state.burst = { element: combination.element, remaining: BURST_WINDOW };
     }
     if (state.status === 'fighting') state.chain = { property: combination?.property ?? def.property, opener: slot, weapon: action.id, remaining: CHAIN_WINDOW, openedAt: state.time };
+    return { ok: true };
+  }
+  if (action.type === 'elementalShot') {
+    actor.mp -= definition.mp;
+    actor.cooldowns[key] = definition.cooldown;
+    actor.spellRecovery = 1;
+    const element = actor.shotElement;
+    const burst = state.burst?.element === element && state.burst.remaining > 0;
+    const name = element === 'fire' ? 'Fire Shot' : element === 'ice' ? 'Ice Shot' : 'Lightning Shot';
+    damageBoss(state, slot, burst ? 780 : 230, burst ? 'burst' : 'magic', `${name}${burst ? ' · MAGIC BURST' : ''}`, 'elementalShot');
     return { ok: true };
   }
   if (action.type === 'magic') {
@@ -300,6 +317,26 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     actor.cooldowns.heal = 5;
     threat(actor, restored * 0.16 * .75, restored * 0.4 * .75);
     event(state, 'heal', `${actor.name} restores ${target.p.name} · +${Math.round(restored)}`, slot, restored, target.i);
+    return { ok: true };
+  }
+  if (action.type === 'shimmerWave') {
+    actor.mp -= definition.mp;
+    actor.cooldowns[key] = definition.cooldown;
+    event(state, 'shimmer_wave', `${actor.name} releases Shimmer Wave.`, slot, undefined, undefined, 'shimmerWave');
+    state.party.forEach((recipient, target) => {
+      if (recipient.hp > 0 && distance(actor, recipient) <= MAGIC_RANGE) restoreHealth(state, slot, target, 350, 'shimmerWave');
+    });
+    return { ok: true };
+  }
+  if (action.type === 'mendingThread') {
+    const targets = state.party.map((p, i) => ({ p, i })).filter(({ p }) => p.hp > 0 && p.hp < p.maxHp && distance(actor, p) <= MAGIC_RANGE);
+    targets.sort((a, b) => a.p.hp / a.p.maxHp - b.p.hp / b.p.maxHp || a.i - b.i);
+    const target = action.target === undefined ? targets[0] : targets.find(t => t.i === action.target);
+    if (!target) return fail('No wounded ally in range.');
+    actor.mp -= definition.mp;
+    actor.cooldowns[key] = definition.cooldown;
+    target.p.mendingThread = { remaining: 12, tickIn: 2, source: slot };
+    event(state, 'ability', `${actor.name} weaves Mending Thread around ${target.p.name}.`, slot, undefined, target.i, 'mendingThread');
     return { ok: true };
   }
   if (action.type === 'guard') {
@@ -388,7 +425,11 @@ function trustAction(state: GameState, slot: number) {
   if (actor.role === 'luminary') {
     const urgent = state.party.some(p => p.hp > 0 && p.hp / p.maxHp < .35 && distance(actor, p) <= MAGIC_RANGE);
     if (urgent && applyAction(state, slot, { type: 'heal' }).ok) return;
-    if (cast && (cast.kind === 'raid' || cast.abilityId === 'regentsDecree') && state.party.some(p => p.hp > 0 && p.shieldCharges === 0 && distance(actor, p) <= MAGIC_RANGE)) applyAction(state, slot, { type: 'aegis' });
+    if ((state.storm.charge > 0 || cast && (cast.kind === 'raid' || cast.abilityId === 'regentsDecree')) && state.party.some(p => p.hp > 0 && p.shieldCharges === 0 && distance(actor, p) <= MAGIC_RANGE)) applyAction(state, slot, { type: 'aegis' });
+    const wounded = state.party.filter(p => p.hp > 0 && p.maxHp - p.hp >= 250 && distance(actor, p) <= MAGIC_RANGE);
+    if (wounded.length >= 2) applyAction(state, slot, { type: 'shimmerWave' });
+    const sustained = wounded.filter(p => !p.mendingThread && p.maxHp - p.hp >= 500).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0];
+    if (sustained && actor.mp >= 150) applyAction(state, slot, { type: 'mendingThread', target: state.party.indexOf(sustained) });
   }
   if (cast?.abilityId === 'regentsDecree' && cast.target === slot) {
     applyAction(state, slot, { type: 'guard' });
@@ -488,7 +529,7 @@ function bossStep(state: GameState, dt: number) {
       const echo = cast.abilityId === 'terminalEcho';
       const base = decree ? 1000 : echo ? 300 : cast.kind === 'raid' ? 260 : cast.kind === 'cone' ? 620 : 740;
       for (let i = 0; i < state.party.length; i++) {
-        if (decree ? i === cast.target : isInTelegraph(state.party[i], cast)) damageActor(state, i, base * (1 + (boss.phase - 1) * 0.15) * (state.mode === 'god' ? 1.1 : 1), cast.name, decree || cast.kind === 'cone');
+        if (decree ? i === cast.target : isInTelegraph(state.party[i], cast)) damageActor(state, i, base * 1.05 * (1 + (boss.phase - 1) * 0.15) * (state.mode === 'god' ? 1.1 : 1), cast.name, decree || cast.kind === 'cone');
       }
       if (echo && (cast.pulses ?? 1) > 1) {
         cast.pulses = 1;
@@ -511,7 +552,7 @@ function bossStep(state: GameState, dt: number) {
   boss.attackTimer -= dt;
   boss.specialTimer -= dt;
   if (boss.attackTimer <= 0 && distance(boss, target) <= 4.3) {
-    damageActor(state, boss.target, 180 * (1 + (boss.phase - 1) * 0.15), 'Crown strike', true);
+    damageActor(state, boss.target, 180 * 1.05 * (1 + (boss.phase - 1) * 0.15), 'Crown strike', true);
     boss.attackTimer = 2.7 - boss.phase * 0.15;
     finishIfNeeded(state);
   }
@@ -542,6 +583,40 @@ function bossStep(state: GameState, dt: number) {
   }
 }
 
+function restoreHealth(state: GameState, source: number, target: number, base: number, ability: string) {
+  const caster = state.party[source], recipient = state.party[target];
+  const amount = Math.min(recipient.maxHp - recipient.hp, Math.round(base * TRAITS[caster.role].healingPower / 100 * (recipient.hp / recipient.maxHp < .35 ? 1.2 : 1)));
+  if (amount <= 0 || recipient.hp <= 0) return;
+  recipient.hp += amount;
+  state.runStats.party[source].healing += amount;
+  if (caster.hp > 0) threat(caster, amount * .16 * .75, amount * .4 * .75);
+  event(state, 'heal', `${caster.name}: ${ABILITY_DEFINITIONS[ability].name} restores ${recipient.name} · +${amount}`, source, amount, target, ability);
+}
+
+function stormStep(state: GameState, dt: number) {
+  const storm = state.storm;
+  storm.remaining = Math.max(0, storm.remaining - dt);
+  if (storm.charge > 0) {
+    storm.charge = Math.max(0, storm.charge - dt);
+    if (storm.charge <= 1e-8) {
+      storm.charge = 0;
+      const targets = staticArcTargets(state);
+      event(state, 'static_discharge', targets.length ? 'Static discharge — spread out!' : 'Static discharge grounds harmlessly.', undefined, undefined, undefined, 'staticStorm');
+      targets.forEach((target, jump) => {
+        event(state, 'static_arc', `Static arcs to ${state.party[target].name}.`, target, undefined, jump > 0 ? targets[jump - 1] : undefined, 'staticStorm');
+        damageActor(state, target, 420 * Math.pow(.75, jump), 'Static arc');
+      });
+      finishIfNeeded(state);
+      if (state.status !== 'fighting') return;
+    }
+  }
+  if (storm.remaining <= 1e-8) {
+    storm.charge = STATIC_CHARGE_SECONDS;
+    storm.remaining = nextStaticInterval(storm);
+    event(state, 'static_strike', 'Lightning charges the enemy — spread out or prepare Aegis!', undefined, undefined, undefined, 'staticStorm');
+  }
+}
+
 function fixedStep(state: GameState) {
   const dt = FIXED_STEP;
   state.time = ++state.tick * dt;
@@ -564,6 +639,13 @@ function fixedStep(state: GameState) {
     actor.recovery = Math.max(0, actor.recovery - dt);
     actor.spellRecovery = Math.max(0, actor.spellRecovery - dt);
     if (actor.hp <= 0) { clearTransient(actor); continue; }
+    if (actor.mendingThread && state.status === 'fighting') {
+      const thread = actor.mendingThread;
+      thread.remaining = Math.max(0, thread.remaining - dt);
+      thread.tickIn -= dt;
+      if (thread.tickIn <= 1e-8) { restoreHealth(state, thread.source, i, 100, 'mendingThread'); thread.tickIn += 2; }
+      if (thread.remaining <= 1e-8) actor.mendingThread = null;
+    }
     if (actor.rapidWeave) {
       actor.rapidWeave.remaining -= dt;
       for (const element of ELEMENTS) actor.rapidWeave.refresh[element] = Math.max(0, actor.rapidWeave.refresh[element] - dt);
@@ -596,6 +678,7 @@ function fixedStep(state: GameState) {
       actor.attackTimer = ROLES[actor.role].delay;
     }
   }
+  if (state.status === 'fighting') stormStep(state, dt);
   if (state.status === 'fighting') bossStep(state, dt);
 }
 
