@@ -152,15 +152,15 @@ function parseAction(value: unknown): Action {
     }
     return { type: "magic", element: action.element } as Action;
   }
-  if (action.type === "heal") {
+  if (action.type === "heal" || action.type === "mendingThread") {
     exactKeys(action, ["type", "target"]);
     if (Object.hasOwn(action, "target") && (!Number.isInteger(action.target) ||
       (action.target as number) < 0 || (action.target as number) >= 5)) {
       throw new RoomError(400, "Healing target must be a party slot.");
     }
-    return { type: "heal", ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
+    return { type: action.type, ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
   }
-  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot"].includes(action.type as string)) {
+  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }

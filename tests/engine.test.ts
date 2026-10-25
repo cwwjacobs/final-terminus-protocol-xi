@@ -185,8 +185,8 @@ test('telegraph geometry agrees with resolution; guard mitigates a raid; fallen 
   applyAction(state, 0, { type: 'guard' });
   state.party[2].hp = 100;
   stepGame(state, 0.05);
-  assert.equal(state.party[0].maxHp - state.party[0].hp, 91);
-  assert.equal(state.party[1].maxHp - state.party[1].hp, 260);
+  assert.equal(state.party[0].maxHp - state.party[0].hp, 96);
+  assert.equal(state.party[1].maxHp - state.party[1].hp, 273);
   assert.equal(state.party[2].hp, 0);
   assert.equal(applyAction(state, 2, { type: 'heal' }).ok, false);
 });

@@ -68,7 +68,7 @@ test('every role action has a direct default key and controller binding with no 
       assert.ok(effectiveBindingCommand(role, action, settings, 'controller'), `${role}: ${action} controller`);
     }
   }
-  assert.equal(roleCommand('luminary', 'primary3'), null);
+  assert.equal(roleCommand('luminary', 'primary3'), 'shimmerWave');
   assert.deepEqual(bindingWarnings(settings), []);
   const custom = bindKey(bindKey(settings, 'primary1', ''), 'fire', 'KeyH');
   assert.equal(effectiveBindingCommand('arcanist', 'fire', custom, 'keyboard'), 'fire');
@@ -316,7 +316,7 @@ test('primary keyboard and X/Y/RB slots resolve the current role on each press',
     warden: [{ type: 'weapon', id: 'cleave' }, { type: 'weapon', id: 'pierce' }, { type: 'weapon', id: 'resonance' }],
     hunter: [{ type: 'weapon', id: 'cleave' }, { type: 'weapon', id: 'pierce' }, { type: 'weapon', id: 'resonance' }],
     arcanist: [{ type: 'magic', element: 'fire' }, { type: 'magic', element: 'ice' }, { type: 'magic', element: 'lightning' }],
-    luminary: [{ type: 'heal' }, { type: 'aegis' }],
+    luminary: [{ type: 'heal' }, { type: 'aegis' }, { type: 'shimmerWave' }],
   };
   try {
     h.state.pad = h.pad; h.frame();

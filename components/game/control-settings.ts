@@ -40,6 +40,8 @@ export const COMMANDS = [
   { id: 'elementalShot', label: 'Elemental Shot', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'splitVolley', label: 'Split Volley', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'rapidWeave', label: 'Rapid Weave · optional direct binding', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'shimmerWave', label: 'Shimmer Wave', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'mendingThread', label: 'Mending Thread', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'aegis', label: 'Aegis', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'commandMenu', label: 'Optional command menu', group: 'Menus', defaultKey: '' },
 ] as const;
@@ -119,7 +121,7 @@ export const ROLE_ACTION_SLOTS: Record<Role, readonly (Command | null)[]> = {
   warden: ['cleave', 'pierce', 'resonance', 'provoke', null],
   hunter: ['cleave', 'pierce', 'resonance', 'splitVolley', 'elementalShot'],
   arcanist: ['fire', 'ice', 'lightning', 'rapidWeave', null],
-  luminary: ['heal', 'aegis', null, null, null],
+  luminary: ['heal', 'aegis', 'shimmerWave', 'mendingThread', null],
 };
 export function roleCommand(role: Role, slot: Command): Command | null {
   const index = ROLE_SLOT_COMMANDS.indexOf(slot as RoleSlotCommand);

@@ -40,6 +40,8 @@ export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: numbe
   aegis: { name: 'Aegis', cooldown: 90, mp: 120, description: 'All living allies within 18 units block their next incoming hit.' },
   revelry: { name: 'Revelry', cooldown: 45, mp: 0, description: 'Grant a stacking party attack bonus.' },
   provoke: { name: 'Provoke', cooldown: 18, mp: 0, description: 'Generate enmity.' },
+  shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
+  mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', cooldown: 5, mp: 70, description: 'Heal a selected ally, or the lowest health percentage in range.' },
   guard: { name: 'Guard', cooldown: 14, mp: 0, description: '65% damage reduction for 5 seconds.' },
   dodge: { name: 'Evade', cooldown: 4, mp: 0, description: 'Evade with brief invulnerability.' },
@@ -76,7 +78,7 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (!Object.hasOwn(ROLES, role)) return false;
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
-  if (type === 'heal' || type === 'aegis') return role === 'luminary';
+  if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
   if (type === 'provoke') return role === 'warden';
   if (type === 'revelry' || type === 'criticalDash') return role === 'vanguard';
   if (type === 'elementalShot' || type === 'selectShot') return role === 'hunter';
@@ -114,7 +116,7 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot'].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread'].includes(action.type)) return 'Unknown action.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
   if (actor.hp <= 0) return 'This actor has fallen.';
@@ -139,7 +141,8 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   if ((action.type === 'magic' || action.type === 'provoke') && range > MAGIC_RANGE) return 'Move into magic range.';
   if (action.type === 'weapon' && actor.tp < TP_COST) return 'A weaponskill requires 1,000 TP.';
   if (actor.mp < (ABILITY_DEFINITIONS[cooldownKey(action)]?.mp ?? 0)) return 'Not enough MP.';
-  if (action.type === 'heal') {
+  if (action.type === 'shimmerWave' && !state.party.some(p => p.hp > 0 && p.hp < p.maxHp && Math.hypot(actor.x - p.x, actor.z - p.z) <= MAGIC_RANGE)) return 'No wounded ally in range.';
+  if (action.type === 'heal' || action.type === 'mendingThread') {
     const valid = (p: Actor) => p.hp > 0 && p.hp < p.maxHp && Math.hypot(actor.x - p.x, actor.z - p.z) <= MAGIC_RANGE;
     if (action.target !== undefined) {
       if (!Number.isInteger(action.target) || !state.party[action.target] || !valid(state.party[action.target])) return 'Selected ally cannot be healed.';
@@ -158,6 +161,8 @@ export const ACTIONS = {
   rapidWeave: ABILITY_DEFINITIONS.rapidWeave,
   aegis: ABILITY_DEFINITIONS.aegis,
   provoke: { name: 'Provoke', description: 'Generate cumulative and volatile enmity. 18 second cooldown.' },
+  shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
+  mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', description: '70 MP. Heal the most wounded living ally within 18 units.' },
   guard: { name: 'Guard', description: 'Reduce incoming damage by 65% for 5 seconds.' },
   dodge: { name: 'Dodge', description: 'Evade in your movement direction, or away from the boss. Brief invulnerability.' },

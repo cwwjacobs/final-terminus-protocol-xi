@@ -584,6 +584,7 @@ test("new combat requests accept intent and optional healing slot, never outcome
   const actions = [
     { type: "criticalDash" }, { type: "splitVolley" }, { type: "rapidWeave" }, { type: "aegis" },
     { type: "heal" }, { type: "heal", target: 0 }, { type: "heal", target: 4 },
+    { type: "shimmerWave" }, { type: "mendingThread" }, { type: "mendingThread", target: 0 },
   ];
   const parsed = parseRoomRequest({ ...base, actions });
   assert.equal(parsed.op, "sync");
@@ -596,10 +597,10 @@ test("new combat requests accept intent and optional healing slot, never outcome
   for (const action of actions) for (const extra of forbidden) {
     assert.throws(() => parseRoomRequest({ ...base, actions: [{ ...action, ...extra }] }), status(400));
   }
-  for (const target of [-1, 5, 0.5, null, undefined, NaN, Infinity, "1"]) {
-    assert.throws(() => parseRoomRequest({ ...base, actions: [{ type: "heal", target }] }), status(400));
+  for (const type of ["heal", "mendingThread"]) for (const target of [-1, 5, 0.5, null, undefined, NaN, Infinity, "1"]) {
+    assert.throws(() => parseRoomRequest({ ...base, actions: [{ type, target }] }), status(400));
   }
-  for (const type of ["criticalDash", "splitVolley", "rapidWeave", "aegis"]) {
+  for (const type of ["criticalDash", "splitVolley", "rapidWeave", "aegis", "shimmerWave"]) {
     assert.throws(() => parseRoomRequest({ ...base, actions: [{ type, target: 0 }] }), status(400));
   }
 });

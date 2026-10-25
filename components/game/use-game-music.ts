@@ -1,7 +1,7 @@
 'use client';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { createMusicPlayer } from './music-player.ts';
-import { MUSIC_STORAGE_KEY } from './music-settings.ts';
+import { MUSIC_STORAGE_KEY, MUSIC_QUIET_REVISION, quietMusicSettings } from './music-settings.ts';
 
 export function useGameMusic() {
   const [player] = useState(() => createMusicPlayer(settings => {
@@ -11,7 +11,15 @@ export function useGameMusic() {
   const restorePreferences = useCallback(() => {
     if (restored.current) return;
     restored.current = true;
-    try { player.restoreSettings(JSON.parse(localStorage.getItem(MUSIC_STORAGE_KEY) || 'null')); }
+    try {
+      const raw = JSON.parse(localStorage.getItem(MUSIC_STORAGE_KEY) || 'null');
+      if (localStorage.getItem(MUSIC_QUIET_REVISION) !== '1') {
+        const quiet = quietMusicSettings(raw);
+        player.restoreSettings(quiet);
+        localStorage.setItem(MUSIC_STORAGE_KEY, JSON.stringify(quiet));
+        localStorage.setItem(MUSIC_QUIET_REVISION, '1');
+      } else player.restoreSettings(raw);
+    }
     catch { player.restoreSettings(null); }
   }, [player]);
   const snapshot = useSyncExternalStore(player.subscribe, player.getSnapshot, player.getSnapshot);

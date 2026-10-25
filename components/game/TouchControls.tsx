@@ -84,7 +84,7 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
     <div className="touch-action-cluster">
       {notice && <div className="combat-notice" role="status">{notice}</div>}
       {player.role === 'hunter' && <ShotSelector element={player.shotElement} onAction={onAction}/>}
-      {player.role === 'luminary' && <button className="touch-heal-target" {...press(onAllyTarget)} aria-label="Choose healing target">Restore → {allyTarget === null ? 'Auto' : state.party[allyTarget]?.name}</button>}
+      {player.role === 'luminary' && <button className="touch-heal-target" {...press(onAllyTarget)} aria-label="Choose healing target">Heal target → {allyTarget === null ? 'Auto' : state.party[allyTarget]?.name}</button>}
       <div className="touch-ability-grid" aria-label={`${player.name} abilities`}>
         {choices.map(({ id, command, presentation: item }) => {
           const reason = commandUnavailable(state, slot, item.action);

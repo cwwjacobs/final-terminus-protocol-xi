@@ -50,7 +50,7 @@ export function combatNumber(event: CombatEvent, state: GameState): CombatNumber
 /** A scheduled impact already has an authoritative hit time. Replaying a
  * generic weapon animation must not defer or merge its individual numbers. */
 export function immediateImpact(event: CombatEvent): boolean {
-  return event.source === 'criticalDash' || event.source === 'splitVolley' || event.kind === 'shield';
+  return event.kind.startsWith('static_') || event.source === 'shimmerWave' || event.source === 'mendingThread' || event.source === 'criticalDash' || event.source === 'splitVolley' || event.kind === 'shield';
 }
 
 /** State owns the persistent aura. Receiving a log entry never grants a local

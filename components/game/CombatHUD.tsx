@@ -47,6 +47,7 @@ export default function CombatHUD({ state, slot, controls, interface: layout, se
       </div>
       <div className="direct-buffs" aria-label="Active effects">
         {actor.revelryStacks > 0 && <span title="Revelry stacks; lost after taking damage"><Icon name="revelry"/> {actor.revelryStacks}/5</span>}
+        {actor.mendingThread && <span>Mending {Math.ceil(actor.mendingThread.remaining)}s</span>}
         {actor.shieldCharges > 0 && <span title="Aegis blocks the next hit"><Icon name="aegis"/> 1 hit</span>}
         {actor.selfChainUntil > state.time && <span>Self-chain {Math.ceil(actor.selfChainUntil - state.time)}s</span>}
         {actor.rapidWeave && <span>Rapid Weave {Math.ceil(actor.rapidWeave.remaining)}s</span>}

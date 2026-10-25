@@ -14,6 +14,12 @@ export const DEFAULT_MUSIC_SETTINGS: Readonly<MusicSettings> = {
   volume: 0.1,
 };
 
+export const MUSIC_QUIET_REVISION = 'terminus-xi-quiet-music-v1';
+export function quietMusicSettings(raw: unknown): MusicSettings {
+  const settings = normalizeMusicSettings(raw);
+  return { ...settings, volume: Math.min(.1, settings.volume) };
+}
+
 export function normalizeMusicSettings(raw: unknown): MusicSettings {
   const source = raw && typeof raw === 'object' && !Array.isArray(raw)
     ? raw as Record<string, unknown> : {};

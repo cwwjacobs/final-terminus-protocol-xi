@@ -20,7 +20,7 @@ test('every role exposes its new technique alongside only permitted actions', ()
 
 test('each role has one visible slot per action and every default keyboard/controller action is mapped', () => {
   const settings = defaults();
-  const counts = [8, 7, 8, 7, 5];
+  const counts = [8, 7, 8, 7, 7];
   for (const [index, actor] of createGame().party.entries()) {
     const slots = roleActionSlots(actor.role);
     assert.equal(slots.length, counts[index], actor.name);
@@ -33,7 +33,7 @@ test('each role has one visible slot per action and every default keyboard/contr
     }
   }
   const healer = roleActionSlots('luminary', 2);
-  assert.equal(healer.some(slot => slot.id === 'primary3'), false);
+  assert.equal(healer.some(slot => slot.id === 'primary3'), true);
   assert.equal(healer.filter(slot => slot.command === 'guard').length, 1);
   assert.deepEqual(healer.find(slot => slot.command === 'heal')?.presentation.action, { type: 'heal', target: 2 });
 });

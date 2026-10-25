@@ -16,6 +16,8 @@ export type Action =
   | { type: 'aegis' }
   | { type: 'provoke' }
   | { type: 'heal'; target?: number }
+  | { type: 'shimmerWave' }
+  | { type: 'mendingThread'; target?: number }
   | { type: 'guard' }
   | { type: 'dodge' }
   | { type: 'start' };
@@ -46,6 +48,7 @@ export interface Actor {
   dodgeUntil: number;
   aiTimer: number;
   shieldCharges: number;
+  mendingThread: null | { remaining: number; tickIn: number; source: number };
   recovery: number;
   spellRecovery: number;
   shotElement: Element;
@@ -96,6 +99,7 @@ export interface GameState {
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
   runStats: RunStats;
+  storm: import('./static-storm.ts').StaticStorm;
   party: Actor[];
   boss: {
     name: string;

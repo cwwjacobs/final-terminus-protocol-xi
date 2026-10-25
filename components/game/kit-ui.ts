@@ -12,13 +12,15 @@ export const utilityAbilities: AbilityPresentation[] = [
   { key: 'splitVolley', pad: '', name: 'Split Volley', icon: 'splitVolley', color: 'mint', action: { type: 'splitVolley' }, hint: ABILITY_DEFINITIONS.splitVolley.description },
   { key: 'rapidWeave', pad: '', name: 'Rapid Weave', icon: 'rapidWeave', color: 'violet', action: { type: 'rapidWeave' }, hint: ABILITY_DEFINITIONS.rapidWeave.description },
   { key: 'heal', pad: '', name: 'Restore', icon: 'mend', color: 'mint', action: { type: 'heal' }, hint: ABILITY_DEFINITIONS.heal.description },
+  { key: 'shimmerWave', pad: '', name: 'Shimmer Wave', icon: 'mend', color: 'mint', action: { type: 'shimmerWave' }, hint: ABILITY_DEFINITIONS.shimmerWave.description },
+  { key: 'mendingThread', pad: '', name: 'Mending Thread', icon: 'mend', color: 'mint', action: { type: 'mendingThread' }, hint: ABILITY_DEFINITIONS.mendingThread.description },
   { key: 'aegis', pad: '', name: 'Aegis', icon: 'aegis', color: 'ice', action: { type: 'aegis' }, hint: ABILITY_DEFINITIONS.aegis.description },
   { key: 'guard', pad: '', name: 'Guard', icon: 'guard', color: 'ice', action: { type: 'guard' }, hint: ABILITY_DEFINITIONS.guard.description },
   { key: 'dodge', pad: '', name: 'Evade', icon: 'evade', color: 'mint', action: { type: 'dodge' }, hint: ABILITY_DEFINITIONS.dodge.description },
 ];
 
 export function withHealingTarget(action: Action, target: number | null): Action {
-  return action.type === 'heal' && action.target === undefined && target !== null ? { ...action, target } : action;
+  return (action.type === 'heal' || action.type === 'mendingThread') && action.target === undefined && target !== null ? { ...action, target } : action;
 }
 
 export function roleAbilities(role: Role, target: number | null = null): AbilityPresentation[] {
@@ -65,6 +67,8 @@ export function abilityDetail(actor: Actor, action: Action): string {
   if (action.type === 'elementalShot') return '35 MP · selected element';
   if (action.type === 'weapon') return '1,000+ TP';
   if (action.type === 'magic' || action.type === 'heal') return '70 MP';
+  if (action.type === 'shimmerWave') return '120 MP · party heal';
+  if (action.type === 'mendingThread') return '80 MP · 12s recovery';
   if (action.type === 'aegis') return '120 MP · one hit';
   return 'Ready';
 }
@@ -79,7 +83,7 @@ export function manualHealConfirmed(
   intent: PendingManualHeal, currentSelectionRevision: number,
 ): boolean {
   const index = packet.actions.indexOf(intent.action);
-  return intent.action.type === 'heal' && intent.action.target !== undefined &&
+  return (intent.action.type === 'heal' || intent.action.type === 'mendingThread') && intent.action.target !== undefined &&
     intent.selectionRevision === currentSelectionRevision && index >= 0 &&
     receipt.actionSeq === packet.seq && receipt.actionResults?.some(result => result.index === index && result.ok) === true;
 }

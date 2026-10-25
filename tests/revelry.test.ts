@@ -56,6 +56,7 @@ test('Revelry rejects recasts before 45 seconds and caps each recipient at five'
   stepGame(state, 0.05);
   assert.equal(applyAction(state, 0, { type: 'revelry' }).ok, true);
   for (let cast = 0; cast < 5; cast++) {
+    state.storm.remaining = 300; // Isolate stack-cap behavior from environmental damage.
     advance(state, REVELRY.cooldown);
     assert.equal(applyAction(state, 0, { type: 'revelry' }).ok, true);
   }
@@ -146,7 +147,7 @@ test('a raid clears each damaged recipient independently while an evading ally r
   state.boss.cast = { name: 'Terminal Pulse', kind: 'raid', x: 0, z: -4, radius: 100, angle: 0, remaining: 0.05, total: 4 };
   stepGame(state, 0.05);
   assert.deepEqual(state.party.map(p => p.revelryStacks), [0, 0, 3, 0, 0]);
-  assert.equal(state.party[0].maxHp - state.party[0].hp, 91);
+  assert.equal(state.party[0].maxHp - state.party[0].hp, 96);
   assert.equal(state.party[2].hp, state.party[2].maxHp);
 });
 
@@ -251,5 +252,5 @@ test('Revelry does not increase healing or mitigation', () => {
   assert.equal(state.events.at(-1)?.value, 690);
   assert.equal(state.party[4].revelryStacks, 5);
   hit(state, 4);
-  assert.equal(state.party[4].maxHp - state.party[4].hp, 740);
+  assert.equal(state.party[4].maxHp - state.party[4].hp, 777);
 });
