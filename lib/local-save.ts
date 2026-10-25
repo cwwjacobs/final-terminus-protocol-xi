@@ -1,5 +1,5 @@
 import { createGame } from '../game/engine.ts';
-import { ARENA_RADIUS, FIXED_STEP, REVELRY, ROLES } from '../game/content.ts';
+import { ABILITY_DEFINITIONS, ARENA_RADIUS, FIXED_STEP, GOD_ENRAGE_CAST, REVELRY, ROLES } from '../game/content.ts';
 import type { GameState } from '../game/types.ts';
 import { migrateGameState } from './state-migrations.ts';
 
@@ -7,6 +7,10 @@ const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
 const ELEMENTS = ['fire', 'ice', 'lightning'];
 const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse'];
+const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'bossImpact']);
+const WEAPON_IDS = ['cleave', 'pierce', 'resonance'];
+const PRESENTATION_AREA_KEYS = ['kind', 'x', 'z', 'radius', 'angle', 'total'];
+const PRESENTATION_AREA_OPTIONAL_KEYS = ['target', 'pulses', 'abilityId'];
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
@@ -19,6 +23,32 @@ const exactKeys = (value: Record<string, unknown>, keys: string[]) =>
   Object.keys(value).length === keys.length && keys.every(key => Object.hasOwn(value, key));
 const withinArena = (x: unknown, z: unknown): boolean =>
   finite(x) && finite(z) && Math.hypot(x, z) <= ARENA_RADIUS + FLOAT_TOLERANCE;
+
+/** Old events omit these fields. Supplied presentation metadata must be bounded
+ * before it can become geometry, animation identity or an emitter lifetime. */
+function validPresentationMetadata(event: Record<string, unknown>): boolean {
+  if (Object.hasOwn(event, 'abilityId') && (typeof event.abilityId !== 'string' || !PRESENTATION_ABILITIES.has(event.abilityId))) return false;
+  if (Object.hasOwn(event, 'weaponId') && (typeof event.weaponId !== 'string' || !WEAPON_IDS.includes(event.weaponId))) return false;
+  if (Object.hasOwn(event, 'element') && (typeof event.element !== 'string' || !ELEMENTS.includes(event.element))) return false;
+  if (typeof event.abilityId === 'string') {
+    if (event.weaponId !== undefined && event.abilityId.startsWith('weapon:') && event.abilityId !== `weapon:${event.weaponId}`) return false;
+    if (event.element !== undefined && event.abilityId.startsWith('magic:') && event.abilityId !== `magic:${event.element}`) return false;
+  }
+  if (!Object.hasOwn(event, 'area')) return true;
+  const area = event.area;
+  if (!record(area) || !['cast', 'boss_impact', 'enrage'].includes(event.kind as string) ||
+    !PRESENTATION_AREA_KEYS.every(key => Object.hasOwn(area, key)) ||
+    Object.keys(area).some(key => !PRESENTATION_AREA_KEYS.includes(key) && !PRESENTATION_AREA_OPTIONAL_KEYS.includes(key)) ||
+    typeof area.kind !== 'string' || !['circle', 'cone', 'raid'].includes(area.kind) ||
+    !withinArena(area.x, area.z) || !nonnegative(area.radius) || area.radius > 100 ||
+    !finite(area.angle) || Math.abs(area.angle) > Math.PI * 2 + FLOAT_TOLERANCE ||
+    !finite(area.total) || area.total <= 0 || area.total > GOD_ENRAGE_CAST + FLOAT_TOLERANCE ||
+    (Object.hasOwn(area, 'target') && !slot(area.target)) ||
+    (Object.hasOwn(area, 'pulses') && !integer(area.pulses, 1, 2)) ||
+    (Object.hasOwn(area, 'abilityId') && (typeof area.abilityId !== 'string' || !BOSS_ABILITIES.includes(area.abilityId))) ||
+    (event.abilityId !== undefined && area.abilityId !== undefined && event.abilityId !== area.abilityId)) return false;
+  return true;
+}
 
 export function restoreSave(raw: unknown): GameState | null {
   const state = migrateGameState(raw);
@@ -121,6 +151,7 @@ export function validSave(raw: unknown): raw is GameState {
     (event.target === undefined || slot(event.target)) &&
     (event.source === undefined || typeof event.source === 'string') &&
     (event.critical === undefined || typeof event.critical === 'boolean'))) return false;
+    if (!validPresentationMetadata(event)) return false;
     if (Object.hasOwn(event, 'sequenceId') || Object.hasOwn(event, 'hitIndex')) {
       if (!integer(event.sequenceId, 1, state.sequenceSeq) ||
         !['criticalDash', 'splitVolley'].includes(event.source ?? '') || event.kind !== 'weapon' || !slot(event.actor) ||

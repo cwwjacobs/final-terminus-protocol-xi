@@ -1,7 +1,8 @@
 import * as THREE from 'three';
+import { presentationContact, presentationKey, type PresentationCue } from './presentation-cues.ts';
 
-export type CombatCue = { kind: string; text: string };
-type Strike = 'attack' | 'cleave';
+export type CombatCue = PresentationCue & { id?: number; time?: number };
+type Strike = 'attack' | 'cleave' | 'pierce' | 'resonance' | 'dash' | 'revelry' | 'guard' | 'dodge' | 'hit';
 type Pose = { hand: number[]; direction: number[]; twist: number; lean: number };
 const ready: Pose = { hand: [-.24, 1.16, .18], direction: [.68, .47, .56], twist: -.08, lean: .015 };
 const choreography = {
@@ -27,13 +28,56 @@ const choreography = {
       [1.18, ready],
     ],
   },
+  pierce: {
+    duration: .88, impact: .3,
+    keys: [[0, ready], [.17, { hand: [-.3, 1.18, -.1], direction: [0, .15, 1], twist: -.3, lean: -.04 }],
+      [.3, { hand: [-.13, 1.23, .34], direction: [.3, .08, 1], twist: .18, lean: .1 }],
+      [.46, { hand: [-.14, 1.23, .3], direction: [.3, .12, 1], twist: .12, lean: .06 }], [.88, ready]],
+  },
+  resonance: {
+    duration: 1.12, impact: .48,
+    keys: [[0, ready], [.28, { hand: [-.15, 1.5, .05], direction: [.2, .94, -.1], twist: -.15, lean: -.06 }],
+      [.48, { hand: [-.16, 1.28, .25], direction: [.35, -.35, .85], twist: .2, lean: .12 }],
+      [.66, { hand: [-.23, 1.2, .25], direction: [.42, -.2, .86], twist: .24, lean: .08 }], [1.12, ready]],
+  },
+  dash: {
+    duration: .27, impact: .045,
+    keys: [[0, { hand: [-.18, 1.26, .12], direction: [-.65, .2, .7], twist: -.25, lean: .035 }],
+      [.045, { hand: [-.18, 1.2, .34], direction: [.85, .12, .5], twist: .32, lean: .12 }], [.27, ready]],
+  },
+  revelry: {
+    duration: 1.05, impact: .2,
+    keys: [[0, ready], [.2, { hand: [-.16, 1.54, .16], direction: [.82, .5, .15], twist: -.18, lean: -.04 }],
+      [.53, { hand: [-.14, 1.6, .25], direction: [.9, .4, .05], twist: .18, lean: -.08 }], [1.05, ready]],
+  },
+  guard: {
+    duration: .78, impact: .12,
+    keys: [[0, ready], [.12, { hand: [-.3, 1.35, .32], direction: [.95, .16, .05], twist: -.15, lean: .07 }],
+      [.5, { hand: [-.3, 1.35, .32], direction: [.95, .16, .05], twist: -.15, lean: .07 }], [.78, ready]],
+  },
+  dodge: {
+    duration: .45, impact: .09,
+    keys: [[0, ready], [.09, { hand: [-.3, 1.09, .08], direction: [.7, .5, .45], twist: -.4, lean: -.15 }], [.45, ready]],
+  },
+  hit: {
+    duration: .38, impact: .04,
+    keys: [[0, ready], [.04, { hand: [-.27, 1.2, .08], direction: [.65, .6, .45], twist: .12, lean: -.2 }], [.38, ready]],
+  },
 } satisfies Record<Strike, { duration: number; impact: number; keys: [number, Pose][] }>;
 
 /** Only authoritative action events start a strike; chain/hit/buff feedback cannot. */
 export function bacchusStrike(cue: CombatCue): Strike | null {
-  if (cue.kind === 'auto') return 'attack';
-  if (cue.kind === 'weapon') return cue.text.includes('Arc Cleave') ? 'cleave' : 'attack';
+  const key = presentationKey(cue);
+  if (key === 'auto') return 'attack';
+  if (cue.kind === 'weapon' && ['cleave', 'pierce', 'resonance'].includes(key ?? '')) return key as Strike;
   return null;
+}
+
+function bacchusMotion(cue: CombatCue): Strike | null {
+  const key = presentationKey(cue);
+  if (key === 'criticalDash') return 'dash';
+  if (key && ['revelry', 'guard', 'dodge', 'hit'].includes(key)) return key as Strike;
+  return bacchusStrike(cue);
 }
 
 export const BACCHUS_POSE_BONES = ['spine', 'chest', 'upper_chest', 'neck', 'upper_arm_R', 'forearm_R', 'hand_R', 'upper_arm_L', 'forearm_L', 'hand_L', 'clavicle_R', 'clavicle_L'] as const;
@@ -116,11 +160,8 @@ export function createBacchusClips(model: THREE.Object3D): Record<'ready' | Stri
     return new THREE.AnimationClip(`bacchus:${name}`, duration, tracks);
   };
   try {
-    return {
-      ready: clip('ready', [[0, ready], [1, ready]], 1),
-      attack: clip('attack', choreography.attack.keys, choreography.attack.duration),
-      cleave: clip('cleave', choreography.cleave.keys, choreography.cleave.duration),
-    };
+    return Object.fromEntries([['ready', clip('ready', [[0, ready], [1, ready]], 1)],
+      ...Object.entries(choreography).map(([key, definition]) => [key, clip(key, definition.keys, definition.duration)])]) as Record<'ready' | Strike, THREE.AnimationClip>;
   } finally { restore(); }
 }
 
@@ -139,9 +180,10 @@ export function createBacchusCombat(model: THREE.Object3D, root: THREE.Object3D,
   const clips = createBacchusClips(model);
   if (!clips) return null;
   const readyAction = mixer.clipAction(clips.ready).play();
-  const actions = { attack: mixer.clipAction(clips.attack), cleave: mixer.clipAction(clips.cleave) };
+  const actions = Object.fromEntries((Object.keys(choreography) as Strike[]).map(key => [key, mixer.clipAction(clips[key])])) as Record<Strike, THREE.AnimationAction>;
   for (const action of Object.values(actions)) { action.setLoop(THREE.LoopOnce, 1); action.clampWhenFinished = true; }
-  const weights = { ready: 1, attack: 0, cleave: 0 };
+  const weights = Object.fromEntries(['ready', ...Object.keys(choreography)].map(key => [key, key === 'ready' ? 1 : 0])) as Record<'ready' | Strike, number>;
+  const sequenceContacts = new Set<string>();
   let current: { kind: Strike; elapsed: number; returning: boolean } | null = null;
   let disposed = false;
   const ownedGeometries = new Set<THREE.BufferGeometry>();
@@ -182,19 +224,24 @@ export function createBacchusCombat(model: THREE.Object3D, root: THREE.Object3D,
   const clearTrail = () => { samples.forEach(sample => { sample.age = lifetime; }); trail.visible = false; };
   const reset = () => {
     current = null;
-    weights.ready = 1; weights.attack = weights.cleave = 0;
+    for (const key of Object.keys(weights) as (keyof typeof weights)[]) weights[key] = key === 'ready' ? 1 : 0;
+    sequenceContacts.clear();
     Object.values(actions).forEach(action => action.stop());
     readyAction.stop().reset().setEffectiveWeight(1).play(); clearTrail();
   };
   return {
     play(cue: CombatCue) {
       if (disposed) return 0;
-      const kind = bacchusStrike(cue);
-      if (!kind || (kind === 'attack' && current?.kind === 'cleave' && !current.returning)) return 0;
+      const kind = bacchusMotion(cue);
+      if (!kind || (kind === 'attack' && current && current.kind !== 'attack' && !current.returning)) return 0;
+      if (kind === 'dash' && cue.sequenceId !== undefined && cue.hitIndex !== undefined) {
+        const token = `${cue.sequenceId}:${cue.hitIndex}`;if (sequenceContacts.has(token)) return 0;
+        sequenceContacts.add(token);if (sequenceContacts.size > 32) sequenceContacts.delete(sequenceContacts.values().next().value!);
+      }
       const next = actions[kind];
       next.stop().reset().setEffectiveWeight(weights[kind]).play();
       current = { kind, elapsed: 0, returning: false }; clearTrail();
-      return choreography[kind].impact;
+      return presentationContact(cue, 'bacchus');
     },
     beforeUpdate(dt: number) {
       if (disposed) return;
@@ -205,7 +252,7 @@ export function createBacchusCombat(model: THREE.Object3D, root: THREE.Object3D,
         if (current.elapsed >= duration) current = null;
       }
       const target = current && !current.returning ? current.kind : 'ready';
-      for (const name of ['ready', 'attack', 'cleave'] as const) {
+      for (const name of ['ready', ...Object.keys(choreography)] as ('ready' | Strike)[]) {
         weights[name] = THREE.MathUtils.damp(weights[name], name === target ? 1 : 0, 30, dt);
         const action = name === 'ready' ? readyAction : actions[name];
         if (name === target && !action.isRunning()) action.play();
@@ -216,7 +263,8 @@ export function createBacchusCombat(model: THREE.Object3D, root: THREE.Object3D,
     afterUpdate(dt: number) {
       if (disposed) return;
       samples.forEach(sample => { sample.age += dt; });
-      const strike = current && current.elapsed >= choreography[current.kind].impact - .1 && current.elapsed <= choreography[current.kind].impact + .14;
+      const strike = current && ['attack', 'cleave', 'pierce', 'resonance', 'dash'].includes(current.kind)
+        && current.elapsed >= choreography[current.kind].impact - .1 && current.elapsed <= choreography[current.kind].impact + .14;
       if (strike) {
         for (let i = count - 1; i > 0; i--) {
           samples[i].inner.copy(samples[i - 1].inner); samples[i].outer.copy(samples[i - 1].outer); samples[i].age = samples[i - 1].age;

@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path opacity="0.1" d="M45 367C46 189 138 67 256 67C374 67 466 189 467 367H45Z" fill="white"/>
+<path d="M45 367C46 189 138 67 256 67C374 67 466 189 467 367" stroke="white" stroke-width="11"/>
+<path opacity="0.5" d="M408 367C406 220 345 104 256 67C167 104 106 220 104 367M256 67C209 116 174 247 177 367M256 67C303 116 338 247 335 367" stroke="white" stroke-width="5"/>
+<path opacity="0.8" d="M256 67V367M45 367H467" stroke="white" stroke-width="6"/>
+<path opacity="0.3" d="M67 387H445" stroke="white" stroke-width="4"/>
+</svg>

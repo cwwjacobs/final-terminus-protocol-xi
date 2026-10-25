@@ -5,7 +5,7 @@ import * as THREE from 'three';
  * Bacchus's thyrsus lives in bacchus-combat.ts with its two-hand grip solver;
  * these follow the same attachment convention (the rig's hand local Y runs
  * toward the fingers, so a shaft lies along hand X) and ride whichever hand
- * the library clips move. They are presentation only: no collision, no
+ * the authored rig motions move. They are presentation only: no collision, no
  * combat meaning, disposed with the visual. */
 
 export interface HeroProps {
@@ -54,12 +54,13 @@ export function createHeroProps(id: string, model: THREE.Object3D): HeroProps | 
   const add = (group: THREE.Group | null) => { if (group) groups.push(group); };
   switch (id) {
     case 'heracles': {
-      // Lion's spear: long ash shaft, leaf head, bronze butt cap.
+      // Heracles's recognizable heavy club; the upper-body motion now fits
+      // this single-handed grip, while the shield stays on the left forearm.
       add(attach(model, 'hand_R', (_, part) => {
-        part(new THREE.CylinderGeometry(.022, .03, 2.3, 8), mats.wood, 0, .5);
-        part(new THREE.CylinderGeometry(.04, .04, .07, 8), mats.bronze, 0, 1.45);
-        const head = part(new THREE.OctahedronGeometry(.15, 0), mats.bronze, 0, 1.78); head.scale.set(.5, 2, .22);
-        part(new THREE.ConeGeometry(.035, .12, 8), mats.bronze, 0, -.7).rotation.x = Math.PI;
+        part(new THREE.CylinderGeometry(.045, .035, .65, 9), mats.wood, 0, .12);
+        const head = part(new THREE.CylinderGeometry(.17, .09, .7, 7), mats.wood, 0, .78);head.rotation.y = .2;
+        for (const y of [.48, .98]) part(new THREE.CylinderGeometry(y > .5 ? .16 : .105, y > .5 ? .16 : .105, .055, 9), mats.bronze, 0, y);
+        part(new THREE.SphereGeometry(.17, 7, 5), mats.wood, 0, 1.1).scale.y = .7;
       }, owned));
       // Round shield on the left forearm, face outward.
       add(attach(model, 'forearm_L', (group, part) => {
@@ -73,7 +74,7 @@ export function createHeroProps(id: string, model: THREE.Object3D): HeroProps | 
       break;
     }
     case 'dolos': {
-      // Recurve bow in the left hand; the library's draw clip moves the right hand to the string.
+      // Recurve bow in the left hand; the draw motion pulls the right hand back.
       add(attach(model, 'hand_L', (_, part) => {
         const curve = new THREE.QuadraticBezierCurve3(new THREE.Vector3(0, -.7, 0), new THREE.Vector3(0, 0, .2), new THREE.Vector3(0, .7, 0));
         part(new THREE.TubeGeometry(curve, 24, .018, 7, false), mats.wood);
@@ -111,6 +112,13 @@ export function createHeroProps(id: string, model: THREE.Object3D): HeroProps | 
   if (!groups.length) {
     owned.materials.forEach(material => material.dispose());
     return null;
+  }
+  // Named attachment is shared by the runtime particle/weapon-trail layer.
+  const weaponGroup = id === 'dolos' ? groups.find(group => group.parent?.name === 'hand_L') : groups.find(group => group.parent?.name === 'hand_R');
+  if (weaponGroup) {
+    const tip = new THREE.Object3D();tip.name = 'hero-weapon-tip';
+    tip.position.y = id === 'heracles' ? 1.18 : id === 'hecate' ? 1.52 : id === 'ariadne' ? 1.58 : 0;
+    weaponGroup.add(tip);
   }
   return {
     setWireframe(value) { owned.materials.forEach(m => { (m as THREE.MeshStandardMaterial).wireframe = value; }); },

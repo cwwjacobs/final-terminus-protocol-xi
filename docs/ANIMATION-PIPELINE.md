@@ -1,8 +1,10 @@
 # Hero animation pipeline
 
-Status, 24 October 2026: **animation foundation available for review; placeholder playback and new props disabled in the game.** This integrates the framework from `hero-animations` commit `584c1a4` with the current combat mechanics. All 19 clips in the shared library are synthetic stand-ins, not fitted kit animations. The receipt (`public/assets/animations/hero-animations.json`) says `"placeholder": true`; `HeroAssetCache` does not request that library or attach its props by default. The existing hero idle/walk and Bacchus polearm presentation continue to run.
+Status, 25 October 2026: **all five painted heroes now use active code-authored upper-body combat motions.** Their original GLBs, skins, idle/walk clips, feet and kernel-owned position remain intact. `hero-motion.ts` fits Heracles, Dolos, Hecate and Ariadne to their own bone lengths by sampling the shipped idle and baking rotation-only arm/spine poses. `bacchus-combat.ts` keeps Bacchus's two-hand polearm solver. These motions do not depend on a generated asset service or the shared animation library.
 
-For an isolated animation preview or test, pass `allowPlaceholderLibrary: true` to `HeroAssetCache`. This is a development opt-in, not a player setting. Production playback requires a real retargeted library, an explicit `"placeholder": false` receipt, and the activation checks below. Setting `library: false` always disables it. The framework tests exercise clip parsing, action blending, ownership/disposal and the rollout guard; they do not prove that real retargeted clips or weapon grips look correct. Blender retarget execution and rendered 3D/device checks were not independently rerun during integration review.
+The separate shared library is still gated. All 19 clips in `public/assets/animations/hero-animations.glb` remain synthetic stand-ins; its receipt still says `"placeholder": true`. `HeroAssetCache` does not request it by default. An explicit `allowPlaceholderLibrary: true` enables an isolated development preview, while `library: false` disables the library even in that preview. When a library is explicitly enabled it replaces the four heroes' procedural motion layer; Bacchus reserves his polearm bones. Do not change the receipt flag to activate the synthetic clips.
+
+The actual shipped rig data is covered by automated pose/attachment tests, including Bacchus grip distance, finite transforms, distinct contacts, independent instances, root/feet preservation, death/revival and disposal. These are numerical rig checks, not rendered skin, grip or device approval. The available cloud preview has WebGL disabled, so this pass could not perform rendered 3D review.
 
 ## Why one library
 
@@ -30,31 +32,37 @@ python3 -I scripts/animation/retarget.py \
 
 The receipt lists every clip with its source file, source clip, frame count, seconds, bone coverage and reference, plus the output's byte size and SHA-256. `tests/animation-library.test.ts` checks the receipt against the file and that every clip the role map references exists and drives all 22 joints.
 
-## Runtime
+## Active runtime
 
 | File | Role |
 | --- | --- |
-| `components/game/role-animation.ts` | Pure. Event → action key (`auto`, `weapon:<id>`, `magic`, `burst`, `heal`, `provoke`, `guard`, `dodge`, `revelry`, `hit`, `down`), per-role clip, contact time, body mask, playback rate. Signature actions are deliberately unmapped until they have dedicated choreography. |
-| `components/game/action-layer.ts` | Blends the hero's own idle/walk, the library run loop and one-shot actions on one mixer. Locomotion is split into lower/upper halves so an upper-body action (attacks, casts) leaves the legs on locomotion and a full-body action (hit, dodge, death) takes everything, with weights that sum to one per bone. Death holds its last frame and ignores trailing hits. |
-| `components/game/hero-props.ts` | Procedural spear + shield (Heracles), bow (Dolos), orbital staff (Hecate), thread staff (Ariadne), attached to hand/forearm bones so library clips carry them. Bacchus keeps `bacchus-combat.ts`, whose two-hand grip solver and polearm pose bones are reserved from the library. |
-| `components/game/hero-assets.ts` | Gates placeholder playback, loads an enabled library once per cache, indexes clips (scale tracks and non-hips translations dropped), builds the layer and props per visual. A disabled, missing or failing library keeps existing hero presentation. |
-| `Scene.tsx` | Forwards authoritative events to the actor's visual; ordinary impacts may use the returned contact delay. The existing `immediateImpact()` rule preserves scheduled multihit/sequence feedback timing. The `down` event also reaches a fallen actor so a future death clip can play. |
+| `components/game/presentation-cues.ts` | Resolves authoritative identity/element and shared contact times. Signature source takes priority over ordinary attacks; shield break never re-casts Aegis. |
+| `components/game/hero-motion.ts` | Fits upper-body poses to each real rig, bakes quaternion-only tracks, blends actions with a ready pose and leaves lower-body/root channels on original locomotion. An incomplete rig retains the safe existing fallback. |
+| `components/game/bacchus-combat.ts` | Two-hand thyrsus grip, separate auto/Cleave/Pierce/Resonance, short per-contact Critical Dash accents, Revelry/guard/dodge/hit gestures and a transient strike trail. |
+| `components/game/hero-props.ts` | Club and forearm shield (Heracles), recurve bow (Dolos), orbital staff (Hecate), thread staff (Ariadne), attached to the active bone motions. Props are visual only and owned/disposed by each hero instance. |
+| `components/game/hero-assets.ts` | Owns independent skeletons, materials, mixers and actions, selects active motion or explicitly enabled library, resets on revival and exposes world-space hand/weapon anchors through `getAnchor()`. |
+| `Scene.tsx` | Feeds authoritative events to visual motion and effects. Ordinary actions share contact delays; scheduled signature hits and support effects remain immediate. Combat state, damage, TP, recovery and cooldowns are unchanged by animation. |
 
-Contact times in the role map are per clip and currently guesses for the placeholders; set them from the real clips (the frame where the weapon or hand lands) after the kit retarget.
+Heracles raises and sweeps a club while carrying his shield; Pierce thrusts forward and Resonance comes down from a raised wind-up. Dolos draws/releases the bow and gets a short release for each Split Volley contact. Hecate has different Fire, Ice and Lightning release silhouettes and a Rapid Weave opening gesture; subsequent elemental casts can interrupt recovery. Ariadne has Restore, Aegis, Shimmer Wave and Mending Thread arm gestures. Guard, dodge, hit and death/revival accents are available on the active heroes. Death adds a group fall with a held upper-body pose; it is not a newly authored full-body falling clip.
 
-## What to review before activating real animations
+Split Volley and Critical Dash deduplicate `sequenceId`/`hitIndex` contacts and play short accents rather than restarting an entire sequence. Aegis recipient events produce one caster gesture. Mending Thread heal ticks and Shimmer Wave recipient heals do not restart their activation gesture. Effects on recipients are handled separately by the presentation layer.
 
-1. Replace the placeholder library with the kit retarget (command above) and commit the new receipt. Confirm `placeholder` is explicitly `false`; do not change the flag on synthetic clips. Run the Blender self-test and the repository checks against that output.
-2. In the browser, per hero: run cycle at speed (foot slide), hit reaction, death pose, each weaponskill, Hecate cast, Ariadne heal, Dolos draw/release with the bow in the left hand, Heracles's shield position on `forearm_L` and spear grip. Check hip translation/grounding across the different proportions, root motion, shoulder motion and contact frames. Fit and verify the longer-armed heroes individually.
-3. Bacchus: the library drives only his legs/hips and head; confirm hit and dodge read correctly under the polearm pose, and decide whether his auto/weaponskills move to library clips with the grip solver generalized over them.
-4. Add dedicated mappings and choreography for Critical Dash (three timed contacts and return to origin), Split Volley (multiple contacts), Rapid Weave (rapid elemental cast/release cycle), and Aegis (party shield activation and one-hit break). Use authoritative `source`, `sequenceId` and `hitIndex` metadata where available; do not infer these actions from display text or restart a full ability on every hit. Preserve kernel-owned movement, damage, TP and cooldown timing.
-5. Reduced motion is unchanged: clips still play when enabled; only HUD motion is reduced. Check rendered 3D, reduced motion and performance on real devices before activation.
+Shared contact seconds are: Bacchus auto `.27`, Cleave `.43`, Pierce `.30`, Resonance `.48`; other heroes auto `.20`, Cleave `.36`, Pierce `.28`, Resonance `.44`; elemental spells `.30`, Elemental Shot `.20`. Signature and support feedback stays immediate. These delays are visual scheduling only; there is no pre-cast channeling period in the combat simulation.
 
-## Not done here
+## Optional retargeted-library path
 
-- Two-hand grip fitting for Heracles's spear during 2H clips (the thyrsus solver is Bacchus-only). Expect the off hand to float off the shaft until `bacchus-combat.ts`'s `arm()` fit is lifted into a shared post-mixer pass.
-- Directional strafe selection: the library declares left/right clips, but the runtime currently receives only scalar speed and uses the forward run loop.
-- Dedicated signature-ability animations, element-distinct releases, shield break, boss cast/impact and phase-transition effects. Existing gameplay markers and effects remain in place.
-- Cast charge/release effects and element particles (`Spell_Simple_Enter` → loop → `Shoot` with emitters); real channeling in the kernel.
-- Boss skin pass.
-- Physical-device and performance checks; the library adds one mixer action set per hero and no per-frame allocation.
+`role-animation.ts` maps ordinary events to library clips; `action-layer.ts` blends masked upper/lower-body actions. Their synthetic preview mappings intentionally omit signatures. The active default motions above are a separate implementation and do not change the placeholder rollout guard.
+
+Before replacing the active procedural presentation with a real retargeted library:
+
+1. Replace the synthetic file with fitted clips using the command above, commit the new receipt, and confirm `placeholder` is explicitly `false`. Run the Blender self-test and repository tests against that output.
+2. Review every hero in a WebGL-enabled browser: body deformation, shoulder/elbow limits, club grip, shield face, bow draw, staff orientation, foot sliding and contact frames across differing proportions. Imported bind-pose offsets must not be compounded with idle rotations.
+3. Preserve Bacchus's two-hand constraint or provide an equivalent fitted grip. Review incoming hit/dodge/death actions against his reserved upper-body bones.
+4. Preserve signature semantics and add equivalent real library choreography before switching away from the active implementation. Sequence movement and hit times remain kernel-owned.
+5. Check reduced-motion handling and performance on actual devices. The library and procedural motions must not both own the same bone tracks.
+
+## Validation and limits
+
+`tests/hero-motion.test.ts` parses all five actual GLBs without texture decoding and tests active motion, distinct weapon/spell contact positions, finite transforms, unchanged root/feet, signature deduplication, support tick handling, reset/death/revival, restoration of source bones and resource disposal. `tests/bacchus-animation.test.ts` retains the original grip/locomotion regression tests; the new test also checks Pierce, Resonance and Critical Dash remain within the existing 8.5 cm support-hand gap bound. `tests/hero-assets.test.ts` and `tests/animation-library.test.ts` retain sharing, fallback and placeholder gating checks.
+
+The motions are code-authored first-pass choreography, not motion capture or artist-finished retargets. The bow string is a static prop; draw/release currently comes from the shoulder, elbow and hand motion. There is no directional strafing selector, full-body authored dodge/death, boss skeletal pass or new kernel channeling. Skeleton/anchor tests cannot prove the final painted skin, shield facing, weapon silhouette, camera readability or GPU performance. Those still need a WebGL-enabled rendered review.

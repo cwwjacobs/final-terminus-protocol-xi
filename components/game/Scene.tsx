@@ -11,6 +11,8 @@ import Icon from './Icon';
 import { roleIcon } from './icons';
 import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
 import { createStormEffects } from './storm-effects';
+import { createAbilityEffects } from './ability-effects';
+import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
 import { CAMERA_DEFAULTS, calculateCameraPose, calculateCameraViewOffset, cameraLockTarget, createCamera, trackCameraTarget, type CameraState } from './camera';
@@ -30,6 +32,8 @@ export interface SceneProps {
   targetPulse: number;
   /** Changes when the client replaces an encounter/session, even at equal clocks. */
   presentationEpoch?: number;
+  /** Local menus pause combat; online rooms continue beneath their menus. */
+  presentationActive?: boolean;
   onIntent: (action: Action) => void;
   onTelemetry?: (data: { fps: number; drawCalls: number; triangles: number }) => void;
   onGamepad?: (connected: boolean) => void;
@@ -286,6 +290,14 @@ export default function Scene(props: SceneProps) {
     circleWarn.visible = coneWarn.visible = warningEdge.visible = false;
     const effects = createEffects(scene, props.quality);
     const stormEffects = createStormEffects(scene, props.quality);
+    const abilityEffects = createAbilityEffects(scene, props.quality, (slot, kind, out) => {
+      const visual = heroVisuals[slot];
+      if (visual?.getAnchor(kind, out)) return true;
+      const rig = rigs[slot];
+      if (!rig) return false;
+      rig.root.getWorldPosition(out); out.y += 1.3;
+      return true;
+    });
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
     let reducedMotion = motionPreference.matches;
@@ -314,8 +326,23 @@ export default function Scene(props: SceneProps) {
         });
       });
     }
-    const eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
+    let eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
+    let presentationActive = latest.current.presentationActive !== false && !document.hidden;
+    const clearPresentation = () => {
+      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset();
+      heroVisuals.forEach(visual => visual?.resetCombat());
+      rigs.forEach(rig => { rig.attack = 0; }); bossRig.attack = 0;
+      effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
+    };
+    const rebaselinePresentation = () => {
+      clearPresentation();
+      eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
+      presentationActive = latest.current.presentationActive !== false && !document.hidden;
+    };
+    // A suspended animation frame must not leave an old contact waiting to
+    // play after returning to the tab, even when the local combat clock froze.
+    document.addEventListener('visibilitychange', rebaselinePresentation);
     let lastWireframe = !latest.current.wireframe;
     let initializedCamera = false;
     let lastTime = latest.current.state.time;
@@ -361,21 +388,25 @@ export default function Scene(props: SceneProps) {
     if (host.parentElement) dockObserver.observe(host.parentElement, { childList: true, attributes: true, attributeFilter: ['data-layout', 'data-interface', 'data-front'] });
     resize();
     const onContextLost = (event: Event) => {
-      event.preventDefault(); stopped = true; cancelAnimationFrame(frame); numbers.reset();
+      event.preventDefault(); stopped = true; cancelAnimationFrame(frame); clearPresentation();
       setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
       stormEffects.event(event, state);
-      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
-      if (event.kind === 'ability' && !['aegis', 'rapidWeave', 'mendingThread'].includes(event.source ?? '')) return;
+      const handled = abilityEffects.impact(event, state);
+      if (event.kind === 'hit') bossRig.attack = 1;
+      if (!['revelry_lost', 'shield'].includes(event.kind) && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
       const feedback = combatNumber(event, state);
       if (feedback) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
         const height = feedback.target === 'boss' ? 3.4 : heroVisuals[feedback.target]?.labelHeight ?? 2.4;
         numbers.spawn(feedback, { x: target.root.position.x, y: height + .2, z: target.root.position.z });
       }
+      if (handled) return;
+      if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
+      if (event.kind === 'ability' && !['aegis', 'rapidWeave', 'mendingThread'].includes(event.source ?? '')) return;
       // Old saves have no heal recipient. Skip its target effect rather than
       // suggesting that the caster was healed or parsing a human-readable log.
       if (event.kind === 'heal' && !feedback) return;
@@ -404,8 +435,6 @@ export default function Scene(props: SceneProps) {
         effect.beam.scale.set(event.kind === 'auto' ? .7 : 2, distance, event.kind === 'auto' ? .7 : 2);
         effect.beam.quaternion.setFromUnitVectors(up, beamDirection.normalize());
       }
-      if (!['revelry_lost', 'shield'].includes(event.kind) && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
-      if (event.kind === 'hit') bossRig.attack = 1;
     };
 
     const render = (now: number) => {
@@ -415,22 +444,27 @@ export default function Scene(props: SceneProps) {
       const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, selectedAlly, targetPulse, presentationEpoch } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
+      const nextActive = latest.current.presentationActive !== false && !document.hidden;
+      if (nextActive !== presentationActive) rebaselinePresentation();
       const incoming = eventFeed.read(state, presentationEpoch);
       if (state.time < lastTime) initializedCamera = false;
       lastTime = state.time;
-      if (incoming.reset) {
-        pendingImpacts.length = 0; numbers.reset(); stormEffects.reset();
-        heroVisuals.forEach(visual => visual?.resetCombat());
-        effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
-      }
+      if (incoming.reset) clearPresentation();
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
         heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
         lastWireframe = wireframe;
       }
-      for (const event of incoming.events) {
+      for (const event of presentationActive ? incoming.events : []) {
         const source = typeof event.actor === 'number' ? event.actor : -1;
-        const delay = state.party[source]?.hp > 0 || event.kind === 'down' ? heroVisuals[source]?.playCombat(event) ?? 0 : 0;
+        const actorAlive = state.party[source]?.hp > 0;
+        if (actorAlive || event.kind === 'down') heroVisuals[source]?.playCombat(event);
+        // Gesture suppression must not move contact earlier than its sound.
+        // Fallback/scaffold heroes use the same presentation schedule.
+        const visualDelay = actorAlive ? presentationContact(event, state.party[source]?.id) : 0;
+        const delay = immediateImpact(event) ? 0 : visualDelay;
+        abilityEffects.start(event, state, delay);
+        if (source >= 0 && rigs[source] && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind)) rigs[source].attack = 1;
         if (delay > 0 && !immediateImpact(event)) {
           if (pendingImpacts.length >= effects.length) pendingImpacts.shift();
           pendingImpacts.push({ event, at: animationTime + delay });
@@ -551,7 +585,10 @@ export default function Scene(props: SceneProps) {
         label.style.opacity = visible ? (i === slot ? '.55' : '.9') : '0';
         label.style.transform = `translate3d(${(projected.x * .5 + .5) * size.x}px,${(-projected.y * .5 + .5) * size.y}px,0) translate(-50%,-100%)`;
       }
-      stormEffects.update(dt, state, reducedMotion);
+      if (presentationActive) {
+        stormEffects.update(dt, state, reducedMotion);
+        abilityEffects.update(dt, state, camera, reducedMotion);
+      }
       renderer.render(scene, camera); frames++;
       if (now - reportAt >= 1000) {
         latest.current.onTelemetry?.({ fps: Math.round(frames * 1000 / (now - reportAt)), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
@@ -562,7 +599,8 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose();
+      document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
       // Detach them before generic arena cleanup to avoid disposing them twice.
