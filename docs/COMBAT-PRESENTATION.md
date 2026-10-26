@@ -31,7 +31,7 @@ To revise an effect, edit its vector component, export a transparent PNG under t
 
 Ordinary contacts use the shared authored delay. Signature hits, healing recipients, shield breaks and static events preserve the kernel's already-scheduled timing. Historical logs are baselined rather than replayed. Epoch changes, resets, local pause and hidden tabs clear pending transient presentation. Boss charge and persistent buffs follow current state.
 
-The effect pool caps transient particles at 42 in Performance mode or 84 in High mode, with 4 or 8 bolts. Five fixed party slots own status cues. Textures load on demand and are disposed with the scene, including requests completing after teardown. Reduced motion removes travelling/spinning particle motion and lowers effect opacity; it does not remove necessary telegraphs or character actions.
+The later [Stormlight pass](STORMLIGHT-PRESENTATION.md) changes the transient mask pools to 34/72 in Performance/High, plus 6/10 procedural accents. This keeps their combined capacity below the original 42/84. Existing ability bolts remain at 4/8. Five fixed party slots own status cues. Textures load on demand and are disposed with the scene, including requests completing after teardown. Reduced motion removes travelling/spinning particle motion and lowers effect opacity; it does not remove necessary telegraphs or character actions.
 
 Audio is synthesized locally with Web Audio. It uses 30 sound recipes, a reusable noise buffer, a 48-cue queue, at most 6 cues per tick and 18 voices. Existing defaults remain music 10%, effects 35%; saved user settings take precedence. It requires a user gesture to unlock browser playback. No generated-audio service or Figma AI generation is used.
 

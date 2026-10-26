@@ -1,14 +1,19 @@
 // Reproducible active-input simulation: descent, six sentinels, giant and escape.
-// Not a browser or hardware playtest. Crown-to-Logos validation is in ultimates.test.ts.
+// Not a browser or hardware playtest. --full-game also plays Crown first.
 // Run: node --experimental-strip-types scripts/verify-logos-encounters.mjs
 import assert from 'node:assert/strict';
 import {offensiveTarget,sequenceLocked} from '../game/logos.ts';
 import {createGame,applyAction,stepGame,isInTelegraph,setHuman} from '../game/engine.ts';
 import {WEAPONS,ELEMENTS,ULTIMATES} from '../game/content.ts';
+const fullGame=process.argv.includes('--full-game');
 for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
- const s=createGame(mode,123);s.party.forEach((_,i)=>setHuman(s,i,i===slot));s.status='victory';applyAction(s,slot,{type:'faceLogos'});
- let seen=0,chains=0,bursts=0,newHits=0;
- for(let tick=0;tick<20000&&s.status==='fighting';tick++){
+ const s=createGame(mode,123);s.party.forEach((_,i)=>setHuman(s,i,i===slot));
+ if(fullGame)applyAction(s,slot,{type:'start'});else{s.status='victory';applyAction(s,slot,{type:'faceLogos'});}
+ let seen=0,chains=0,bursts=0,newHits=0,crownSeconds=0;
+ const stages=new Set();
+ for(let tick=0;tick<24000&&(s.status==='fighting'||s.status==='victory'&&s.encounter==='crown');tick++){
+  if(s.status==='victory'&&s.encounter==='crown'){crownSeconds=s.combatTime;assert.ok(s.party.every(a=>a.hp>0));applyAction(s,slot,{type:'faceLogos'});}
+  stages.add(s.encounter==='crown'?'crown':s.logos.stage);
   if(sequenceLocked(s)){stepGame(s,.05);continue;}
   const a=s.party[slot],b={...s.boss,...offensiveTarget(s,s.party[slot])};
   if(tick%4===0&&a.hp>0){
@@ -48,5 +53,8 @@ for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
  assert.equal(s.status,'victory', `${mode} ${s.party[slot].name}`);
  assert.equal(s.party.filter(a=>a.hp>0).length,5);
  assert.ok(s.ultimatesUnlocked && s.encounter==='logos');
- console.log(JSON.stringify({mode,role:s.party[slot].name,seed:123,status:s.status,seconds:s.combatTime,bossHp:s.boss.hp,alive:s.party.filter(a=>a.hp>0).length,chains,bursts,newHits}));
+ assert.equal(s.logos.stage,'escaped');
+ for(const stage of ['descent','sentinels','giant','collapse'])assert.ok(stages.has(stage),stage);
+ if(fullGame)assert.ok(crownSeconds>0&&stages.has('crown'));
+ console.log(JSON.stringify({mode,role:s.party[slot].name,seed:123,status:s.status,crownSeconds,logosSeconds:s.combatTime,stage:s.logos.stage,bossHp:s.boss.hp,alive:s.party.filter(a=>a.hp>0).length,chains,bursts,newHits}));
 }

@@ -4,7 +4,7 @@ A first playable foundation for Corey's Terminus Q Protocol: a third-person, rea
 
 Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, Crown Resonance followed by the lower-arena sentinel and giant Logos sequence, a shorter trial and a sustained god mode. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
 
-Painted heroes are enabled by default. **Settings → Characters** also offers **Original scaffold**, which remains visible while models load and for any model that fails to load. The painted roster has idle and walk loops; authored weapon props and combat clips are not included yet. See [docs/CHARACTER_ASSETS.md](docs/CHARACTER_ASSETS.md) for the copied assets, verification scope and upgrade path.
+Painted heroes are enabled by default. **Settings → Characters** also offers **Original scaffold**, which remains visible while models load and for any model that fails to load. The painted roster has idle/walk loops, code-authored combat motions, attached weapons and role-specific armor details. See [docs/CHARACTER_ASSETS.md](docs/CHARACTER_ASSETS.md) for source assets and [Stormlight presentation](docs/STORMLIGHT-PRESENTATION.md) for the cinematic shader, lightning, casting, armor, audio and performance pass.
 
 The party is Bacchus, Heracles, Dolos, Hecate and Ariadne. Zeus made Ariadne, Bacchus, Dolos and Hecate amnesiac guardians of the **Middle Plane**; descending into the **Quantum Realm** brings their godhood forward before their memories return. Those four are the original descenders. Heracles fills the fifth active party role, with his story entrance still open.
 
@@ -84,7 +84,7 @@ Open **Settings → Controls & camera** to remap keyboard keys and controller bu
 
 While disengaged, the camera can orbit independently while standing still. Engagement locks the view toward the living enemy; zoom remains available. Mouse-right looks right; mouse-up looks up. The same default convention applies to the right stick. Camera height adjusts the vertical anchor, shoulder offset shifts the view sideways, and distance controls depth/zoom. Movement uses the camera's forward/right basis. Recenter restores the view behind the character while preserving zoom.
 
-Tab always selects/cycles the available enemy, including when Crown Resonance is the only target; every press pulses its world-space marker. This is enemy selection, separate from the boss's enmity target. Starting an attack also selects the current boss automatically. This encounter still contains one enemy; cycling supports a target list for future encounters without inventing additional enemies now.
+Tab selects/cycles the available enemy; every press pulses its world-space marker. This is enemy selection, separate from the boss's enmity target. Crown Resonance is a single target; the lower arena has six sentinels followed by Logos's head and two hands.
 
 Click a key binding and press a replacement; Escape cancels. Conflicts swap the previous key/button where possible or clear the displaced binding. Ctrl/Meta/Alt/browser shortcuts remain reserved. Modifier-only combat keys activate on release so Shift + Tab does not also trigger Guard. Menus preserve normal Tab navigation and suppress gameplay; wheel zoom applies only on the battlefield. Lost focus clears held input.
 
