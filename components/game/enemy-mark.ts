@@ -5,6 +5,11 @@ import { activeBurst } from './combat-feedback.ts';
 /** Presentation comes from live combat windows, never from event text. */
 export function enemyMark(state: GameState) {
   if (state.status !== 'fighting' || state.boss.hp <= 0) return null;
+  if (state.duskRemaining > 0) return {
+    remaining: state.duskRemaining, kind: 'burst' as const, symbol: 'dusk' as const, color: '#e2a5ff',
+    fraction: Math.max(0, Math.min(1, state.duskRemaining / 10)), ready: true,
+    label: 'Dusk · all elements magic burst window',
+  };
   const burst = activeBurst(state);
   if (burst) return {
     remaining: burst.remaining,

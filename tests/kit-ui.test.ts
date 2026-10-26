@@ -20,7 +20,7 @@ test('every role exposes its new technique alongside only permitted actions', ()
 
 test('each role has one visible slot per action and every default keyboard/controller action is mapped', () => {
   const settings = defaults();
-  const counts = [8, 7, 8, 7, 7];
+  const counts = [9, 8, 9, 8, 8];
   for (const [index, actor] of createGame().party.entries()) {
     const slots = roleActionSlots(actor.role);
     assert.equal(slots.length, counts[index], actor.name);

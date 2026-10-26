@@ -13,6 +13,12 @@ export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perT
 /** One primary sound per event. Recipient fan-out and recurring healing ticks
  * do not replay a group spell's cast. This also preserves the original cues. */
 export function combatSound(event: CombatEvent): CombatSound | null {
+  if (event.source === 'rainOfFireBurn') return null;
+  if (['fission', 'rainOfFire', 'fearless', 'rejuvenator', 'thunderclap', 'lightningShock', 'clap'].includes(event.source ?? '')) {
+    if (event.kind !== 'ability' || event.target !== undefined) return null;
+    return event.source === 'fission' || event.source === 'thunderclap' || event.source === 'clap' ? 'thunder' : event.source === 'rainOfFire' ? 'fire' : event.source === 'fearless' ? 'revelry' : event.source === 'lightningShock' ? 'arc' : 'wave';
+  }
+  if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) return 'lightning';
   const key = presentationKey(event);
   if (key === 'mendingThread') return event.kind === 'ability' ? 'thread' : null;
   if (key === 'shimmerWave') return event.kind === 'shimmer_wave' ? 'wave' : null;

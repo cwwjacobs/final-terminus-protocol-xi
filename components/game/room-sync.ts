@@ -4,5 +4,6 @@ import type { Action, GameState } from '../../game/types.ts';
 export function roomSyncActions(status: GameState['status'], pending: Action[], movement: Action): Action[] {
   if (status === 'fighting') return [...pending, movement];
   if (status === 'ready') return pending.filter(action => action.type === 'start');
+  if (status === 'victory') return pending.filter(action => action.type === 'faceLogos');
   return [];
 }

@@ -160,7 +160,7 @@ function parseAction(value: unknown): Action {
     }
     return { type: action.type, ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
   }
-  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave"].includes(action.type as string)) {
+  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave", "faceLogos", "fission", "rainOfFire", "rejuvenator", "fearless", "thunderclap", "lightningShock", "bolt", "clap"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }
@@ -426,6 +426,7 @@ export async function handleRoomRequest(
         occupant.lastSeq = request.seq;
         if (!room.state.party[slot].human) setHuman(room.state, slot, true);
         occupant.lastResults = request.actions.map((action, index) => {
+          if (action.type === 'faceLogos' && room.hostSlot !== slot) return { index, ok: false, error: 'Only the host can lead the party to Logos.' };
           const result = room.state.status === "ready" && action.type !== "move" &&
             (action.type !== "start" || room.hostSlot !== slot)
             ? { ok: false, error: room.hostSlot === slot ? "Use Start encounter to begin the room's run." : "Waiting for the host to start the encounter." }

@@ -114,7 +114,8 @@ test('defaults provide unique bindings with every inversion disabled', () => {
   assert.equal(new Set(activeKeys).size, activeKeys.length);
   assert.equal(new Set(Object.values(settings.buttons)).size, Object.keys(settings.buttons).length);
   assert.equal(settings.keys.targetPrevious, 'Shift+Tab');
-  assert.equal(settings.buttons.recenter, 11); assert.equal(settings.buttons.targetNext, 10);
+  assert.equal(settings.buttons.recenter, 11); assert.equal(settings.buttons.ultimate, 10);
+  assert.equal(settings.buttons.targetEnemyNext, 15); assert.equal(settings.buttons.targetEnemyPrevious, 14);
   assert.equal(settings.buttons.zoomIn, undefined); assert.equal(settings.buttons.zoomOut, undefined);
   for (const [key, value] of Object.entries(settings)) if (key.startsWith('invert')) assert.equal(value, false);
   settings.keys.forward = 'KeyI';
@@ -500,7 +501,7 @@ test('gamepad input must return neutral after focus/menu/settings changes and ne
 });
 
 test('right-stick axes, mapped held camera/movement buttons and zoom are independently configurable', () => {
-  const settings = bindButton(bindButton(bindButton(defaults(), 'forward', 8), 'cameraUp', 9), 'zoomOut', 15);
+  const settings = bindButton(bindButton(bindButton(bindButton(defaults(), 'forward', 8), 'cameraUp', 9), 'zoomOut', 15), 'targetNext', 10);
   const h = harness(settings);
   try {
     h.state.pad = h.pad; h.frame();
@@ -738,5 +739,24 @@ test('controller overlay navigation remains available when gameplay is disabled 
     h.pad.buttons[1].pressed = false; h.win.emit('focus'); h.frame();
     h.pad.buttons[1].pressed = true; h.frame();
     assert.equal(h.state.uiOpen, false);
+  } finally { h.close(); }
+});
+
+test('G and default L3 dispatch the currently controlled hero’s ultimate; saved L3 target binding remains intact', () => {
+  const h = harness();
+  try {
+    h.state.pad = h.pad; h.frame();
+    for (const [role, type] of [['vanguard', 'fearless'], ['warden', 'thunderclap'], ['hunter', 'rainOfFire'], ['arcanist', 'fission'], ['luminary', 'rejuvenator']] as const) {
+      h.state.role = role;
+      h.key('KeyG'); h.key('KeyG', 'keyup');
+      assert.equal(h.sent.filter(a => a.type !== 'move').at(-1)?.type, type);
+      h.pad.buttons[10].pressed = true; h.frame();
+      assert.equal(h.sent.filter(a => a.type !== 'move').at(-1)?.type, type);
+      h.pad.buttons[10].pressed = false; h.frame();
+    }
+    const old = defaults(); delete old.buttons.ultimate; old.buttons.targetNext = 10;
+    const kept = normalizeControls(JSON.parse(JSON.stringify(old)));
+    assert.equal(kept.buttons.targetNext, 10); assert.equal(kept.buttons.ultimate, undefined);
+    assert.ok(bindingWarnings(kept).some(w => w.includes('Divine ultimate') && w.includes('controller')));
   } finally { h.close(); }
 });

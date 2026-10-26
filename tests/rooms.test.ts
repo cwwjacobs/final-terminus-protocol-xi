@@ -733,3 +733,22 @@ test("a trust heal during reconnect cannot acknowledge a rejected manual heal in
   assert.equal(response.actionSeq, 0);
   assert.ok(response.actionResults?.[0].error?.includes("cooldown"));
 });
+
+test('only the host can descend after Crown victory; room snapshots preserve unlocked ultimates and reject wrong-role casts', async () => {
+  const repo = new MemoryRepository(); const owner = await create(repo);
+  const mage = await handleRoomRequest(repo, { op: 'join', code: owner.code, slot: 3 }, NOW) as RoomCredentials;
+  const stored = repo.rows.get(owner.code)!; stored.state.status = 'victory'; stored.state.boss.hp = 0;
+  const rejected = await sync(repo, mage, 0, NOW + 100, [{ type: 'faceLogos' }]);
+  assert.equal(rejected.state.encounter, 'crown'); assert.equal(rejected.actionResults?.[0].ok, false);
+  assert.match(rejected.actionResults?.[0].error ?? '', /host/);
+  const descended = await sync(repo, owner, 0, NOW + 200, [{ type: 'faceLogos' }]);
+  assert.equal(descended.state.encounter, 'logos'); assert.equal(descended.state.ultimatesUnlocked, true);
+  assert.equal(descended.state.boss.name, 'Logos'); assert.equal(descended.state.enemies.length, 2);
+  const cast = await sync(repo, mage, 1, NOW + 250, [{ type: 'fission' }]);
+  assert.equal(cast.actionResults?.[0].ok, true); assert.equal(cast.state.party[3].cooldowns.fission, 600);
+  const retry = await sync(repo, mage, 1, NOW + 300, [{ type: 'fission' }]);
+  assert.ok(retry.state.party[3].cooldowns.fission <= 600);
+  assert.equal(retry.state.events.filter(e => e.kind === 'ability' && e.source === 'fission').length, 1, 'retries do not replay the ultimate');
+  const wrongRole = await sync(repo, mage, 2, NOW + 350, [{ type: 'thunderclap' }]);
+  assert.equal(wrongRole.actionResults?.[0].ok, false); assert.equal(wrongRole.state.party[3].sonOfZeus, false);
+});

@@ -38,6 +38,15 @@ const sigil = (shapes: readonly IconShape[]): IconDefinition => ({ box: 64, stro
 const icon = (...shapes: IconShape[]): IconDefinition => ({ box: 24, stroke: 1.8, shapes });
 
 export const ICONS = {
+  fission: icon(stroke('M10 5C3 0 0 14 10 19M14 5c7-5 10 9 0 14M7 10l-4 2m14-2 4 2M11 7l-1 4 3 2-1 4'), fill('M8 11a1.3 1.3 0 1 0 0 .1M16 11a1.3 1.3 0 1 0 0 .1')),
+  rainOfFire: icon(stroke('m5 3-2 8m9-8-2 8m9-8-2 8M5 14c0 3-3 3-3 5a3 3 0 0 0 6 0c0-2-3-2-3-5ZM16 13c0 4-3 4-3 6a3 3 0 0 0 6 0c0-2-3-2-3-6Z')),
+  rejuvenator: icon(stroke('M12 2v20M5 9h14M3 16c3 0 5 4 9 4s6-4 9-4M4 4l3 2m13-2-3 2')),
+  fearless: icon(stroke('m12 2 3 6 6 1-5 5 1 7-5-3-5 3 1-7-5-5 6-1Z'), stroke('m9 12 2 2 4-5')),
+  thunderclap: icon(stroke('m13 2-6 10h5l-1 10 7-12h-5ZM3 7l2 1m16-1-2 1M2 16l3-1m17 1-3-1')),
+  lightningShock: icon(stroke('m6 3-3 6h4l-2 6 7-8H8l2-4M11 16l3 3 3-4 4 2')),
+  bolt: icon(stroke('m14 2-9 11h7l-2 9 9-13h-7Z')),
+  clap: icon(stroke('M2 4l7 7v8H5l-3-6m20-9-7 7v8h4l3-6M12 2v4m-4-4 1 3m7-3-1 3M10 22h4')),
+  dusk: icon(stroke('M3 17h18M5 14a7 7 0 0 1 14 0M12 2v3M3 6l2 2m16-2-2 2M7 21h10'), fill('M12 8l1 3 3 1-3 1-1 3-1-3-3-1 3-1Z')),
   // Brand and navigation
   sigil: icon(stroke('M9.5 9.5V7a2.5 2.5 0 1 0-2.5 2.5h10a2.5 2.5 0 1 0-2.5-2.5v10a2.5 2.5 0 1 0 2.5-2.5h-10a2.5 2.5 0 1 0 2.5 2.5Z', 1.5)),
   party: icon(stroke('M12 3l9 9-9 9-9-9z'), fill('M12 8l4 4-4 4-4-4z')),

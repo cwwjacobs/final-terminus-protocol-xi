@@ -62,3 +62,11 @@
 .shot-selector>span{font-size:8px;letter-spacing:1px;color:#bfb2d2}.shot-selector button{display:flex;align-items:center;gap:3px;padding:5px 7px;font-size:10px;min-height:30px;background:#151122;border-color:#86769555}.shot-selector button[aria-pressed=true]{border-color:#9de4cb;background:#24534c99;color:#c8ffed}.shot-selector .ui-icon{font-size:14px}.shot-selector small{font-size:9px;color:#bfb2d2;white-space:nowrap}
 .direct-combat-hud[data-interface=controller]>.shot-selector{position:absolute;right:0;bottom:202px;margin:0}.direct-combat-hud[data-interface=controller]>.combat-notice{bottom:calc(100% + 44px);left:auto;right:0;transform:none}
 .direct-touch .shot-selector{margin:0 0 5px;flex-wrap:wrap}.direct-touch .shot-selector>span{display:none}.direct-touch .shot-selector button{flex:1;min-height:36px;padding:4px;font-size:9px}.direct-touch .combat-notice{left:auto;right:0;transform:none;max-width:min(300px,85vw)}
+
+.direct-ability[data-slot=ultimate],.direct-touch-ability[data-slot=ultimate]{border-color:#dab5ff99;box-shadow:inset 0 0 16px #9258cf24;color:#e6bcff}
+.direct-pad-actions [data-slot=ultimate]{grid-column:2;grid-row:3}
+.direct-touch-ability[data-slot=ultimate]{grid-column:2;grid-row:3}
+.divine-awakening{position:absolute;top:32%;left:50%;transform:translateX(-50%);text-align:center;padding:18px 26px;max-width:min(90vw,490px);color:#eee1ff;border-top:1px solid #c9a6ff80;border-bottom:1px solid #c9a6ff80;background:linear-gradient(90deg,#17112b00,#17112bed 20%,#17112bed 80%,#17112b00);pointer-events:none;z-index:5}
+.divine-awakening>span{font-size:10px;letter-spacing:.25em;text-transform:uppercase;color:#cfb3e5}.divine-awakening strong{display:block;font:28px/1.5 Georgia,serif}.divine-awakening p{font:12px/1.5 Arial,sans-serif}.divine-awakening small{font:10px/1.4 Arial,sans-serif;color:#bcb0cf}
+.divine-enemy-status{margin:3px 0;color:#b8dbff;font-size:10px}.divine-enemy-status.fire{color:#ffc08f}.echo-health{display:flex;justify-content:center;gap:14px;font-size:9px;color:#c5bedb;margin-top:4px}
+@media(max-width:600px){.divine-awakening{top:34%;padding:10px;width:86vw}.divine-awakening strong{font-size:22px}.divine-awakening small{display:none}.direct-actions{gap:3px}}

@@ -12,6 +12,7 @@ import { roleIcon } from './icons';
 import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
 import { createStormEffects } from './storm-effects';
 import { createAbilityEffects } from './ability-effects';
+import { createDivinePresentation } from './divine-visuals';
 import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
@@ -266,6 +267,7 @@ export default function Scene(props: SceneProps) {
     const heroCache = new HeroAssetCache();
     const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
+    const divine = createDivinePresentation(scene, rigs, props.quality);
     bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
 
     const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
@@ -330,7 +332,7 @@ export default function Scene(props: SceneProps) {
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let presentationActive = latest.current.presentationActive !== false && !document.hidden;
     const clearPresentation = () => {
-      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset();
+      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); divine.reset();
       heroVisuals.forEach(visual => visual?.resetCombat());
       rigs.forEach(rig => { rig.attack = 0; }); bossRig.attack = 0;
       effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
@@ -394,6 +396,7 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
+      divine.event(event, state);
       stormEffects.event(event, state);
       const handled = abilityEffects.impact(event, state);
       if (event.kind === 'hit') bossRig.attack = 1;
@@ -402,7 +405,8 @@ export default function Scene(props: SceneProps) {
       if (feedback) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
         const height = feedback.target === 'boss' ? 3.4 : heroVisuals[feedback.target]?.labelHeight ?? 2.4;
-        numbers.spawn(feedback, { x: target.root.position.x, y: height + .2, z: target.root.position.z });
+        const enemy = event.enemyId ? state.enemies.find(enemy => enemy.id === event.enemyId) : undefined;
+        numbers.spawn(feedback, { x: enemy?.x ?? target.root.position.x, y: enemy ? 2.8 : height + .2, z: enemy?.z ?? target.root.position.z });
       }
       if (handled) return;
       if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
@@ -481,6 +485,10 @@ export default function Scene(props: SceneProps) {
         difference *= 1 - Math.exp(-15 * dt); rig.root.rotation.y += difference;
         const speed = Math.hypot(rig.root.position.x - beforeX, rig.root.position.z - beforeZ) / dt;
         const visual = heroVisuals[i];
+        rig.root.scale.setScalar(actor.sonOfZeus ? 2 : 1);
+        rig.body.visible = !actor.sonOfZeus && !visual;
+        rig.ornament.visible = !actor.sonOfZeus && !visual;
+        if (visual) visual.object.visible = !actor.sonOfZeus;
         if (visual) {
           rig.attack = Math.max(0, rig.attack - dt * 2.5);
           visual.update(dt, speed, actor.hp > 0, rig.attack);
@@ -496,6 +504,8 @@ export default function Scene(props: SceneProps) {
       bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
       bossRig.root.rotation.y += Math.atan2(Math.sin(state.boss.facing - bossRig.root.rotation.y), Math.cos(state.boss.facing - bossRig.root.rotation.y)) * (1 - Math.exp(-5 * dt));
       animateActor(bossRig, dt, now / 1000, 0, state.boss.hp > 0, Boolean(state.boss.cast));
+      bossRig.root.visible = state.encounter !== 'logos';
+      divine.update(presentationActive ? dt : 0, state, animationTime, reducedMotion);
       if (targetPulse !== lastTargetPulse || selectedTarget !== lastSelectedTarget) {
         targetPulseAge = 0; lastTargetPulse = targetPulse; lastSelectedTarget = selectedTarget;
       }
@@ -512,11 +522,11 @@ export default function Scene(props: SceneProps) {
       targetReticle.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .5));
       reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
       const burst = activeBurst(state);
-      burstRing.visible = !!burst;
-      if (burst) {
+      burstRing.visible = !!burst || state.duskRemaining > 0;
+      if (burst || state.duskRemaining > 0) {
         burstRing.position.set(bossRig.root.position.x, .07, bossRig.root.position.z);
-        burstMaterial.color.set(MAGIC[burst.element].color);
-        burstRing.geometry.setDrawRange(0, Math.max(1, Math.ceil(128 * Math.min(1, burst.remaining / BURST_WINDOW))) * 6);
+        burstMaterial.color.set(state.duskRemaining > 0 ? '#e2a5ff' : MAGIC[burst!.element].color);
+        burstRing.geometry.setDrawRange(0, Math.max(1, Math.ceil(128 * Math.min(1, state.duskRemaining > 0 ? state.duskRemaining / 10 : burst!.remaining / BURST_WINDOW))) * 6);
         reticleMaterial.color.copy(burstMaterial.color);
       }
 
@@ -578,7 +588,7 @@ export default function Scene(props: SceneProps) {
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
-        projected.y += heroVisuals[i]?.labelHeight ?? (i === slot ? 2.5 : 2.75);
+        projected.y += (heroVisuals[i]?.labelHeight ?? (i === slot ? 2.5 : 2.75)) * (state.party[i].sonOfZeus ? 2 : 1);
         ray.copy(projected).sub(camera.position); const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
         projected.project(camera);
         const visible = inFront && projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15 && state.party[i]?.hp > 0;

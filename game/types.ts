@@ -14,6 +14,9 @@ export type Action =
   | { type: 'splitVolley' }
   | { type: 'rapidWeave' }
   | { type: 'aegis' }
+  | { type: 'fission' | 'rainOfFire' | 'rejuvenator' | 'fearless' | 'thunderclap' }
+  | { type: 'lightningShock' | 'bolt' | 'clap' }
+  | { type: 'faceLogos' }
   | { type: 'provoke' }
   | { type: 'heal'; target?: number }
   | { type: 'shimmerWave' }
@@ -48,6 +51,9 @@ export interface Actor {
   dodgeUntil: number;
   aiTimer: number;
   shieldCharges: number;
+  hpShield: number;
+  criticalCharges: number;
+  sonOfZeus: boolean;
   mendingThread: null | { remaining: number; tickIn: number; source: number };
   recovery: number;
   spellRecovery: number;
@@ -77,7 +83,24 @@ export interface CombatPresentationMetadata {
   abilityId?: string;
   weaponId?: WeaponId;
   element?: Element;
+  enemyId?: string;
   area?: Pick<BossCast, 'kind' | 'x' | 'z' | 'radius' | 'angle' | 'target' | 'total' | 'pulses' | 'abilityId'>;
+}
+
+export interface EnemyStatus {
+  stunRemaining: number;
+  burn: null | { source: number; total: number; dealt: number; ticks: number; tickIn: number };
+}
+
+export interface Enemy extends EnemyStatus {
+  id: string;
+  name: string;
+  x: number;
+  z: number;
+  hp: number;
+  maxHp: number;
+  target: number;
+  attackTimer: number;
 }
 
 export interface ActorRunStats {
@@ -106,10 +129,14 @@ export interface GameState {
   eventSeq: number;
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
+  encounter: 'crown' | 'logos';
+  ultimatesUnlocked: boolean;
+  duskRemaining: number;
+  enemies: Enemy[];
   runStats: RunStats;
   storm: import('./static-storm.ts').StaticStorm;
   party: Actor[];
-  boss: {
+  boss: EnemyStatus & {
     name: string;
     x: number;
     z: number;

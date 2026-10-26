@@ -2,13 +2,13 @@
 
 A first playable foundation for Corey's Terminus Q Protocol: a third-person, real-time party battle built around **auto attacks → TP → weaponskills → skillchains → Magic Bursts**, with a hate (enmity) system deciding who holds the enemy's attention.
 
-Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, a procedural boss with three phases, a shorter trial and a sustained god encounter. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
+Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, Crown Resonance followed by Logos, a shorter trial and a sustained god mode. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
 
 Painted heroes are enabled by default. **Settings → Characters** also offers **Original scaffold**, which remains visible while models load and for any model that fails to load. The painted roster has idle and walk loops; authored weapon props and combat clips are not included yet. See [docs/CHARACTER_ASSETS.md](docs/CHARACTER_ASSETS.md) for the copied assets, verification scope and upgrade path.
 
 The party is Bacchus, Heracles, Dolos, Hecate and Ariadne. Zeus made Ariadne, Bacchus, Dolos and Hecate amnesiac guardians of the **Middle Plane**; descending into the **Quantum Realm** brings their godhood forward before their memories return. Those four are the original descenders. Heracles fills the fifth active party role, with his story entrance still open.
 
-The encounter is **Crown Resonance at Crowned Horizon**, adapted from the Episode 1 treatment. It replaces the prototype name Hollow Regent and is not Logos himself. Local victory does not settle the fate of Logos or the beings his world sustains. Current story decisions and open questions live in [docs/LORE.md](docs/LORE.md).
+Begin with **Crown Resonance at Crowned Horizon**. After victory, choose **Descend to Logos** (the host leads online parties). The party enters a new Logos encounter with two echoes; all five divine ultimates unlock ready to use. Every ultimate has its own **10-minute cooldown**. Current story decisions and open questions live in [docs/LORE.md](docs/LORE.md).
 
 ## Run locally
 
@@ -98,7 +98,7 @@ Buttons in the HUD also perform combat actions. Bacchus, Heracles and Dolos use 
 
 ## Character mechanics
 
-Every activated ability has an individual cooldown. Ordinary physical criticals deal 1.5× damage; extra auto hits cannot recursively trigger themselves.
+Every activated ability has an individual cooldown. Against Logos, **G** on keyboard or **L3** on a fresh controller layout uses your ultimate; touch has an ultimate button. Existing custom bindings remain intact; Controls shows a notice if an older controller map needs an Ultimate binding. Heracles’s primary slots become Lightning Shock / Bolt / Clap during Son of Zeus. Ordinary physical criticals deal 1.5× damage; extra auto hits cannot recursively trigger themselves.
 
 | Character | Secondary traits and technique |
 | --- | --- |
@@ -107,6 +107,18 @@ Every activated ability has an individual cooldown. Ordinary physical criticals 
 | Dolos | 15% crit, +25% outgoing TP. Split Volley: five arrows, 1,250 TP total, one self-chain permission for 8s; 45s recast. |
 | Hecate | Three distinct spells within 12s refund 140 MP; +10% matching burst damage. Fire/Ice/Thunder each have 6s recasts and 2s normal spell recovery. Rapid Weave permits two rapid casts per element with 0.5s recovery, for 12s; 180s recast. |
 | Ariadne | +20% healing below 35% HP; 25% less healing enmity. Luminous Aegis grants each living ally within 18 units one hit of invulnerability; 120 MP, 90s recast. |
+
+### Divine awakening against Logos
+
+| Hero | Ultimate · 600 second recast |
+| --- | --- |
+| Hecate | **Fission:** a visible atom splits; 9,000 Matk-scaled area damage within 12m of the boss. |
+| Dolos | **Rain of Fire:** all enemies in that 12m area take a guaranteed 3× physical critical (2,000 × 3 before attack bonuses). Each survivor burns for exactly 25% of its actual impact damage, paid over three one-second ticks. |
+| Ariadne | **Rejuvenator:** all living allies receive full HP and 3,000 TP globally. Each gets a damage shield equal to 25% of HP actually restored; fallen allies are not revived. Aegis remains a separate one-hit ward. |
+| Bacchus | **Fearless:** five guaranteed critical hits for each living ally; ten for Bacchus. Each of his empowered hits refills TP to 3,000. Compatible self-chains open **Dusk** for 10 seconds, allowing any elemental spell/shot and Bolt to Magic Burst. Charges last until used or the actor falls. |
+| Heracles | **Thunderclap:** interrupts and stuns all enemies, including Logos, for 5 seconds. **Son of Zeus** doubles his visual scale and forces all enemies to target him while alive. The form has no timer. Lightning Shock chains between enemies within 8m, stunning for 2 seconds (45 MP, 12s recast); Bolt deals Matk damage and can burst (70 MP, 6s recast); Clap spends all TP, at least 1,000, to deal area magic damage and stun for 3 seconds (12s recast). |
+
+The new combat state is authoritative in solo and rooms and survives saving/reconnect. See [divine awakening verification](docs/DIVINE-AWAKENING.md) for exact tests, provisional balance values and visual-review limits.
 
 Regent's Decree marks one ally in phases 2–3. Terminal Echo adds two raid pulses a second apart in phase 3; a single shield charge blocks only the first eligible hit. Collapse still defeats the party at the deadline.
 
@@ -131,4 +143,4 @@ Solo state and graphics preferences are saved in this browser's local storage. S
 
 The fixed-seed active input simulations for all five controlled roles finish trial in **108–115 seconds** and god in **320–330 seconds**, with all five party members alive. Reproduce them with `node --experimental-strip-types scripts/verify-mechanics-encounters.mjs`. The idle-leader god scenario loses at the **450-second** collapse deadline. That is evidence that the loop can sustain a roughly six-minute scripted fight and requires participation under those test policies; it is **not a human balance study or a guaranteed play duration**. Browser gameplay, multi-device network conditions and physical controller behavior require their own verification; passing the kernel tests does not prove them.
 
-There is no open world, progression economy, inventory, matchmaking, finished animation library or persistent account progression yet. The module boundaries are described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For small, targeted changes to balance, kits, art, maps or transport, use [docs/UPGRADING.md](docs/UPGRADING.md).
+There is no open world, progression economy, inventory, matchmaking, finished animation library or persistent account progression yet. Ultimate unlocks belong to the saved expedition; a fresh expedition begins at Crown Resonance. The module boundaries are described in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). For small, targeted changes to balance, kits, art, maps or transport, use [docs/UPGRADING.md](docs/UPGRADING.md).

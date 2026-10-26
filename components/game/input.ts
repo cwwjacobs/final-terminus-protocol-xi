@@ -12,6 +12,7 @@ export interface InputOptions {
   send: (action: Action) => void;
   getFacing: () => number;
   getRole?: () => Role;
+  getSonOfZeus?: () => boolean;
   getCameraYaw: () => number;
   getSettings: () => ControlSettings;
   onPad: (present: boolean) => void;
@@ -34,6 +35,8 @@ const combat: Partial<Record<Command, Action>> = {
   shimmerWave: { type: 'shimmerWave' }, mendingThread: { type: 'mendingThread' },
   elementalShot: { type: 'elementalShot' }, selectShot: { type: 'selectShot' },
   splitVolley: { type: 'splitVolley' }, rapidWeave: { type: 'rapidWeave' }, aegis: { type: 'aegis' },
+  fearless: { type: 'fearless' }, thunderclap: { type: 'thunderclap' }, rainOfFire: { type: 'rainOfFire' }, fission: { type: 'fission' }, rejuvenator: { type: 'rejuvenator' },
+  lightningShock: { type: 'lightningShock' }, bolt: { type: 'bolt' }, clap: { type: 'clap' },
 };
 const continuous = new Set<Command>(['forward', 'backward', 'left', 'right', 'cameraLeft', 'cameraRight', 'cameraUp', 'cameraDown', 'zoomIn', 'zoomOut']);
 const modifier = (code: string) => code === 'ShiftLeft' || code === 'ShiftRight';
@@ -72,7 +75,7 @@ export function bindInput(options: InputOptions): () => void {
   }
   function fire(command: Command) {
     if (command === 'commandMenu' && commandMenu) { clearHeld(); commandMenu.onInput('open'); return; }
-    const resolved = roleCommand(options.getRole?.() ?? 'vanguard', command);
+    const resolved = roleCommand(options.getRole?.() ?? 'vanguard', command, options.getSonOfZeus?.());
     if (resolved === null) return;
     command = resolved;
     if (command === 'targetEnemyNext') command = 'targetNext';
