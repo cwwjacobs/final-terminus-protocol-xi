@@ -10,6 +10,11 @@ const elements: Record<Element, { label: string; icon: IconName }> = {
 };
 
 export default function SkillchainPanel({ state }: { state: GameState }) {
+  if (state.status === 'fighting' && state.duskRemaining > 0) return <section className="resonance-banner chain-feedback burst" aria-label="Dusk magic burst window" style={{ '--cue-color': '#e2a5ff' } as CSSProperties}>
+    <div className="chain-feedback-heading"><span>Dusk marked</span><b role="timer">{state.duskRemaining.toFixed(1)}s</b></div>
+    <div className="chain-feedback-title"><Icon name="dusk"/><strong>Every element can burst</strong></div>
+    <p>Fire · Ice · Lightning · Bolt</p><div className="chain-countdown"><i style={{ width: `${state.duskRemaining * 10}%` }}/></div>
+  </section>;
   if (state.status !== 'fighting') return null;
   const burst = activeBurst(state), chain = state.chain;
   if (!burst && (!chain || chain.remaining <= 0)) return null;

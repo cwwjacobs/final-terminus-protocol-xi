@@ -7,7 +7,7 @@ const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
 const ELEMENTS = ['fire', 'ice', 'lightning'];
 const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse'];
-const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'bossImpact']);
+const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'bossImpact', 'rainOfFireBurn']);
 const WEAPON_IDS = ['cleave', 'pierce', 'resonance'];
 const PRESENTATION_AREA_KEYS = ['kind', 'x', 'z', 'radius', 'angle', 'total'];
 const PRESENTATION_AREA_OPTIONAL_KEYS = ['target', 'pulses', 'abilityId'];
@@ -27,6 +27,7 @@ const withinArena = (x: unknown, z: unknown): boolean =>
 /** Old events omit these fields. Supplied presentation metadata must be bounded
  * before it can become geometry, animation identity or an emitter lifetime. */
 function validPresentationMetadata(event: Record<string, unknown>): boolean {
+  if (Object.hasOwn(event, 'enemyId') && (typeof event.enemyId !== 'string' || !/^echo-[01]$/.test(event.enemyId))) return false;
   if (Object.hasOwn(event, 'abilityId') && (typeof event.abilityId !== 'string' || !PRESENTATION_ABILITIES.has(event.abilityId))) return false;
   if (Object.hasOwn(event, 'weaponId') && (typeof event.weaponId !== 'string' || !WEAPON_IDS.includes(event.weaponId))) return false;
   if (Object.hasOwn(event, 'element') && (typeof event.element !== 'string' || !ELEMENTS.includes(event.element))) return false;
@@ -68,10 +69,25 @@ export function validSave(raw: unknown): raw is GameState {
   const template = createGame(state.mode === 'god' ? 'god' : 'trial');
   const omit = (value: object, keys: string[]) =>
     Object.fromEntries(Object.entries(value).filter(([key]) => !keys.includes(key)));
-  if (!finiteShape(state, omit(template, ['events', 'chain', 'burst', 'boss', 'party', 'runStats'])) ||
-    !finiteShape(state.boss, omit(template.boss, ['cast', 'cooldowns'])) ||
+  if (!finiteShape(state, omit(template, ['events', 'chain', 'burst', 'boss', 'party', 'runStats', 'enemies'])) ||
+    !finiteShape(state.boss, omit(template.boss, ['cast', 'cooldowns', 'burn'])) ||
     !Array.isArray(state.party) || state.party.length !== 5 ||
     !['trial', 'god'].includes(state.mode) || !['ready', 'fighting', 'victory', 'defeat'].includes(state.status)) return false;
+  if (!['crown', 'logos'].includes(state.encounter) || state.ultimatesUnlocked !== (state.encounter === 'logos') ||
+    !nonnegative(state.duskRemaining) || state.duskRemaining > 10 + FLOAT_TOLERANCE ||
+    !Array.isArray(state.enemies) || state.enemies.length > 2 || state.encounter === 'crown' && state.enemies.length !== 0) return false;
+  const statusValid = (enemy: { stunRemaining: unknown; burn: unknown }) => {
+    if (!nonnegative(enemy.stunRemaining) || enemy.stunRemaining > 5 + FLOAT_TOLERANCE) return false;
+    const burn = enemy.burn;
+    return burn === null || record(burn) && exactKeys(burn, ['source', 'total', 'dealt', 'ticks', 'tickIn']) &&
+      slot(burn.source) && state.party[burn.source]?.role === 'hunter' && integer(burn.total, 0, MAX_RESOURCE_CAPACITY) &&
+      integer(burn.dealt, 0, burn.total) && integer(burn.ticks, 0, 2) &&
+      burn.dealt === Math.round(burn.total * burn.ticks / 3) && finite(burn.tickIn) && burn.tickIn > 0 && burn.tickIn <= 1 + FLOAT_TOLERANCE;
+  };
+  if (!statusValid(state.boss) || state.enemies.some((enemy, index) => !record(enemy) ||
+    enemy.id !== `echo-${index}` || typeof enemy.name !== 'string' || !withinArena(enemy.x, enemy.z) ||
+    !finite(enemy.hp) || !finite(enemy.maxHp) || enemy.maxHp <= 0 || enemy.maxHp > MAX_RESOURCE_CAPACITY || enemy.hp < 0 || enemy.hp > enemy.maxHp ||
+    !integer(enemy.target, -1, 4) || !finite(enemy.attackTimer) || !statusValid(enemy))) return false;
   if (!integer(state.tick, 0) || !integer(state.eventSeq, 0) || !integer(state.sequenceSeq, 0) ||
     !integer(state.rng, 0, 0xffffffff) || state.time < 0 || state.combatTime < 0 ||
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
@@ -92,6 +108,9 @@ export function validSave(raw: unknown): raw is GameState {
     if (!finiteShape(actor, omit(template.party[0], ['cooldowns', 'rapidWeave', 'elementalCycle', 'sequence', 'mendingThread'])) ||
       !Object.hasOwn(ROLES, actor.role) || !ELEMENTS.includes(actor.shotElement) ||
       !integer(actor.revelryStacks, 0, REVELRY.maxStacks) || !integer(actor.shieldCharges, 0, 1) ||
+      !integer(actor.criticalCharges, 0, actor.id === 'bacchus' ? 10 : 5) ||
+      !nonnegative(actor.hpShield) || actor.hpShield > actor.maxHp ||
+      (actor.sonOfZeus && actor.role !== 'warden') ||
       actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY || actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
       actor.hp < 0 || actor.hp > actor.maxHp || actor.mp < 0 || actor.mp > actor.maxMp || actor.tp < 0 || actor.tp > 3000 ||
       Math.hypot(actor.moveX, actor.moveZ) > 1 + FLOAT_TOLERANCE || !withinArena(actor.x, actor.z) ||

@@ -1,4 +1,4 @@
-import { CHAIN_MIN_DELAY, SKILLCHAINS } from '../../game/content.ts';
+import { CHAIN_MIN_DELAY, matchesBurst, SKILLCHAINS } from '../../game/content.ts';
 import type { Action, GameState } from '../../game/types.ts';
 
 /** Read the authoritative window; a weaponskill opener alone is never a burst. */
@@ -8,10 +8,10 @@ export function activeBurst(state: GameState) {
 
 export function abilityCue(state: GameState, slot: number, action: Action, disabled: boolean) {
   if (disabled || state.status !== 'fighting') return null;
-  if ((action.type === 'magic' && activeBurst(state)?.element === action.element) || (action.type === 'elementalShot' && activeBurst(state)?.element === state.party[slot]?.shotElement))
+  if ((action.type === 'magic' && matchesBurst(state, action.element)) || (action.type === 'elementalShot' && matchesBurst(state, state.party[slot].shotElement)) || (action.type === 'bolt' && matchesBurst(state, 'lightning')))
     return { kind: 'burst-ready', label: 'MAGIC BURST' };
   const chain = state.chain;
-  if (action.type === 'weapon' && chain && chain.remaining > 0 && (chain.opener !== slot || (state.party[slot]?.role === 'hunter' && state.party[slot].selfChainUntil > state.time)) &&
+  if (action.type === 'weapon' && chain && chain.remaining > 0 && (chain.opener !== slot || state.party[slot]?.id === 'bacchus' && state.party[slot].criticalCharges > 0 || (state.party[slot]?.role === 'hunter' && state.party[slot].selfChainUntil > state.time)) &&
       state.time - chain.openedAt + 1e-8 >= CHAIN_MIN_DELAY) {
     const combination = SKILLCHAINS[`${chain.weapon}:${action.id}`];
     if (combination) return { kind: 'chain-ready', label: `Close ${combination.property}` };

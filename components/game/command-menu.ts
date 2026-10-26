@@ -1,5 +1,5 @@
 import type { Action, GameState } from '../../game/types.ts';
-import { utilityAbilities, withHealingTarget } from './kit-ui.ts';
+import { utilityAbilities, withHealingTarget, formatCooldown } from './kit-ui.ts';
 import { actionUnavailable, canUseActionRole, getCooldown, MAGIC, WEAPONS } from '../../game/content.ts';
 
 export type CommandPage = 'root' | 'spells' | 'allies' | 'adversaries' | 'abilities' | 'weapons';
@@ -31,7 +31,7 @@ export function commandEntries(state: GameState, slot: number, page: CommandPage
     action = withHealingTarget(action, allyTarget);
     const reason = commandUnavailable(state, slot, action);
     const cooldown = getCooldown(actor, action);
-    return { id, label, detail: cooldown > 0 ? `${cooldown < 10 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s recast` : reason ?? detail, action, disabled: !!reason };
+    return { id, label, detail: cooldown > 0 ? `${formatCooldown(cooldown)} recast` : reason ?? detail, action, disabled: !!reason };
   };
   if (page === 'root') return [
     actor.engaged
@@ -56,7 +56,7 @@ export function commandEntries(state: GameState, slot: number, page: CommandPage
     ? (['fire', 'ice', 'lightning'] as const).map(element => row(element, `${element === 'lightning' ? 'Thunder' : element === 'fire' ? 'Fire' : 'Ice'} · ${MAGIC[element].name}`, `${element} · 70 MP · selected enemy`, { type: 'magic', element })) : [];
   if (page === 'weapons') return canUseActionRole(actor.role, 'weapon')
     ? (['cleave', 'pierce', 'resonance'] as const).map(id => row(id, WEAPONS[id].name, '1,000+ TP · spends accumulated TP', { type: 'weapon', id })) : [];
-  return utilityAbilities.filter(item => item.action.type !== 'heal' && canUseActionRole(actor.role, item.action.type))
+  return utilityAbilities.filter(item => item.action.type !== 'heal' && canUseActionRole(actor.role, item.action.type) && (!['lightningShock', 'bolt', 'clap'].includes(item.action.type) || actor.sonOfZeus))
     .map(item => row(item.action.type, item.name, item.hint, item.action));
 }
 

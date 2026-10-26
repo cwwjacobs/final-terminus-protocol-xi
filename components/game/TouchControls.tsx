@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, type PointerEvent, type MouseEvent } from 'react';
 import type { Action, GameState } from '../../game/types';
 import { getCooldown } from '../../game/content';
-import { abilityDetail, roleActionSlots } from './kit-ui';
+import { abilityDetail, roleActionSlots, formatCooldown } from './kit-ui';
 import Icon from './Icon';
 import ShotSelector from './ShotSelector';
 import { abilityCue } from './combat-feedback';
@@ -74,7 +74,7 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
     },
   });
   const player = state.party[slot];
-  const choices = roleActionSlots(player.role, allyTarget);
+  const choices = roleActionSlots(player.role, allyTarget, player);
   return <div className="touch-controls direct-touch" hidden={blocked} aria-label="Touch controls" onContextMenu={event => event.preventDefault()}>
     <div className="touch-movement">
       <div className="touch-stick" role="group" aria-label="Movement stick: drag to move" onPointerDown={begin} onPointerMove={update} onPointerUp={end} onPointerCancel={end} onLostPointerCapture={end}>
@@ -96,7 +96,7 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
         const name = shot ? shotName : command === 'engage' ? player.engaged ? 'Disengage' : 'Engage' : item.name;
           return <button key={id} data-slot={id} className={`direct-touch-ability ${item.color} ${cue?.kind ?? ''}`} aria-disabled={!!reason} aria-pressed={command === 'engage' ? player.engaged : undefined} aria-label={`${name}: ${detail}`} title={detail} {...press(() => { if (reason) onUnavailable?.(reason); else onAction(item.action); })}>
             <Icon name={command === 'engage' ? player.engaged ? 'engaged' : 'disengaged' : shot ? player.shotElement : item.icon}/>
-            {cooldown > 0 && <span className="direct-recast" aria-hidden="true">{cooldown < 1 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s</span>}
+            {cooldown > 0 && <span className="direct-recast" aria-hidden="true">{formatCooldown(cooldown)}</span>}
             <strong>{name}</strong>{item.action.type === 'magic' && player.rapidWeave && <small className="direct-charges" aria-label={`${player.rapidWeave.charges[item.action.element]} rapid casts left`}>{player.rapidWeave.charges[item.action.element]}</small>}
           </button>;
         })}

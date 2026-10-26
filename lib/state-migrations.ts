@@ -21,10 +21,21 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     state.runStats = createRunStats((state.party as unknown[]).length, partial ? state.combatTime : 0, partial);
   }
   if (!Object.hasOwn(state, 'storm')) state.storm = createStaticStorm(Number.isInteger(state.rng) ? state.rng as number : LEGACY_SEED);
+  if (!Object.hasOwn(state, 'encounter')) state.encounter = 'crown';
+  if (!Object.hasOwn(state, 'ultimatesUnlocked')) state.ultimatesUnlocked = false;
+  if (!Object.hasOwn(state, 'duskRemaining')) state.duskRemaining = 0;
+  if (!Object.hasOwn(state, 'enemies')) state.enemies = [];
+  if (record(state.boss)) {
+    if (!Object.hasOwn(state.boss, 'stunRemaining')) state.boss.stunRemaining = 0;
+    if (!Object.hasOwn(state.boss, 'burn')) state.boss.burn = null;
+  }
   for (const actor of state.party as unknown[]) {
     if (!record(actor)) return null;
     if (!Object.hasOwn(actor, 'mendingThread')) actor.mendingThread = null;
     if (!Object.hasOwn(actor, 'shotElement')) actor.shotElement = 'fire';
+    if (!Object.hasOwn(actor, 'hpShield')) actor.hpShield = 0;
+    if (!Object.hasOwn(actor, 'criticalCharges')) actor.criticalCharges = 0;
+    if (!Object.hasOwn(actor, 'sonOfZeus')) actor.sonOfZeus = false;
   }
   if (state.version === 2) return state;
   if (!record(state.boss)) return null;

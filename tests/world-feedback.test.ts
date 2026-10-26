@@ -79,7 +79,7 @@ test('physical criticals use their explicit flag and each scheduled hit retains 
   assert.deepEqual(pool.slots.filter(slot => slot.feedback).map(slot => slot.feedback?.id), [1, 2, 3]);
   assert.equal(new Set(pool.slots.filter(slot => slot.feedback).map(slot => slot.lane)).size, 3);
   assert.equal(combatNumber({ ...damage(4), text: 'CRITICAL DASH x3!!' }, state)?.tone, 'damage', 'human-readable text cannot invent a critical');
-  assert.equal(combatNumber({ ...damage(5), kind: 'magic', critical: true }, state)?.tone, 'damage', 'physical critical styling never leaks into magic');
+  assert.equal(combatNumber({ ...damage(5), kind: 'magic', critical: true }, state)?.tone, 'critical', 'Fearless can also guarantee a spell critical');
   assert.equal(immediateImpact({ ...damage(6), kind: 'weapon', source: 'splitVolley' }), true);
   assert.equal(immediateImpact({ ...damage(7), kind: 'weapon' }), false);
   assert.equal(combatNumber({ ...damage(8), kind: 'shield', target: 2, value: 0 }, state), null, 'a prevented hit is not HP damage');

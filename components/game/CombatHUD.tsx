@@ -2,7 +2,7 @@
 import type { Action, GameState } from '../../game/types';
 import { getCooldown } from '../../game/content';
 import { effectiveBindingCommand, keyLabel, buttonLabel, type ControlSettings } from './control-settings';
-import { roleActionSlots, abilityDetail } from './kit-ui';
+import { roleActionSlots, abilityDetail, formatCooldown } from './kit-ui';
 import { abilityCue } from './combat-feedback';
 import { commandUnavailable } from './command-menu';
 import Icon from './Icon';
@@ -26,9 +26,9 @@ export interface CombatHUDProps {
 export default function CombatHUD({ state, slot, controls, interface: layout, selectedAlly, onAction, onFocus, onAllyTarget, onUnavailable, notice }: CombatHUDProps) {
   const actor = state.party[slot];
   const mode = layout === 'controller' ? 'controller' : 'keyboard';
-  const slots = roleActionSlots(actor.role, selectedAlly);
+  const slots = roleActionSlots(actor.role, selectedAlly, actor);
   const hint = (command: typeof slots[number]['command']) => {
-    const binding = effectiveBindingCommand(actor.role, command, controls, mode);
+    const binding = effectiveBindingCommand(actor.role, command, controls, mode, actor.sonOfZeus);
     if (!binding) return 'Unbound';
     return mode === 'controller'
       ? controls.buttons[binding] === undefined ? 'Unbound' : buttonLabel(controls.buttons[binding]!)
@@ -46,6 +46,9 @@ export default function CombatHUD({ state, slot, controls, interface: layout, se
           </div>)}
       </div>
       <div className="direct-buffs" aria-label="Active effects">
+        {actor.criticalCharges > 0 && <span><Icon name="fearless"/> {actor.criticalCharges} guaranteed crits{actor.id === 'bacchus' ? ' · TP refill' : ''}</span>}
+        {actor.hpShield > 0 && <span><Icon name="rejuvenator"/> Shield {Math.ceil(actor.hpShield)}</span>}
+        {actor.sonOfZeus && <span><Icon name="thunderclap"/> Son of Zeus · forced target</span>}
         {actor.revelryStacks > 0 && <span title="Revelry stacks; lost after taking damage"><Icon name="revelry"/> {actor.revelryStacks}/5</span>}
         {actor.mendingThread && <span>Mending {Math.ceil(actor.mendingThread.remaining)}s</span>}
         {actor.shieldCharges > 0 && <span title="Aegis blocks the next hit"><Icon name="aegis"/> 1 hit</span>}
@@ -71,7 +74,7 @@ export default function CombatHUD({ state, slot, controls, interface: layout, se
           onClick={event => { if (reason) onUnavailable?.(reason); else onAction(item.action); event.currentTarget.blur(); onFocus(); }}>
           <kbd className={binding === 'Unbound' ? 'unbound' : undefined}>{binding}</kbd>
           <span className="direct-action-icon" aria-hidden="true"><Icon name={command === 'engage' ? actor.engaged ? 'engaged' : 'disengaged' : shot ? actor.shotElement : item.icon}/></span>
-          {remaining > 0 && <span className="direct-recast">{remaining < 1 ? remaining.toFixed(1) : Math.ceil(remaining)}s</span>}
+          {remaining > 0 && <span className="direct-recast">{formatCooldown(remaining)}</span>}
           <span className="direct-action-name">{name}</span>
           {item.action.type === 'magic' && actor.rapidWeave && <span className="direct-charges" title="Rapid casts remaining">{actor.rapidWeave.charges[item.action.element]}</span>}
         </button>;

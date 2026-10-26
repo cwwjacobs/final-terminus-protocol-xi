@@ -17,7 +17,7 @@
 | Ambient storm and static discharge | Existing storm presentation retained; the same confirmed event feed supplies sound |
 | Hit and defeat | Short reactions, impact accents and restrained sound |
 
-Fire impact artwork does not imply a burn debuff. There is no new persistent burn mechanic. Preparation/contact delays are visual only; these spells still resolve under the existing kernel rules. The current encounter is Crown Resonance, not a new Logos character implementation.
+Fire impact artwork does not imply a burn debuff. Ordinary Fire has no persistent burn; the later Rain of Fire ultimate has an explicit authoritative three-second burn. Preparation/contact delays are visual only; these spells still resolve under the existing kernel rules. Crown Resonance retains this presentation. The later divine-awakening feature adds the separate Logos encounter and procedural statue/Zeus visuals; see DIVINE-AWAKENING.md.
 
 ## Assets and authoring
 

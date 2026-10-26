@@ -8,10 +8,11 @@ const amount = new Intl.NumberFormat('en', { maximumFractionDigits: 0 });
 const rate = new Intl.NumberFormat('en', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const duration = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 
-export default function EncounterResult({ won, time, mode, online, busy, controller, scoreboard, playerSlot, onClose, onReplay, onStart, onLeave, onLobby }: {
+export default function EncounterResult({ won, time, mode, online, busy, controller, scoreboard, playerSlot, onClose, onReplay, onStart, onLeave, onLobby, onFaceLogos }: {
   won: boolean; time: string; mode: string; online: boolean; busy: boolean; controller: boolean;
   scoreboard: ReturnType<typeof getRunScoreboard>; playerSlot: number;
   onClose: () => void; onReplay: () => void; onStart: () => void; onLeave: () => void; onLobby?: () => void;
+  onFaceLogos?: () => void;
 }) {
   const [statsOpen, setStatsOpen] = useState(false);
   const hasRecordedStats = !scoreboard.partial || scoreboard.seconds > 0;
@@ -52,6 +53,7 @@ export default function EncounterResult({ won, time, mode, online, busy, control
         </> : <p className="result-partial">Statistics are unavailable for this older run. New encounters record the full party’s results.</p>}
       </div>
       <div className="result-actions">
+        {onFaceLogos && <button className="primary" disabled={busy} onClick={onFaceLogos}>Descend to Logos <Icon name="arrow"/></button>}
         {online ? <button autoFocus className="primary" disabled={busy} onClick={onLobby ?? onClose}>{onLobby ? 'Party lobby' : 'Back to arena'}</button>
           : <button autoFocus className="primary" onClick={onReplay}>Play again <Icon name="arrow"/></button>}
         {online ? <button disabled={busy} onClick={onLeave}>Leave party</button>

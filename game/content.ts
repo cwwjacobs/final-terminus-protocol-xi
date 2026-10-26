@@ -10,6 +10,16 @@ export const CHAIN_MIN_DELAY = 1.5;
 export const BURST_WINDOW = 8;
 export const TP_MAX = 3000;
 export const TP_COST = 1000;
+export const ULTIMATE_COOLDOWN = 600;
+export const DUSK_WINDOW = 10;
+export const ULTIMATES: Record<Role, 'fearless' | 'thunderclap' | 'rainOfFire' | 'fission' | 'rejuvenator'> = {
+  vanguard: 'fearless', warden: 'thunderclap', hunter: 'rainOfFire', arcanist: 'fission', luminary: 'rejuvenator',
+};
+export const FORM_ACTIONS = ['lightningShock', 'bolt', 'clap'] as const;
+export const isUltimate = (type: string) => Object.values(ULTIMATES).includes(type as typeof ULTIMATES[Role]);
+export function matchesBurst(state: GameState, element: Element): boolean {
+  return state.duskRemaining > 0 || !!(state.burst && state.burst.element === element && state.burst.remaining > 0);
+}
 export const CONE_HALF_ANGLE = Math.PI / 5;
 // Provisional encounter rule: the god trial must be finished before collapse.
 export const GOD_ENRAGE_TIME = 450;
@@ -27,6 +37,14 @@ export const TRAITS: Record<Role, { name: string; description: string; critChanc
   luminary: { name: 'Triage', description: '20% stronger healing below 35% health; healing generates 25% less enmity.', critChance: 0, extraHitChance: 0, storeTp: 1, enmity: 1, physicalReduction: 0, healingPower: 100 },
 };
 export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: number; mp: number; description: string }> = {
+  fission: { name: 'Fission', cooldown: ULTIMATE_COOLDOWN, mp: 0, description: 'Split an atom at the enemy: 9,000 magic damage to every enemy within 12m. 10 minute recast. Unlocks against Logos.' },
+  rainOfFire: { name: 'Rain of Fire', cooldown: ULTIMATE_COOLDOWN, mp: 0, description: 'Every enemy within 12m takes a guaranteed 3× critical (6,000 base damage), then burns for 25% of its impact damage over 3 seconds. 10 minute recast.' },
+  rejuvenator: { name: 'Rejuvenator', cooldown: ULTIMATE_COOLDOWN, mp: 0, description: 'Restore all living allies to full HP and 3,000 TP. Each gains a damage shield equal to 25% of their HP actually healed. 10 minute recast.' },
+  fearless: { name: 'Fearless', cooldown: ULTIMATE_COOLDOWN, mp: 0, description: 'Every living ally gains 5 guaranteed critical hits; Bacchus gains 10. Each of his empowered hits refills TP to 3,000. He can self-chain to open Dusk: all elements burst for 10 seconds. 10 minute recast.' },
+  thunderclap: { name: 'Thunderclap', cooldown: ULTIMATE_COOLDOWN, mp: 0, description: 'Stun every enemy, including bosses, for 5 seconds. Become Son of Zeus at twice your size, forcing every enemy to target you until death. Unlock Lightning Shock, Bolt and Clap. 10 minute recast.' },
+  lightningShock: { name: 'Lightning Shock', cooldown: 12, mp: 45, description: 'Son of Zeus: chain lightning jumps to every enemy within 8m of the previous enemy, dealing 450 magic damage and stunning each for 2 seconds.' },
+  bolt: { name: 'Bolt', cooldown: 6, mp: 70, description: 'Son of Zeus: a single-target lightning bolt deals 600 magic damage; 1,500 on a Lightning or Dusk Magic Burst.' },
+  clap: { name: 'Clap', cooldown: 12, mp: 0, description: 'Son of Zeus: spend all TP (1,000 minimum) to stun all enemies within 12m for 3 seconds and deal TP-scaled magic damage.' },
   'weapon:cleave': { name: 'Arc Cleave', cooldown: 2, mp: 0, description: 'Spend all TP. Opens Liquefaction.' },
   'weapon:pierce': { name: 'Vector Pierce', cooldown: 2, mp: 0, description: 'Spend all TP. Opens Induration.' },
   'weapon:resonance': { name: 'Q Resonance', cooldown: 2, mp: 0, description: 'Spend all TP. Opens Impaction.' },
@@ -76,6 +94,9 @@ export function getAttackStats(actor: Pick<Actor, 'role' | 'revelryStacks'>): { 
 /** Shared by the command UI and authoritative action validation. */
 export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (!Object.hasOwn(ROLES, role)) return false;
+  if (isUltimate(type)) return ULTIMATES[role] === type;
+  if ((FORM_ACTIONS as readonly string[]).includes(type)) return role === 'warden';
+  if (type === 'faceLogos') return true;
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
   if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
@@ -116,7 +137,8 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread'].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
+  if (action.type === 'faceLogos') return state.status === 'victory' && state.encounter === 'crown' ? null : 'Defeat Crown Resonance to descend to Logos.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
   if (actor.hp <= 0) return 'This actor has fallen.';
@@ -125,20 +147,25 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   if (action.type === 'selectShot') return action.element === undefined || ELEMENTS.includes(action.element) ? null : 'Unknown shot element.';
   if (action.type === 'engage') return null;
   if (action.type === 'start') return state.status === 'ready' ? null : 'The encounter has already started.';
-  if (state.status !== 'fighting') return 'Engage Crown Resonance first.';
+  if (state.status !== 'fighting') return `Engage ${state.boss.name} first.`;
+  if (isUltimate(action.type) && !state.ultimatesUnlocked) return 'Unlocks during the fight against Logos.';
+  if ((FORM_ACTIONS as readonly string[]).includes(action.type) && !actor.sonOfZeus) return 'Requires Son of Zeus form.';
   if (action.type === 'weapon' && !Object.hasOwn(WEAPONS, action.id)) return 'Unknown weaponskill.';
   if (action.type === 'magic' && !Object.hasOwn(MAGIC, action.element)) return 'Unknown magic element.';
   if (getCooldown(actor, action) > 1e-8) return `${ABILITY_DEFINITIONS[cooldownKey(action)]?.name ?? action.type} is on cooldown.`;
-  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot'].includes(action.type);
+  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot', 'fission', 'rainOfFire', ...FORM_ACTIONS].includes(action.type);
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
-  if ((action.type === 'magic' || action.type === 'elementalShot') && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
+  if (['magic', 'elementalShot', 'bolt', 'lightningShock', 'fission'].includes(action.type) && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
   const range = Math.hypot(actor.x - state.boss.x, actor.z - state.boss.z);
   if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley' || action.type === 'elementalShot') {
     if (!actor.engaged) return 'Engage before attacking.';
     if (range > ROLES[actor.role].range) return 'Move into attack range.';
   }
   if ((action.type === 'magic' || action.type === 'provoke') && range > MAGIC_RANGE) return 'Move into magic range.';
+  if (['fission', 'rainOfFire', 'lightningShock', 'bolt'].includes(action.type) && range > MAGIC_RANGE) return 'Move into magic range.';
+  if (action.type === 'clap' && actor.tp < TP_COST) return 'Clap requires 1,000 TP.';
+  if (action.type === 'thunderclap' && actor.sonOfZeus) return 'Son of Zeus remains active until death.';
   if (action.type === 'weapon' && actor.tp < TP_COST) return 'A weaponskill requires 1,000 TP.';
   if (actor.mp < (ABILITY_DEFINITIONS[cooldownKey(action)]?.mp ?? 0)) return 'Not enough MP.';
   if (action.type === 'shimmerWave' && !state.party.some(p => p.hp > 0 && p.hp < p.maxHp && Math.hypot(actor.x - p.x, actor.z - p.z) <= MAGIC_RANGE)) return 'No wounded ally in range.';

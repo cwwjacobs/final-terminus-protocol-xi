@@ -5,6 +5,10 @@ import { roleCommand, type Command } from './control-settings.ts';
 
 /** Labels shared by touch, quick actions and Commands. Rules stay in game/content. */
 export const utilityAbilities: AbilityPresentation[] = [
+  ...(['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator', 'lightningShock', 'bolt', 'clap'] as const).map(id => ({
+    key: id, pad: '', name: ABILITY_DEFINITIONS[id].name, icon: id, color: id === 'rainOfFire' ? 'fire' : id === 'rejuvenator' ? 'mint' : 'violet',
+    action: { type: id } as Action, hint: ABILITY_DEFINITIONS[id].description,
+  })),
   { key: 'revelry', pad: '', name: 'Revelry', icon: 'revelry', color: 'gold', action: { type: 'revelry' }, hint: ABILITY_DEFINITIONS.revelry.description },
   { key: 'criticalDash', pad: '', name: 'Critical Dash', icon: 'criticalDash', color: 'gold', action: { type: 'criticalDash' }, hint: ABILITY_DEFINITIONS.criticalDash.description },
   { key: 'provoke', pad: '', name: 'Provoke', icon: 'provoke', color: 'gold', action: { type: 'provoke' }, hint: ABILITY_DEFINITIONS.provoke.description },
@@ -27,27 +31,27 @@ export function roleAbilities(role: Role, target: number | null = null): Ability
   return roleActionSlots(role, target).filter(item => item.command !== 'engage').map(item => item.presentation);
 }
 
-export const combatSlotIds = ['primary1', 'primary2', 'primary3', 'utility1', 'utility2', 'guard', 'dodge', 'engage'] as const;
+export const combatSlotIds = ['primary1', 'primary2', 'primary3', 'utility1', 'utility2', 'ultimate', 'guard', 'dodge', 'engage'] as const;
 export type CombatSlotId = typeof combatSlotIds[number];
 export interface CombatActionSlot { id: CombatSlotId; command: Command; presentation: AbilityPresentation }
 
 export function actionCommand(action: Action): Command | null {
   if (action.type === 'weapon') return action.id;
   if (action.type === 'magic') return action.element;
-  if (action.type === 'move' || action.type === 'start') return null;
+  if (action.type === 'move' || action.type === 'start' || action.type === 'faceLogos') return null;
   return action.type;
 }
 
 /** The same role-slot registry resolves input and the visible kit. No duplicate
  * Guard on Ariadne or standalone utility outside the action surface. */
-export function roleActionSlots(role: Role, target: number | null = null): CombatActionSlot[] {
+export function roleActionSlots(role: Role, target: number | null = null, actor?: Pick<Actor, 'sonOfZeus'>): CombatActionSlot[] {
   const catalogue = [...abilities, ...utilityAbilities, {
     key: 'engage', pad: '', name: 'Auto attack', icon: 'engaged' as const, color: 'gold',
     action: { type: 'engage' } as Action, hint: 'Toggle auto attacks on the selected enemy.',
   }];
   const slots: CombatActionSlot[] = [];
   for (const id of combatSlotIds) {
-    const command = id === 'guard' || id === 'dodge' || id === 'engage' ? id : roleCommand(role, id);
+    const command = id === 'guard' || id === 'dodge' || id === 'engage' ? id : roleCommand(role, id, actor?.sonOfZeus);
     if (!command) continue;
     const item = catalogue.find(item => actionCommand(item.action) === command);
     if (!item || !canUseActionRole(role, item.action.type)) continue;
@@ -59,11 +63,15 @@ export function roleActionSlots(role: Role, target: number | null = null): Comba
   return slots;
 }
 
+export const formatCooldown = (seconds: number) => seconds >= 60 ? `${Math.floor(Math.ceil(seconds) / 60)}:${(Math.ceil(seconds) % 60).toString().padStart(2, '0')}` : `${seconds < 10 ? seconds.toFixed(1) : Math.ceil(seconds)}s`;
+
 export function abilityDetail(actor: Actor, action: Action): string {
   const cooldown = getCooldown(actor, action);
   if (action.type === 'magic' && actor.rapidWeave && actor.rapidWeave.charges[action.element] > 0)
     return `${actor.rapidWeave.charges[action.element]} rapid · ${cooldown > 0 ? `${cooldown.toFixed(1)}s` : '70 MP'}`;
-  if (cooldown > 0) return `${cooldown < 10 ? cooldown.toFixed(1) : Math.ceil(cooldown)}s recast`;
+  if (cooldown > 0) return `${formatCooldown(cooldown)} recast`;
+  if (action.type === 'clap') return '1,000+ TP · area stun';
+  if (['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator'].includes(action.type)) return 'Ultimate ready · 10m recast';
   if (action.type === 'elementalShot') return '35 MP · selected element';
   if (action.type === 'weapon') return '1,000+ TP';
   if (action.type === 'magic' || action.type === 'heal') return '70 MP';

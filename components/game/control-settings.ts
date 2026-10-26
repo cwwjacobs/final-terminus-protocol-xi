@@ -1,4 +1,5 @@
 import type { Role } from '../../game/types.ts';
+import { ULTIMATES } from '../../game/content.ts';
 
 export const COMMANDS = [
   { id: 'forward', label: 'Move forward', group: 'Movement', defaultKey: 'KeyW' },
@@ -12,7 +13,7 @@ export const COMMANDS = [
   { id: 'zoomIn', label: 'Zoom in', group: 'Camera', defaultKey: 'PageUp' },
   { id: 'zoomOut', label: 'Zoom out', group: 'Camera', defaultKey: 'PageDown' },
   { id: 'recenter', label: 'Recenter camera', group: 'Camera', defaultKey: 'KeyV', defaultButton: 11 },
-  { id: 'targetNext', label: 'Next enemy (Tab)', group: 'Targeting', defaultKey: 'Tab', defaultButton: 10 },
+  { id: 'targetNext', label: 'Next enemy (Tab)', group: 'Targeting', defaultKey: 'Tab' },
   { id: 'targetPrevious', label: 'Previous enemy (Tab)', group: 'Targeting', defaultKey: 'Shift+Tab' },
   { id: 'targetEnemyPrevious', label: 'Previous enemy', group: 'Targeting', defaultKey: 'ArrowLeft', defaultButton: 14 },
   { id: 'targetEnemyNext', label: 'Next enemy', group: 'Targeting', defaultKey: 'ArrowRight', defaultButton: 15 },
@@ -24,6 +25,8 @@ export const COMMANDS = [
   { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space', defaultButton: 0 },
   { id: 'utility1', label: 'Role technique · Dash / Provoke / Volley / Weave', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 7 },
   { id: 'utility2', label: 'Role support · Revelry', group: 'Combat', defaultKey: 'KeyE', defaultButton: 6 },
+  { id: 'ultimate', label: 'Divine ultimate · unlocks against Logos', group: 'Combat', defaultKey: 'KeyG', defaultButton: 10 },
+  ...(['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator', 'lightningShock', 'bolt', 'clap'] as const).map(id => ({ id, label: id === 'rainOfFire' ? 'Rain of Fire' : id === 'lightningShock' ? 'Lightning Shock' : id[0].toUpperCase() + id.slice(1), group: 'Direct ability overrides', defaultKey: '' })),
   { id: 'cleave', label: 'Arc Cleave', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'pierce', label: 'Vector Pierce', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'resonance', label: 'Q Resonance', group: 'Direct ability overrides', defaultKey: '' },
@@ -123,15 +126,17 @@ export const ROLE_ACTION_SLOTS: Record<Role, readonly (Command | null)[]> = {
   arcanist: ['fire', 'ice', 'lightning', 'rapidWeave', null],
   luminary: ['heal', 'aegis', 'shimmerWave', 'mendingThread', null],
 };
-export function roleCommand(role: Role, slot: Command): Command | null {
+export function roleCommand(role: Role, slot: Command, sonOfZeus = false): Command | null {
+  if (slot === 'ultimate') return ULTIMATES[role];
+  if (role === 'warden' && sonOfZeus && ['primary1', 'primary2', 'primary3'].includes(slot)) return (['lightningShock', 'bolt', 'clap'] as const)[Number(slot.at(-1)) - 1];
   const index = ROLE_SLOT_COMMANDS.indexOf(slot as RoleSlotCommand);
   return index < 0 ? slot : ROLE_ACTION_SLOTS[role]?.[index] ?? null;
 }
 export function primaryCommand(role: Role, slot: PrimaryCommand): Command | null { return roleCommand(role, slot); }
 
-export function effectiveBindingCommand(role: Role, action: Command, settings: ControlSettings, mode: 'keyboard' | 'controller'): Command | null {
+export function effectiveBindingCommand(role: Role, action: Command, settings: ControlSettings, mode: 'keyboard' | 'controller', sonOfZeus = false): Command | null {
   const bound = (command: Command) => mode === 'controller' ? settings.buttons[command] !== undefined : !!settings.keys[command];
-  return ROLE_SLOT_COMMANDS.find(slot => roleCommand(role, slot) === action && bound(slot)) ?? (bound(action) ? action : null);
+  return [...ROLE_SLOT_COMMANDS, 'ultimate' as const].find(slot => roleCommand(role, slot, sonOfZeus) === action && bound(slot)) ?? (bound(action) ? action : null);
 }
 
 /** Old per-device presets are recognized exactly; one customized device never
@@ -155,6 +160,8 @@ const exactPreset = (map: Record<string, unknown>, expected: Record<string, stri
  * for missing controls. Custom maps are preserved even when a new slot is free. */
 export function bindingWarnings(settings: ControlSettings): string[] {
   const warnings: string[] = [];
+  for (const mode of ['keyboard', 'controller'] as const) if (!effectiveBindingCommand('vanguard', 'fearless', settings, mode))
+    warnings.push(`Divine ultimate has no ${mode} binding. Your existing bindings were kept; assign Ultimate below or restore defaults.`);
   for (const id of ['targetEnemyPrevious', 'targetEnemyNext', 'targetAllyPrevious', 'targetAllyNext', 'primary1', 'primary2', 'primary3'] as const) {
     if (!settings.keys[id] && settings.buttons[id] === undefined) warnings.push(`${COMMANDS.find(command => command.id === id)!.label} is unbound. Your existing bindings were kept; assign it below or restore defaults.`);
   }
