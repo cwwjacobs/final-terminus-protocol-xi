@@ -5,6 +5,7 @@ export type Element = 'fire' | 'ice' | 'lightning';
 export type Action =
   | { type: 'move'; x: number; z: number; facing?: number }
   | { type: 'engage' }
+  | { type: 'selectEnemy'; id: string }
   | { type: 'weapon'; id: WeaponId }
   | { type: 'magic'; element: Element }
   | { type: 'elementalShot' }
@@ -58,6 +59,7 @@ export interface Actor {
   recovery: number;
   spellRecovery: number;
   shotElement: Element;
+  enemyTarget: string;
   selfChainUntil: number;
   rapidWeave: null | { remaining: number; charges: Record<Element, number>; refresh: Record<Element, number> };
   elementalCycle: { elements: Element[]; remaining: number };
@@ -130,6 +132,7 @@ export interface GameState {
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
   encounter: 'crown' | 'logos';
+  logos: { stage: 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped'; elapsed: number };
   ultimatesUnlocked: boolean;
   duskRemaining: number;
   enemies: Enemy[];

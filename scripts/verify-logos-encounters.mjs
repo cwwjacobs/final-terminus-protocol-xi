@@ -1,14 +1,16 @@
-// Reproducible active-input simulation from the post-Crown Logos checkpoint.
+// Reproducible active-input simulation: descent, six sentinels, giant and escape.
 // Not a browser or hardware playtest. Crown-to-Logos validation is in ultimates.test.ts.
 // Run: node --experimental-strip-types scripts/verify-logos-encounters.mjs
 import assert from 'node:assert/strict';
+import {offensiveTarget,sequenceLocked} from '../game/logos.ts';
 import {createGame,applyAction,stepGame,isInTelegraph,setHuman} from '../game/engine.ts';
 import {WEAPONS,ELEMENTS,ULTIMATES} from '../game/content.ts';
 for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
  const s=createGame(mode,123);s.party.forEach((_,i)=>setHuman(s,i,i===slot));s.status='victory';applyAction(s,slot,{type:'faceLogos'});
  let seen=0,chains=0,bursts=0,newHits=0;
- for(let tick=0;tick<10000&&s.status==='fighting';tick++){
-  const a=s.party[slot],b=s.boss;
+ for(let tick=0;tick<20000&&s.status==='fighting';tick++){
+  if(sequenceLocked(s)){stepGame(s,.05);continue;}
+  const a=s.party[slot],b={...s.boss,...offensiveTarget(s,s.party[slot])};
   if(tick%4===0&&a.hp>0){
    let dx=b.x-a.x,dz=b.z-a.z;const d=Math.hypot(dx,dz); const range=slot===0||slot===1?3.3:10;
    if(d<=range+1&&d>=range-1.5)dx=dz=0;else if(d<range-1.5){dx=-dx;dz=-dz;}

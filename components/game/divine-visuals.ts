@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { GameState } from '../../game/types.ts';
 import type { ActorRig } from './actors.ts';
+import { offensiveTarget } from '../../game/logos.ts';
 
 /** Fixed, reusable geometry for the Logos unlocks. State owns every status;
  * this layer only reads snapshots and displays confirmed combat events. */
@@ -100,40 +101,50 @@ export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], q
   });
   const strike = new THREE.Group(); root.add(strike);
   const lightning = boltLine(strike, blue, [0, 11, 0, -.8, 8, .1, .5, 8.3, 0, -.3, 4.4, 0, .5, 4.8, 0, 0, .2, 0]);
-  const arcs = [0, 1].map(() => boltLine(root, blue, [0, 0, 0, 0, 0, 0, 0, 0, 0]));
-  const burns = [0, 1, 2].map(() => {
+  const arcs = Array.from({ length: 6 }, () => 0).map(() => boltLine(root, blue, [0, 0, 0, 0, 0, 0, 0, 0, 0]));
+  const burns = Array.from({ length: 7 }, () => 0).map(() => {
     const group = new THREE.Group(); root.add(group);
     for (let i = 0; i < 6; i++) piece(group, cone, red, Math.sin(i) * .7, .4, Math.cos(i) * .7, .14, .8, .14);
     return group;
   });
+  let arcTargets: string[] = [];
   let atomAge = -1, rainAge = -1, shockAge = -1, supportAge = -1, boltAge = -1, arcAge = -1;
-  const reset = () => { atomAge = rainAge = shockAge = supportAge = boltAge = arcAge = -1; atom.visible = fire.visible = shock.visible = strike.visible = false; support.forEach(x => { x.group.visible = false; }); arcs.forEach(x => { x.visible = false; }); };
+  const reset = () => { arcTargets = []; atomAge = rainAge = shockAge = supportAge = boltAge = arcAge = -1; atom.visible = fire.visible = shock.visible = strike.visible = false; support.forEach(x => { x.group.visible = false; }); arcs.forEach(x => { x.visible = false; }); };
   reset();
   return {
     zeus,
     reset,
     event(event: GameState['events'][number], state: GameState) {
+      const caster = state.party[event.actor ?? 0];
+      const target = caster ? offensiveTarget(state, caster) : state.boss;
       if (event.kind === 'ability') {
-        if (event.source === 'fission') { atomAge = 0; atom.position.set(state.boss.x, 2.5, state.boss.z); }
-        if (event.source === 'rainOfFire') { rainAge = 0; fire.position.set(state.boss.x, 0, state.boss.z); }
+        if (event.source === 'fission') { atomAge = 0; atom.position.set(target.x, 2.5, target.z); }
+        if (event.source === 'rainOfFire') { rainAge = 0; fire.position.set(target.x, 0, target.z); }
         if (event.source === 'thunderclap' || event.source === 'clap') { shockAge = 0; const actor = state.party[event.actor ?? 1]; shock.position.set(actor.x, .1, actor.z); }
         if (event.source === 'rejuvenator') supportAge = 0;
         if (event.source === 'lightningShock') {
           arcAge = 0;
-          let previous: { x: number; z: number } = state.boss;
-          state.enemies.filter(e => e.hp > 0).forEach((enemy, i) => {
+          arcTargets = [];
+          let previous: { x: number; z: number } = target;
+          const pending = [...state.enemies.filter(enemy => enemy.hp > 0 && enemy !== target), ...(target !== state.boss && state.logos.stage !== 'sentinels' && state.boss.hp > 0 ? [state.boss] : [])];
+          while (pending.length && arcTargets.length < arcs.length) {
+            pending.sort((a, b) => Math.hypot(a.x - previous.x, a.z - previous.z) - Math.hypot(b.x - previous.x, b.z - previous.z));
+            const enemy = pending.shift()!;
+            if (Math.hypot(enemy.x - previous.x, enemy.z - previous.z) > 8) break;
+            const i = arcTargets.length;
             const positions = arcs[i].geometry.attributes.position as THREE.BufferAttribute;
             positions.setXYZ(0, previous.x, 1.7, previous.z); positions.setXYZ(1, (previous.x + enemy.x) / 2, 2.3, (previous.z + enemy.z) / 2 + .5); positions.setXYZ(2, enemy.x, 1.3, enemy.z);
             positions.needsUpdate = true; arcs[i].geometry.computeBoundingSphere(); previous = enemy;
-          });
+            arcTargets.push('id' in enemy ? enemy.id : 'boss');
+          }
         }
       }
-      if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) { boltAge = 0; strike.position.set(state.boss.x, 0, state.boss.z); }
+      if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) { boltAge = 0; strike.position.set(target.x, state.logos.stage === 'giant' && target === state.boss ? 16.8 : 0, target.z); }
     },
     update(dt: number, state: GameState, time: number, reducedMotion: boolean) {
-      logos.visible = state.encounter === 'logos'; logos.position.set(state.boss.x, 0, state.boss.z); logos.rotation.y = state.boss.facing;
+      logos.visible = false; // The Figma vector encounter renderer owns Logos. logos.position.set(state.boss.x, 0, state.boss.z); logos.rotation.y = state.boss.facing;
       logos.rotation.z = state.boss.hp <= 0 ? -.28 : state.boss.stunRemaining > 0 ? .03 : 0;
-      echoes.forEach((echo, i) => { const enemy = state.enemies[i]; echo.visible = !!enemy && enemy.hp > 0; if (enemy) { echo.position.set(enemy.x, 0, enemy.z); const target = state.party[enemy.target]; if (target) echo.rotation.y = Math.atan2(target.x - enemy.x, target.z - enemy.z); } });
+      echoes.forEach((echo, i) => { const enemy = state.enemies[i]; echo.visible = false; if (enemy) { echo.position.set(enemy.x, 0, enemy.z); const target = state.party[enemy.target]; if (target) echo.rotation.y = Math.atan2(target.x - enemy.x, target.z - enemy.z); } });
       zeus.visible = state.party[1].sonOfZeus;
       rigs.forEach((rig, i) => {
         const actor = state.party[i]; wards[i].visible = actor.hp > 0 && actor.hpShield > 0;
@@ -157,9 +168,9 @@ export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], q
       if (supportAge >= 0) supportAge += dt;
       strike.visible = boltAge >= 0 && boltAge < .6; lightning.visible = strike.visible;
       if (boltAge >= 0) boltAge += dt;
-      arcs.forEach((arc, i) => { arc.visible = arcAge >= 0 && arcAge < .7 && !!state.enemies[i] && state.enemies[i].hp > 0; });
+      arcs.forEach((arc, i) => { const id = arcTargets[i]; const alive = id === 'boss' ? state.boss.hp > 0 && state.logos.stage !== 'sentinels' : state.enemies.some(enemy => enemy.id === id && enemy.hp > 0); arc.visible = arcAge >= 0 && arcAge < .7 && !!id && alive; });
       if (arcAge >= 0) arcAge += dt;
-      [state.boss, ...state.enemies].forEach((enemy, i) => { const group = burns[i]; group.visible = enemy.hp > 0 && !!enemy.burn; group.position.set(enemy.x, 0, enemy.z); group.scale.y = reducedMotion ? 1 : 1 + Math.sin(time * 7 + i) * .2; });
+      [state.boss, ...state.enemies].slice(0, burns.length).forEach((enemy, i) => { const group = burns[i]; group.visible = enemy.hp > 0 && !!enemy.burn; group.position.set(enemy.x, 0, enemy.z); group.scale.y = reducedMotion ? 1 : 1 + Math.sin(time * 7 + i) * .2; });
       burns.forEach((group, i) => { if (i > state.enemies.length) group.visible = false; });
     },
   };

@@ -6,7 +6,7 @@ import { migrateGameState } from './state-migrations.ts';
 const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
 const ELEMENTS = ['fire', 'ice', 'lightning'];
-const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse'];
+const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse', 'logosRay', 'logosShudder', 'logosFracture'];
 const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'bossImpact', 'rainOfFireBurn']);
 const WEAPON_IDS = ['cleave', 'pierce', 'resonance'];
 const PRESENTATION_AREA_KEYS = ['kind', 'x', 'z', 'radius', 'angle', 'total'];
@@ -27,7 +27,7 @@ const withinArena = (x: unknown, z: unknown): boolean =>
 /** Old events omit these fields. Supplied presentation metadata must be bounded
  * before it can become geometry, animation identity or an emitter lifetime. */
 function validPresentationMetadata(event: Record<string, unknown>): boolean {
-  if (Object.hasOwn(event, 'enemyId') && (typeof event.enemyId !== 'string' || !/^echo-[01]$/.test(event.enemyId))) return false;
+  if (Object.hasOwn(event, 'enemyId') && (typeof event.enemyId !== 'string' || !/^(boss|echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(event.enemyId))) return false;
   if (Object.hasOwn(event, 'abilityId') && (typeof event.abilityId !== 'string' || !PRESENTATION_ABILITIES.has(event.abilityId))) return false;
   if (Object.hasOwn(event, 'weaponId') && (typeof event.weaponId !== 'string' || !WEAPON_IDS.includes(event.weaponId))) return false;
   if (Object.hasOwn(event, 'element') && (typeof event.element !== 'string' || !ELEMENTS.includes(event.element))) return false;
@@ -73,9 +73,9 @@ export function validSave(raw: unknown): raw is GameState {
     !finiteShape(state.boss, omit(template.boss, ['cast', 'cooldowns', 'burn'])) ||
     !Array.isArray(state.party) || state.party.length !== 5 ||
     !['trial', 'god'].includes(state.mode) || !['ready', 'fighting', 'victory', 'defeat'].includes(state.status)) return false;
-  if (!['crown', 'logos'].includes(state.encounter) || state.ultimatesUnlocked !== (state.encounter === 'logos') ||
+  if (!['crown', 'logos'].includes(state.encounter) || !['none','descent','sentinels','giant','collapse','escaped'].includes(state.logos.stage) || !nonnegative(state.logos.elapsed) || state.ultimatesUnlocked !== (['giant','collapse','escaped'].includes(state.logos.stage)) ||
     !nonnegative(state.duskRemaining) || state.duskRemaining > 10 + FLOAT_TOLERANCE ||
-    !Array.isArray(state.enemies) || state.enemies.length > 2 || state.encounter === 'crown' && state.enemies.length !== 0) return false;
+    !Array.isArray(state.enemies) || state.enemies.length > 6 || state.encounter === 'crown' && (state.enemies.length !== 0 || state.logos.stage !== 'none') || state.encounter === 'logos' && state.logos.stage === 'none') return false;
   const statusValid = (enemy: { stunRemaining: unknown; burn: unknown }) => {
     if (!nonnegative(enemy.stunRemaining) || enemy.stunRemaining > 5 + FLOAT_TOLERANCE) return false;
     const burn = enemy.burn;
@@ -85,9 +85,10 @@ export function validSave(raw: unknown): raw is GameState {
       burn.dealt === Math.round(burn.total * burn.ticks / 3) && finite(burn.tickIn) && burn.tickIn > 0 && burn.tickIn <= 1 + FLOAT_TOLERANCE;
   };
   if (!statusValid(state.boss) || state.enemies.some((enemy, index) => !record(enemy) ||
-    enemy.id !== `echo-${index}` || typeof enemy.name !== 'string' || !withinArena(enemy.x, enemy.z) ||
+    typeof enemy.id !== 'string' || !/^(echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(enemy.id) || typeof enemy.name !== 'string' || !withinArena(enemy.x, enemy.z) ||
     !finite(enemy.hp) || !finite(enemy.maxHp) || enemy.maxHp <= 0 || enemy.maxHp > MAX_RESOURCE_CAPACITY || enemy.hp < 0 || enemy.hp > enemy.maxHp ||
     !integer(enemy.target, -1, 4) || !finite(enemy.attackTimer) || !statusValid(enemy))) return false;
+  if (new Set(state.enemies.map(e=>e.id)).size !== state.enemies.length) return false;
   if (!integer(state.tick, 0) || !integer(state.eventSeq, 0) || !integer(state.sequenceSeq, 0) ||
     !integer(state.rng, 0, 0xffffffff) || state.time < 0 || state.combatTime < 0 ||
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
@@ -106,6 +107,7 @@ export function validSave(raw: unknown): raw is GameState {
   const sequenceIds = new Set<number>();
   for (const actor of state.party) {
     if (!finiteShape(actor, omit(template.party[0], ['cooldowns', 'rapidWeave', 'elementalCycle', 'sequence', 'mendingThread'])) ||
+      !['boss', ...state.enemies.map(e=>e.id)].includes(actor.enemyTarget) && !/^(sentinel-[0-5]|left-hand|right-hand)$/.test(actor.enemyTarget) ||
       !Object.hasOwn(ROLES, actor.role) || !ELEMENTS.includes(actor.shotElement) ||
       !integer(actor.revelryStacks, 0, REVELRY.maxStacks) || !integer(actor.shieldCharges, 0, 1) ||
       !integer(actor.criticalCharges, 0, actor.id === 'bacchus' ? 10 : 5) ||

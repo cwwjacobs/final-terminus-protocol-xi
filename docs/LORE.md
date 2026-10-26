@@ -91,7 +91,7 @@ After their return, Logos is no longer coherently present to the party: he may b
 
 The governing distinction is Corey's: **“it was his threshold giving not his will.”** The ending does not require surrender, repentance or a loss of resolve. His survival does not establish when or how the party will encounter him again.
 
-**Implementation boundary:** the full narrative ending, disappearing scaffolding and rescue sequence remain planned. Crown Resonance is a separate encounter manifestation. The divine-awakening update now provides a post-victory route into a separate playable Logos fight, with procedural statue artwork and two combat echoes, and unlocks the heroes’ ultimates there. Its completion text does not establish Logos’s death. Full ending staging and rescue mechanics remain unimplemented.
+**Implementation boundary:** the combat ending now stages disappearing scaffolding and an abstract escape; a named rescue mechanism remains open. Crown Resonance is a separate encounter manifestation. The divine-awakening update now provides a post-victory route into a separate playable Logos fight, with a one-minute descent, six awakened statues and a vector-layer giant with separate head and hands; the heroes’ ultimates unlock when the giant rises. Its completion text does not establish Logos’s death. The staged collapse preserves Logos’s survival and does not identify who or what recalls the party.
 
 ## Source ledger
 

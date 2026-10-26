@@ -1,0 +1,24 @@
+{
+  "fileKey": "8SvJbL5Kaqkf3jmMyRCF3y",
+  "boardId": "35:672",
+  "sealNode": "35:718",
+  "source": "Original vector kit inspected against Figma masters; original contour SVGs retained, seal exported directly from Figma. Invalid HTTP asset responses discarded.",
+  "giantParts": [
+    "body",
+    "head",
+    "neck",
+    "arm-screen-left",
+    "hand-screen-left",
+    "arm-screen-right",
+    "hand-screen-right",
+    "crown"
+  ],
+  "giantWidth": 605,
+  "giantHeight": 840,
+  "partViewBox": [
+    0,
+    0,
+    302,
+    420
+  ]
+}
