@@ -267,6 +267,39 @@ test("the ready lobby stays out of combat until its host explicitly starts", asy
   assert.equal(started.actionResults?.[0].ok, true);
 });
 
+test('the host waits for every connected loading client; readiness belongs to its authenticated session', async () => {
+  const repo=new MemoryRepository();
+  const owner=await handleRoomRequest(repo,{op:'create',mode:'trial',loaded:false},NOW) as RoomCredentials;
+  const guest=await handleRoomRequest(repo,{op:'join',code:owner.code,loaded:false},NOW) as RoomCredentials;
+  const send=(session:RoomCredentials,seq:number,at:number,loaded:boolean,actions:unknown[]=[])=>handleRoomRequest(repo,{op:'sync',code:session.code,token:session.token,seq,loaded,actions},at) as Promise<RoomSnapshot>;
+  const waiting=await send(owner,0,NOW+250,true,[{type:'start'}]);
+  assert.equal(waiting.state.status,'ready');assert.equal(waiting.state.combatTime,0);
+  assert.match(waiting.actionResults?.[0].error??'',/loading/);
+  assert.equal(waiting.members[owner.slot].loaded,true);assert.equal(waiting.members[guest.slot].loaded,false);
+  await send(guest,0,NOW+500,true);
+  // An old packet cannot rewind a client's loading state.
+  const duplicate=await send(guest,0,NOW+750,false);assert.equal(duplicate.members[guest.slot].loaded,true);
+  const started=await send(owner,1,NOW+1000,true,[{type:'start'}]);
+  assert.equal(started.state.status,'fighting');assert.equal(started.actionResults?.[0].ok,true);
+});
+
+test('a disconnected loading player becomes a trust and does not deadlock the ready party', async () => {
+  const repo=new MemoryRepository();
+  const owner=await handleRoomRequest(repo,{op:'create',mode:'trial',loaded:true},NOW) as RoomCredentials;
+  const guest=await handleRoomRequest(repo,{op:'join',code:owner.code,loaded:false},NOW) as RoomCredentials;
+  const started=await sync(repo,owner,0,NOW+TRUST_TIMEOUT_MS+250,[{type:'start'}]);
+  assert.equal(started.state.status,'fighting');assert.equal(started.members[guest.slot].reserved,true);
+  assert.equal(started.state.party[guest.slot].human,false);
+});
+
+test('loading flags are bounded booleans and cannot grant readiness to another player', async () => {
+  const repo=new MemoryRepository(),owner=await create(repo);
+  for(const loaded of [null,0,1,'true',{},[]])for(const request of [{op:'create',mode:'trial',loaded},{op:'join',code:owner.code,loaded},{op:'sync',code:owner.code,token:owner.token,seq:0,actions:[],loaded}])assert.throws(()=>parseRoomRequest(request),/boolean/);
+  assert.throws(()=>parseRoomRequest({op:'sync',code:owner.code,token:owner.token,seq:0,actions:[],loaded:true,slot:1}),/Unexpected/);
+  const loading=await handleRoomRequest(repo,{op:'sync',code:owner.code,token:owner.token,seq:0,actions:[{type:'revelry'}],loaded:false},NOW+250) as RoomSnapshot;
+  assert.equal(loading.actionResults?.[0].ok,false);assert.equal(loading.state.party[0].revelryStacks,0);
+});
+
 test("host departure transfers authority and legacy rooms derive host metadata safely", async () => {
   const repo = new MemoryRepository();
   const owner = await create(repo);

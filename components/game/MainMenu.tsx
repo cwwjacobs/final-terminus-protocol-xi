@@ -8,8 +8,8 @@ import HeroPicker from './HeroPicker';
 import { trapDialogTab } from './dialog-navigation';
 import './main-menu.css';
 
-export type MainMenuView = 'home' | 'heroes' | 'solo' | 'host' | 'join' | 'lobby';
-export interface MainMenuMember { slot: number; connected: boolean; reserved: boolean }
+export type MainMenuView = 'splash' | 'home' | 'heroes' | 'solo' | 'host' | 'join' | 'lobby' | 'loading';
+export interface MainMenuMember { slot: number; connected: boolean; reserved: boolean; loaded?: boolean }
 export interface MainMenuProps {
   view: MainMenuView;
   state: GameState;
@@ -43,19 +43,29 @@ export interface MainMenuProps {
   onSettings: () => void;
   onControls: () => void;
   onGuide: () => void;
+  loading?: { ready: boolean; loaded: number; total: number; error?: string };
 }
 
 const titles: Record<MainMenuView, string> = {
-  home: 'TERMINUS XI', heroes: 'Choose your hero', solo: 'Solo expedition', host: 'Host a party', join: 'Join a party', lobby: 'Party lobby',
+  splash: 'TERMINUS PROTOCOL', home: 'TERMINUS PROTOCOL', loading: 'TERMINUS PROTOCOL', heroes: 'Choose your hero', solo: 'Solo expedition', host: 'Host a party', join: 'Join a party', lobby: 'Party lobby',
 };
 
 export default function MainMenu(props: MainMenuProps) {
   const { view, state, slot, selectedHeroSlot, controlLabel, mode, roomCode, hostSlot, members, busy, error, inviteInput, canResume, canReconnect, footer } = props;
   const selectedHero = PARTY[selectedHeroSlot] ?? PARTY[0];
   const panel = useRef<HTMLElement>(null);
-  useEffect(() => { panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus({ preventScroll: true }); }, [view]);
+  useEffect(() => { panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus({ preventScroll: true }); }, [view, busy]);
   const connected = members ? members.filter(member => member.connected).length : state.party.filter(actor => actor.human).length;
   const isHost = hostSlot !== null && hostSlot !== undefined && hostSlot === slot;
+  const partyLoading = !props.loading?.ready || members?.some(member => member.connected && member.loaded === false);
+  if (view === 'splash') return <div className="main-menu-stage" data-view="splash">
+    <img className="start-screen-art" src="/assets/title/logos-ascension.webp" alt="Zeus strikes the crowned Logos as the five heroes escape through a storm of shattered stone." fetchPriority="high" width="1672" height="941"/>
+    <section className="main-menu-splash" role="dialog" aria-modal="true" aria-labelledby="start-screen-title" ref={panel} onKeyDown={trapDialogTab}>
+      <h1 id="start-screen-title" className="screen-reader-only">TERMINUS PROTOCOL — LOGOS ASCENSION</h1>
+      <button type="button" className="start-screen-enter primary" data-autofocus disabled={busy} onClick={()=>props.onView('home')}>Enter <span>The Q Protocol</span><Icon name="arrow"/></button>
+      {footer && <div className="start-screen-music">{footer}</div>}
+    </section>
+  </div>;
   const chooseMode = <fieldset className="main-menu-modes"><legend>Encounter</legend>
     <button type="button" disabled={busy} aria-pressed={mode === 'trial'} onClick={() => props.onMode('trial')}>
       <span>Resonance trial</span><small>Forgiving encounter</small>
@@ -64,20 +74,27 @@ export default function MainMenu(props: MainMenuProps) {
       <span>God encounter</span><small>7:30 collapse deadline</small>
     </button>
   </fieldset>;
-  return <div className="main-menu-stage">
+  return <div className="main-menu-stage" data-view={view} data-outside={view !== 'lobby' && view !== 'loading'}>
+    {view !== 'lobby' && view !== 'loading' && <img className="start-screen-art" src="/assets/title/logos-ascension.webp" alt="" width="1672" height="941"/>}
     <section ref={panel} className={`main-menu-panel main-menu-${view}`} role="dialog" aria-modal="true" aria-labelledby="main-menu-title" onKeyDown={trapDialogTab}>
       <header className="main-menu-heading">
         <div className="main-menu-navigation">
-          {view !== 'home' && view !== 'lobby' ? <button type="button" disabled={busy} onClick={() => props.onView('home')}><Icon name="arrowBack"/> Back</button>
-            : <span className="main-menu-eyebrow">{view === 'home' ? 'THE Q PROTOCOL' : 'ONLINE EXPEDITION'}</span>}
+          {view !== 'home' && view !== 'lobby' ? <button type="button" disabled={busy} onClick={() => view==='loading'&&roomCode ? props.onLeave() : props.onView('home')}><Icon name="arrowBack"/> {view==='loading'&&roomCode?'Leave party':'Back'}</button>
+            : <span className="main-menu-eyebrow">THE Q PROTOCOL{view === 'lobby' ? ' · PARTY ASSEMBLY' : ''}</span>}
           {view === 'lobby' && <button type="button" className="main-menu-leave" disabled={busy} onClick={props.onLeave}>Leave party <Icon name="close"/></button>}
         </div>
-        <div className="main-menu-title-row">{view === 'home' && <img className="main-menu-crest" src="/assets/vfx/stormlight-crest.svg" width="44" height="44" alt=""/>}<h1 id="main-menu-title">{titles[view]}</h1></div>
-        <p>{view === 'home' ? 'Memory fades. Power remains.' : view === 'lobby' ? `${connected} / 5 players · trusts fill open places` : view === 'heroes' ? 'Five heroes. One place in the party is yours.' : 'Choose your next encounter.'}</p>
+        <div className="main-menu-title-row">{view === 'home' && <img className="main-menu-crest" src="/assets/vfx/stormlight-crest.svg" width="44" height="44" alt=""/>}<h1 id="main-menu-title">{titles[view]}{(view === 'home'||view === 'loading')&&<small className="main-menu-subtitle">LOGOS ASCENSION</small>}</h1></div>
+        <p>{view === 'home' ? 'Memory fades. Power remains.' : view === 'loading' ? 'Preparing the Quantum Realm.' : view === 'lobby' ? `${connected} / 5 players · trusts fill open places` : view === 'heroes' ? 'Five heroes. One place in the party is yours.' : 'Choose your next encounter.'}</p>
       </header>
 
       <div className="main-menu-content">
         {error && <p className="main-menu-error" role="alert">{error}</p>}
+        {(view === 'loading'||view === 'lobby') && <div className="battlefield-loading" role="status" aria-live="polite">
+          <span>{props.loading?.error ? 'Battlefield unavailable' : props.loading?.ready ? 'Battlefield ready' : 'Loading the battlefield…'}</span>
+          <progress max={Math.max(1,props.loading?.total ?? 5)} value={props.loading?.ready ? Math.max(1,props.loading.total) : props.loading?.loaded ?? 0} aria-label="Battlefield loading"/>
+          <small>{props.loading?.error ?? (props.loading?.ready ? 'Your heroes and arena are ready.' : `${props.loading?.loaded ?? 0} / ${props.loading?.total ?? 5} heroes · preparing shaders`)}</small>
+        </div>}
+        {view === 'loading' && <><ul className="main-menu-party" aria-label="Your expedition">{state.party.map((actor,index)=><li key={actor.id}><span className="main-menu-party-sigil" style={{color:actor.color}}><Icon name={roleIcon(actor.role)}/></span><span className="main-menu-party-name">{actor.name}<small>{actor.role}</small></span><span className="main-menu-party-status">{index===slot?'YOU':'TRUST'}</span></li>)}</ul><p className="main-menu-note">The encounter begins when the battlefield finishes loading.</p></>}
         {view === 'home' && <div className="main-menu-choices">
           {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}><span>Resume encounter<small>Continue as {state.party[slot]?.name ?? selectedHero.name}</small></span><Icon name="arrow"/></button>}
           <button type="button" className="main-menu-choose-hero" disabled={busy} onClick={() => props.onView('heroes')}><span className="main-menu-chosen-sigil" style={{ color: selectedHero.color }}><Icon name={roleIcon(selectedHero.role)}/></span><span>Choose hero<small>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></small></span><Icon name="arrow"/></button>
@@ -133,7 +150,7 @@ export default function MainMenu(props: MainMenuProps) {
               return <li key={actor.id}>
                 <span className="main-menu-party-sigil" style={{ color: actor.color }}><Icon name={roleIcon(actor.role)}/></span>
                 <span className="main-menu-party-name">{actor.name}<small>{actor.role}</small></span>
-                <span className="main-menu-party-status">{index === slot ? 'YOU' : occupied ? 'PLAYER' : reserved ? 'RECONNECTING' : 'TRUST'}{hostSlot === index && <small>HOST</small>}</span>
+                <span className="main-menu-party-status">{index === slot ? 'YOU' : occupied ? 'PLAYER' : reserved ? 'RECONNECTING' : 'TRUST'}{occupied&&<small>{member?.loaded===false?'LOADING':'READY'}</small>}{hostSlot === index && <small>HOST</small>}</span>
               </li>;
             })}
           </ul>
@@ -151,12 +168,14 @@ export default function MainMenu(props: MainMenuProps) {
         {view === 'solo' && <button type="button" className="primary main-menu-launch" disabled={busy} onClick={props.onSolo}>Start solo encounter <Icon name="arrow"/></button>}
         {view === 'host' && <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy} onClick={props.onHost}>{busy ? 'Creating room…' : 'Create party room'}<Icon name="arrow"/></button>}
         {view === 'join' && <button type="submit" form="main-menu-join-form" className="primary main-menu-launch" disabled={busy || !inviteInput.trim()}>{busy ? 'Joining…' : 'Join party'}<Icon name="arrow"/></button>}
-        {view === 'lobby' && (isHost ? <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy} onClick={props.onStart}>{busy ? 'Preparing…' : state.status==='victory'||state.status==='defeat' ? 'Prepare next run' : 'Start encounter'}<Icon name="arrow"/></button>
+        {view === 'lobby' && (isHost ? <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy||partyLoading&&state.status==='ready'} onClick={props.onStart}>{busy ? 'Preparing…' : state.status==='victory'||state.status==='defeat' ? 'Prepare next run' : partyLoading ? 'Waiting for players to load…' : 'Start encounter'}<Icon name="arrow"/></button>
           : <p className="main-menu-waiting" role="status">Waiting for the host to start…</p>)}
         {view === 'home' && <>
           <button type="button" className="main-menu-controls" disabled={busy} onClick={props.onControls}><span>Controls &amp; keybinds{controlLabel && <small>{controlLabel}</small>}</span><Icon name="arrow"/></button>
           <nav className="main-menu-links" aria-label="Game options"><button type="button" onClick={props.onSettings}>Settings</button><button type="button" onClick={props.onGuide}>How to play</button></nav>
+          <button type="button" className="main-menu-view-art" onClick={()=>props.onView('splash')}>View title artwork</button>
         </>}
+        {(view === 'loading'||view === 'lobby')&&<nav className="main-menu-links" aria-label="Waiting screen options"><button type="button" onClick={props.onSettings}>Settings</button><button type="button" onClick={props.onControls}>Controls</button></nav>}
         {footer && <div className="main-menu-extra">{footer}</div>}
       </footer>
     </section>

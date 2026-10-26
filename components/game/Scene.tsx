@@ -43,6 +43,7 @@ export interface SceneProps {
   onIntent: (action: Action) => void;
   onTelemetry?: (data: { fps: number; drawCalls: number; triangles: number }) => void;
   onGamepad?: (connected: boolean) => void;
+  onLoadStatus?: (status: { ready: boolean; loaded: number; total: number; error?: string }) => void;
 }
 
 const floorRotation = -Math.PI / 2;
@@ -247,6 +248,7 @@ export default function Scene(props: SceneProps) {
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
+    latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.characterStyle === 'painted' ? props.state.party.length : 0 });
     let renderer: THREE.WebGLRenderer;
     try {
       renderer = new THREE.WebGLRenderer({ antialias: props.quality === 'high', alpha: false, powerPreference: 'high-performance' });
@@ -254,6 +256,7 @@ export default function Scene(props: SceneProps) {
       // Renderer startup is external system state; surface its failure in the UI.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setError('The 3D renderer could not start. Enable WebGL / hardware acceleration, then reload to enter the Quantum Plane.');
+      latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.state.party.length, error: 'The battlefield needs WebGL. Enable hardware acceleration, then reload to enter.' });
       return;
     }
     setError(null);
@@ -360,9 +363,8 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.dataset.characterStyle = props.characterStyle;
     renderer.domElement.dataset.characterModels = '0';
     renderer.domElement.dataset.characterModelFailures = '0';
-    if (props.characterStyle === 'painted') {
-      latest.current.state.party.forEach((actor, i) => {
-        void heroCache.load(actor.id).then(visual => {
+    const modelRequests = props.characterStyle === 'painted' ? latest.current.state.party.map((actor, i) => {
+        return heroCache.load(actor.id).then(visual => {
           if (stopped) { visual.dispose(); return; }
           const rig = rigs[i];
           visual.setWireframe(latest.current.wireframe);
@@ -374,9 +376,21 @@ export default function Scene(props: SceneProps) {
           if (stopped) return;
           // A missing asset leaves this actor's fully functional scaffold visible.
           renderer.domElement.dataset.characterModelFailures = String(++failedModels);
+        }).finally(() => {
+          if (!stopped) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: latest.current.state.party.length });
         });
-      });
-    }
+      }) : [];
+    // A run starts after models (or their scaffold fallbacks) and initial shader
+    // compilation are ready, instead of spending the combat clock on loading.
+    void Promise.allSettled(modelRequests).then(async () => {
+      if (stopped) return;
+      try {
+        await renderer.compileAsync(scene, camera);
+        if (!stopped) latest.current.onLoadStatus?.({ ready: true, loaded: modelRequests.length, total: modelRequests.length });
+      } catch {
+        if (!stopped) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: modelRequests.length, error: 'The battlefield could not finish preparing. Return to the title and try Performance graphics.' });
+      }
+    });
     let eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let presentationActive = latest.current.presentationActive !== false && !document.hidden;
@@ -442,6 +456,7 @@ export default function Scene(props: SceneProps) {
     const onContextLost = (event: Event) => {
       event.preventDefault(); stopped = true; cancelAnimationFrame(frame); clearPresentation();
       setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
+      latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels, total: props.state.party.length, error: 'The graphics context was interrupted. Reload to restore the battlefield.' });
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 

@@ -24,10 +24,10 @@ export class RoomError extends Error {
 }
 
 export type RoomRequest =
-  | { op: "create"; mode: "trial" | "god"; slot?: number }
-  | { op: "join"; code: string; slot?: number }
+  | { op: "create"; mode: "trial" | "god"; slot?: number; loaded?: boolean }
+  | { op: "join"; code: string; slot?: number; loaded?: boolean }
   | { op: "selectHero"; code: string; token: string; slot: number }
-  | { op: "sync"; code: string; token: string; seq: number; actions: Action[] }
+  | { op: "sync"; code: string; token: string; seq: number; actions: Action[]; loaded?: boolean }
   | { op: "reset"; code: string; token: string; mode?: "trial" | "god" }
   | { op: "leave"; code: string; token: string };
 
@@ -35,6 +35,8 @@ interface Occupant {
   tokenHash: string;
   lastSeen: number;
   lastSeq: number;
+  /** Explicit readiness for current clients; absent on legacy clients/rooms. */
+  loaded?: boolean;
   /** The latest accepted packet's receipt; older stored rooms may omit it. */
   lastResults?: ActionReceipt[];
 }
@@ -69,6 +71,7 @@ export interface RoomMember {
   connected: boolean;
   /** A disconnected player's slot remains reserved for reconnection. */
   reserved: boolean;
+  loaded?: boolean;
 }
 
 export interface RoomSnapshot {
@@ -116,6 +119,12 @@ function heroSlot(value: unknown): number {
     throw new RoomError(400, "Hero must be a party slot from 0 to 4.");
   }
   return value;
+}
+
+function loadingField(input: Record<string, unknown>): { loaded?: boolean } {
+  if (!Object.hasOwn(input, 'loaded')) return {};
+  if (typeof input.loaded !== 'boolean') throw new RoomError(400, 'Loaded must be a boolean.');
+  return { loaded: input.loaded };
 }
 
 function parseAction(value: unknown): Action {
@@ -177,24 +186,24 @@ export function parseRoomRequest(value: unknown): RoomRequest {
   const input = record(value);
   switch (input.op) {
     case "create": {
-      exactKeys(input, ["op", "mode", "slot"]);
+      exactKeys(input, ["op", "mode", "slot", "loaded"]);
       if (input.mode !== undefined && input.mode !== "trial" && input.mode !== "god") {
         throw new RoomError(400, "Unknown encounter mode.");
       }
-      return { op: "create", mode: input.mode === "god" ? "god" : "trial",
+      return { op: "create", mode: input.mode === "god" ? "god" : "trial", ...loadingField(input),
         ...(Object.hasOwn(input, "slot") ? { slot: heroSlot(input.slot) } : {}) };
     }
     case "join": {
-      exactKeys(input, ["op", "code", "slot"]);
+      exactKeys(input, ["op", "code", "slot", "loaded"]);
       const code = normalizeInviteCode(input.code);
       if (!code) throw new RoomError(400, "Invalid invite code. Paste the full code or invite link.");
-      return { op: "join", code, ...(Object.hasOwn(input, "slot") ? { slot: heroSlot(input.slot) } : {}) };
+      return { op: "join", code, ...loadingField(input), ...(Object.hasOwn(input, "slot") ? { slot: heroSlot(input.slot) } : {}) };
     }
     case "selectHero":
       exactKeys(input, ["op", "code", "token", "slot"]);
       return { op: "selectHero", code: secret(input.code, "room code"), token: secret(input.token, "session token"), slot: heroSlot(input.slot) };
     case "sync": {
-      exactKeys(input, ["op", "code", "token", "seq", "actions"]);
+      exactKeys(input, ["op", "code", "token", "seq", "actions", "loaded"]);
       if (typeof input.seq !== "number" || !Number.isSafeInteger(input.seq) || input.seq < 0) {
         throw new RoomError(400, "Sequence must be a nonnegative safe integer.");
       }
@@ -203,7 +212,7 @@ export function parseRoomRequest(value: unknown): RoomRequest {
       }
       return {
         op: "sync", code: secret(input.code, "room code"), token: secret(input.token, "session token"),
-        seq: input.seq, actions: input.actions.map(parseAction),
+        seq: input.seq, actions: input.actions.map(parseAction), ...loadingField(input),
       };
     }
     case "leave":
@@ -318,6 +327,7 @@ function snapshot(room: StoredRoom, slot: number): RoomSnapshot {
     members: room.occupants.map((occupant, memberSlot) => ({
       slot: memberSlot, connected: !!occupant && room.state.party[memberSlot].human,
       reserved: !!occupant && !room.state.party[memberSlot].human,
+      ...(occupant?.loaded === undefined ? {} : { loaded: occupant.loaded }),
     })),
     ...(actionErrors?.length ? { actionErrors } : {}),
     ...(occupant && results ? { actionSeq: occupant.lastSeq, actionResults: structuredClone(results) } : {}),
@@ -340,7 +350,7 @@ export async function handleRoomRequest(
       const hostSlot = request.slot ?? 0;
       for (let slot = 0; slot < 5; slot++) setHuman(state, slot, slot === hostSlot);
       const occupants: StoredRoom["occupants"] = Array.from({ length: 5 }, () => null);
-      occupants[hostSlot] = { tokenHash: await hashToken(code, token), lastSeen: now, lastSeq: -1 };
+      occupants[hostSlot] = { tokenHash: await hashToken(code, token), lastSeen: now, lastSeq: -1, ...(request.loaded === undefined ? {} : { loaded: request.loaded }) };
       const room: StoredRoom = {
         code, revision: 0, state, hostSlot, updatedAt: now, expiresAt: now + ROOM_TTL_MS, occupants,
       };
@@ -368,7 +378,7 @@ export async function handleRoomRequest(
       slot = request.slot !== undefined && room.occupants[request.slot] === null
         ? request.slot : room.occupants.findIndex((occupant) => occupant === null);
       if (slot === -1) throw new RoomError(409, "Party is full. Disconnected slots remain reserved for 45 seconds.");
-      room.occupants[slot] = { tokenHash, lastSeen: now, lastSeq: -1 };
+      room.occupants[slot] = { tokenHash, lastSeen: now, lastSeq: -1, ...(request.loaded === undefined ? {} : { loaded: request.loaded }) };
       setHuman(room.state, slot, true);
       ensureHost(room);
     } else {
@@ -429,9 +439,12 @@ export async function handleRoomRequest(
       } else {
         occupant.lastSeen = now;
         occupant.lastSeq = request.seq;
+        if (request.loaded !== undefined) occupant.loaded = request.loaded;
         if (!room.state.party[slot].human) setHuman(room.state, slot, true);
         occupant.lastResults = request.actions.map((action, index) => {
           if (action.type === 'faceLogos' && room.hostSlot !== slot) return { index, ok: false, error: 'Only the host can lead the party to Logos.' };
+          if (room.state.status === 'ready' && action.type === 'start' && room.hostSlot === slot && room.occupants.some((member, i) => member?.loaded === false && room.state.party[i].human)) return { index, ok: false, error: 'Waiting for connected players to finish loading.' };
+          if (occupant.loaded === false && action.type !== 'move') return { index, ok: false, error: 'Finish loading the battlefield before using combat actions.' };
           const result = room.state.status === "ready" && action.type !== "move" &&
             (action.type !== "start" || room.hostSlot !== slot)
             ? { ok: false, error: room.hostSlot === slot ? "Use Start encounter to begin the room's run." : "Waiting for the host to start the encounter." }
