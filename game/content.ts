@@ -1,3 +1,4 @@
+import { enemyTargets, offensiveTarget, sequenceLocked } from './logos.ts';
 import type { Action, Actor, Element, GameState, Role, WeaponId } from './types.ts';
 
 export const FIXED_STEP = 1 / 20;
@@ -96,7 +97,7 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (!Object.hasOwn(ROLES, role)) return false;
   if (isUltimate(type)) return ULTIMATES[role] === type;
   if ((FORM_ACTIONS as readonly string[]).includes(type)) return role === 'warden';
-  if (type === 'faceLogos') return true;
+  if (type === 'faceLogos' || type === 'selectEnemy') return true;
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
   if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
@@ -137,12 +138,14 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', 'selectEnemy', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
   if (action.type === 'faceLogos') return state.status === 'victory' && state.encounter === 'crown' ? null : 'Defeat Crown Resonance to descend to Logos.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
   if (actor.hp <= 0) return 'This actor has fallen.';
   if (!canUseActionRole(actor.role, action.type)) return `${actor.name} cannot use this ability.`;
+  if (action.type === 'selectEnemy') return enemyTargets(state).some(e => e.id === action.id) ? null : 'That enemy target is unavailable.';
+  if (sequenceLocked(state)) return 'The descent or escape is in progress.';
   if (action.type === 'move') return !Number.isFinite(action.x) || !Number.isFinite(action.z) || Math.abs(action.x) > 100 || Math.abs(action.z) > 100 || (action.facing !== undefined && !Number.isFinite(action.facing)) ? 'Movement must contain finite, bounded numbers.' : null;
   if (action.type === 'selectShot') return action.element === undefined || ELEMENTS.includes(action.element) ? null : 'Unknown shot element.';
   if (action.type === 'engage') return null;
@@ -157,7 +160,8 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
   if (['magic', 'elementalShot', 'bolt', 'lightningShock', 'fission'].includes(action.type) && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
-  const range = Math.hypot(actor.x - state.boss.x, actor.z - state.boss.z);
+  const target = offensiveTarget(state, actor);
+  const range = Math.hypot(actor.x - target.x, actor.z - target.z);
   if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley' || action.type === 'elementalShot') {
     if (!actor.engaged) return 'Engage before attacking.';
     if (range > ROLES[actor.role].range) return 'Move into attack range.';

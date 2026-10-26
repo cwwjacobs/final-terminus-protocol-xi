@@ -30,7 +30,7 @@ test('Logos and Zeus appearance use authoritative state, repeated effects keep a
   const { state, scene, effects } = fixture();
   state.encounter = 'logos'; state.ultimatesUnlocked = true; state.party[1].sonOfZeus = true;
   effects.update(.05, state, 1, false);
-  assert.ok(scene.getObjectByName('Logos-black-marble')?.visible); assert.ok(effects.zeus.visible);
+  assert.equal(scene.getObjectByName('Logos-black-marble')?.visible, false, 'the separate vector renderer owns Logos'); assert.ok(effects.zeus.visible);
   let originalCount = 0; scene.traverse(() => { originalCount++; });
   for (let i = 0; i < 100; i++) {
     effects.event({ id: i, time: 0, kind: 'ability', text: '', source: i % 2 ? 'rainOfFire' : 'thunderclap', actor: 1 }, state);
@@ -46,4 +46,17 @@ test('each ultimate has one group cast sound; recipient fan-out and burn ticks s
     assert.ok(combatSound(event)); assert.equal(combatSound({ ...event, target: 2 }), null);
   }
   assert.equal(combatSound({ id: 1, time: 0, kind: 'magic', text: '', source: 'rainOfFireBurn' }), null);
+});
+
+test('six-enemy Shock and burn effects stay bounded across the sentinel-to-hands transition', () => {
+  const { state, scene, effects } = fixture();
+  state.encounter = 'logos'; state.logos = { stage: 'sentinels', elapsed: 2 };
+  state.enemies = Array.from({ length: 6 }, (_, i) => ({ id: `sentinel-${i}`, name: `Sentinel ${i}`, x: i * 2, z: 0, hp: 1000, maxHp: 1000, target: 1, attackTimer: 2, stunRemaining: 0, burn: { source: 2, total: 300, dealt: 0, ticks: 0, tickIn: 1 } }));
+  state.party[1].enemyTarget = 'sentinel-0';
+  let before = 0; scene.traverse(() => { before++; });
+  effects.event({ id: 1, time: 0, kind: 'ability', text: '', source: 'lightningShock', actor: 1 }, state);
+  for (let i = 0; i < 10; i++) effects.update(.05, state, i * .05, false);
+  state.logos = { stage: 'giant', elapsed: 0 }; state.enemies = state.enemies.slice(0, 2).map((enemy, i) => ({ ...enemy, id: i ? 'right-hand' : 'left-hand' }));
+  effects.update(.05, state, 1, false);
+  let after = 0; scene.traverse(() => { after++; }); assert.equal(after, before);
 });

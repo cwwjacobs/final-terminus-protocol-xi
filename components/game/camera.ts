@@ -1,3 +1,4 @@
+import { offensiveTarget } from '../../game/logos.ts';
 import type { GameState } from '../../game/types.ts';
 
 /** Local presentation state. Camera tracking never changes combat/network state. */
@@ -27,7 +28,7 @@ type CameraAnchor = { x: number; z: number };
 export function cameraLockTarget(state: GameState, slot: number): CameraAnchor | null {
   const actor = state.party[slot];
   return state.status === 'fighting' && actor?.engaged && actor.hp > 0 && state.boss.hp > 0
-    ? state.boss : null;
+    ? offensiveTarget(state, actor) : null;
 }
 
 /** Projection-only clearance for an overlaid action dock. The scene supplies its

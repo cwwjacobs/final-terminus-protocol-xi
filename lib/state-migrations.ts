@@ -22,6 +22,7 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
   }
   if (!Object.hasOwn(state, 'storm')) state.storm = createStaticStorm(Number.isInteger(state.rng) ? state.rng as number : LEGACY_SEED);
   if (!Object.hasOwn(state, 'encounter')) state.encounter = 'crown';
+  if (!Object.hasOwn(state, 'logos')) state.logos = { stage: state.encounter === 'logos' ? 'giant' : 'none', elapsed: 0 };
   if (!Object.hasOwn(state, 'ultimatesUnlocked')) state.ultimatesUnlocked = false;
   if (!Object.hasOwn(state, 'duskRemaining')) state.duskRemaining = 0;
   if (!Object.hasOwn(state, 'enemies')) state.enemies = [];
@@ -32,6 +33,7 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
   for (const actor of state.party as unknown[]) {
     if (!record(actor)) return null;
     if (!Object.hasOwn(actor, 'mendingThread')) actor.mendingThread = null;
+    if (!Object.hasOwn(actor, 'enemyTarget')) actor.enemyTarget = 'boss';
     if (!Object.hasOwn(actor, 'shotElement')) actor.shotElement = 'fire';
     if (!Object.hasOwn(actor, 'hpShield')) actor.hpShield = 0;
     if (!Object.hasOwn(actor, 'criticalCharges')) actor.criticalCharges = 0;

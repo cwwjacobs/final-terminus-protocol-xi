@@ -2,13 +2,13 @@
 
 A first playable foundation for Corey's Terminus Q Protocol: a third-person, real-time party battle built around **auto attacks → TP → weaponskills → skillchains → Magic Bursts**, with a hate (enmity) system deciding who holds the enemy's attention.
 
-Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, Crown Resonance followed by Logos, a shorter trial and a sustained god mode. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
+Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, Crown Resonance followed by the lower-arena sentinel and giant Logos sequence, a shorter trial and a sustained god mode. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
 
 Painted heroes are enabled by default. **Settings → Characters** also offers **Original scaffold**, which remains visible while models load and for any model that fails to load. The painted roster has idle and walk loops; authored weapon props and combat clips are not included yet. See [docs/CHARACTER_ASSETS.md](docs/CHARACTER_ASSETS.md) for the copied assets, verification scope and upgrade path.
 
 The party is Bacchus, Heracles, Dolos, Hecate and Ariadne. Zeus made Ariadne, Bacchus, Dolos and Hecate amnesiac guardians of the **Middle Plane**; descending into the **Quantum Realm** brings their godhood forward before their memories return. Those four are the original descenders. Heracles fills the fifth active party role, with his story entrance still open.
 
-Begin with **Crown Resonance at Crowned Horizon**. After victory, choose **Descend to Logos** (the host leads online parties). The party enters a new Logos encounter with two echoes; all five divine ultimates unlock ready to use. Every ultimate has its own **10-minute cooldown**. Current story decisions and open questions live in [docs/LORE.md](docs/LORE.md).
+Begin with **Crown Resonance at Crowned Horizon**. After victory, choose **Descend to Logos** (the host leads online parties). The platform descends for one minute with the Crown scoreboard visible. Defeat six awakened sentinels, then fight giant Logos through separate head and hand targets; all five divine ultimates unlock when the giant rises. Coherence loss ends in a staged floor collapse and escape. Every ultimate has its own **10-minute cooldown**. Current story decisions and open questions live in [docs/LORE.md](docs/LORE.md).
 
 ## Run locally
 
@@ -98,7 +98,7 @@ Buttons in the HUD also perform combat actions. Bacchus, Heracles and Dolos use 
 
 ## Character mechanics
 
-Every activated ability has an individual cooldown. Against Logos, **G** on keyboard or **L3** on a fresh controller layout uses your ultimate; touch has an ultimate button. Existing custom bindings remain intact; Controls shows a notice if an older controller map needs an Ultimate binding. Heracles’s primary slots become Lightning Shock / Bolt / Clap during Son of Zeus. Ordinary physical criticals deal 1.5× damage; extra auto hits cannot recursively trigger themselves.
+Every activated ability has an individual cooldown. After the six sentinels fall and giant Logos rises, **G** on keyboard or **L3** on a fresh controller layout uses your ultimate; touch has an ultimate button. Existing custom bindings remain intact; Controls shows a notice if an older controller map needs an Ultimate binding. Heracles’s primary slots become Lightning Shock / Bolt / Clap during Son of Zeus. Ordinary physical criticals deal 1.5× damage; extra auto hits cannot recursively trigger themselves.
 
 | Character | Secondary traits and technique |
 | --- | --- |
@@ -118,7 +118,7 @@ Every activated ability has an individual cooldown. Against Logos, **G** on keyb
 | Bacchus | **Fearless:** five guaranteed critical hits for each living ally; ten for Bacchus. Each of his empowered hits refills TP to 3,000. Compatible self-chains open **Dusk** for 10 seconds, allowing any elemental spell/shot and Bolt to Magic Burst. Charges last until used or the actor falls. |
 | Heracles | **Thunderclap:** interrupts and stuns all enemies, including Logos, for 5 seconds. **Son of Zeus** doubles his visual scale and forces all enemies to target him while alive. The form has no timer. Lightning Shock chains between enemies within 8m, stunning for 2 seconds (45 MP, 12s recast); Bolt deals Matk damage and can burst (70 MP, 6s recast); Clap spends all TP, at least 1,000, to deal area magic damage and stun for 3 seconds (12s recast). |
 
-The new combat state is authoritative in solo and rooms and survives saving/reconnect. See [divine awakening verification](docs/DIVINE-AWAKENING.md) for exact tests, provisional balance values and visual-review limits.
+See [Logos encounter](docs/LOGOS-ENCOUNTER.md) for the Figma art, descent, sentinel rush, hand/head targeting and collapse. The new combat state is authoritative in solo and rooms and survives saving/reconnect. See [divine awakening verification](docs/DIVINE-AWAKENING.md) for exact tests, provisional balance values and visual-review limits.
 
 Regent's Decree marks one ally in phases 2–3. Terminal Echo adds two raid pulses a second apart in phase 3; a single shield charge blocks only the first eligible hit. Collapse still defeats the party at the deadline.
 
