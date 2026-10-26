@@ -11,6 +11,9 @@ import Icon from './Icon';
 import { roleIcon } from './icons';
 import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, PresentationEvents } from './world-feedback';
 import { createStormEffects } from './storm-effects';
+import { createCinematicEnvironment } from './cinematic-environment';
+import { createCinematicCombat } from './cinematic-combat';
+import { RenderBudget } from './render-budget';
 import { createAbilityEffects } from './ability-effects';
 import { createDivinePresentation } from './divine-visuals';
 import { createLogosEncounterVisuals, logosSequencePresentation } from './logos-encounter-visuals';
@@ -254,7 +257,9 @@ export default function Scene(props: SceneProps) {
       return;
     }
     setError(null);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, props.quality === 'high' ? 1.5 : 1));
+    const renderBudget = new RenderBudget(props.quality, window.devicePixelRatio || 1);
+    renderer.setPixelRatio(renderBudget.pixelRatio);
+    renderer.domElement.dataset.renderScale = String(renderBudget.pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.28;
@@ -275,6 +280,7 @@ export default function Scene(props: SceneProps) {
     key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; scene.add(key);
     const rim = new THREE.DirectionalLight('#8d88ff', 2.4); rim.position.set(8, 9, -16); scene.add(rim);
     const world = buildWorld(scene, props.quality);
+    const atmosphere = createCinematicEnvironment(scene, world.floorGroup, props.quality);
     const assets = new ActorAssets();
     const rigs: ActorRig[] = latest.current.state.party.map(actor => {
       const rig = createActor(assets, actor.role, actor.color);
@@ -330,6 +336,19 @@ export default function Scene(props: SceneProps) {
       rig.root.getWorldPosition(out); out.y += 1.3;
       return true;
     });
+    const cinema = createCinematicCombat(scene, props.quality, (slot, out) => {
+      const visual = heroVisuals[slot];
+      if (visual?.getAnchor('hand', out)) return true;
+      const rig = rigs[slot]; if (!rig) return false;
+      rig.root.getWorldPosition(out); out.y += 1.3; return true;
+    }, (event, state, out) => {
+      if (state.encounter !== 'logos') return false;
+      const actor = state.party[event.actor ?? -1];
+      const target = actor ? offensiveTarget(state, actor) : state.boss;
+      const id = event.enemyId ?? ('id' in target ? target.id : 'boss');
+      const anchor = logosArt.targets.get(id); if (!anchor) return false;
+      anchor.getWorldPosition(out); out.y += id.includes('hand') ? 4.2 : id.startsWith('sentinel-') ? 2.2 : 0; return true;
+    });
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
     let reducedMotion = motionPreference.matches;
@@ -362,7 +381,7 @@ export default function Scene(props: SceneProps) {
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let presentationActive = latest.current.presentationActive !== false && !document.hidden;
     const clearPresentation = () => {
-      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); divine.reset(); logosArt.reset();
+      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); cinema.reset(); atmosphere.reset(); divine.reset(); logosArt.reset();
       heroVisuals.forEach(visual => visual?.resetCombat());
       rigs.forEach(rig => { rig.attack = 0; }); bossRig.attack = 0;
       effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
@@ -429,6 +448,7 @@ export default function Scene(props: SceneProps) {
     const spawnEffect = (event: GameState['events'][number], state: GameState) => {
       divine.event(event, state);
       stormEffects.event(event, state);
+      cinema.impact(event, state);
       const hitEnemy = event.enemyId ? state.enemies.find(e=>e.id===event.enemyId) : undefined;
       const effectState = hitEnemy ? { ...state, boss: { ...state.boss, x: hitEnemy.x, z: hitEnemy.z } } : state;
       const handled = abilityEffects.impact(event, effectState);
@@ -483,6 +503,12 @@ export default function Scene(props: SceneProps) {
 
     const render = (now: number) => {
       if (stopped) return;
+      // Hidden tabs do no scene work. Menus render at 30 Hz; they do not feed
+      // the adaptive combat budget or trigger a false resolution reduction.
+      if (document.hidden || !presentationActive && now - previous < 1000 / 30) {
+        if (document.hidden) { previous = reportAt = now; frames = 0; }
+        frame = requestAnimationFrame(render); return;
+      }
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
       animationTime += dt;
       const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, selectedAlly, targetPulse, presentationEpoch } = latest.current;
@@ -524,6 +550,7 @@ export default function Scene(props: SceneProps) {
         const delay = immediateImpact(event) ? 0 : visualDelay;
         const hitEnemy = event.enemyId ? state.enemies.find(e=>e.id===event.enemyId) : undefined;
         abilityEffects.start(event, hitEnemy ? { ...state, boss: { ...state.boss, x: hitEnemy.x, z: hitEnemy.z } } : state, delay);
+        cinema.start(event, state, delay);
         if (source >= 0 && rigs[source] && ['auto', 'weapon', 'magic', 'burst'].includes(event.kind)) rigs[source].attack = 1;
         if (delay > 0 && !immediateImpact(event)) {
           if (pendingImpacts.length >= effects.length) pendingImpacts.shift();
@@ -665,10 +692,15 @@ export default function Scene(props: SceneProps) {
       if (presentationActive) {
         stormEffects.update(dt, state, reducedMotion);
         abilityEffects.update(dt, state, camera, reducedMotion);
+        cinema.update(dt, state, camera, reducedMotion);
       }
+      atmosphere.update(presentationActive ? dt : 0, state, reducedMotion, stormEffects.flash, sequence.floorOpacity);
       renderer.render(scene, camera); frames++;
       if (now - reportAt >= 1000) {
-        latest.current.onTelemetry?.({ fps: Math.round(frames * 1000 / (now - reportAt)), drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+        const fps = Math.round(frames * 1000 / (now - reportAt));
+        latest.current.onTelemetry?.({ fps, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
+        const nextRatio = renderBudget.sample(fps, presentationActive);
+        if (nextRatio !== null) { renderer.setPixelRatio(nextRatio); renderer.domElement.dataset.renderScale = String(nextRatio); resize(); }
         frames = 0; reportAt = now;
       }
       frame = requestAnimationFrame(render);
@@ -676,7 +708,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); logosArt.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosArt.dispose();
       document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
@@ -703,6 +735,6 @@ export default function Scene(props: SceneProps) {
         <span style={{ color: actor.color }}><Icon name={roleIcon(actor.role)} className="label-sigil"/>{actor.name}</span>
       </div>;
     })}
-    {error && <div role="alert" style={{ position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%,-50%)', width: 'min(440px,80%)', padding: 24, border: '1px solid #a58e66', background: '#111a2b', color: '#eee8d9', font: '15px/1.6 Arial,sans-serif', textAlign: 'center' }}>{error}</div>}
+    {error && <div role="alert" style={{ position: 'absolute', left: 12, bottom: 12, zIndex: 46, maxWidth: 'min(560px,calc(100% - 24px))', padding: '10px 14px', border: '1px solid #a58e66', borderRadius: 6, background: '#111a2bf5', color: '#eee8d9', font: '11px/1.6 Arial,sans-serif', pointerEvents: 'none' }}>{error}</div>}
   </div>;
 }

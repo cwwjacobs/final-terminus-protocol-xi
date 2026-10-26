@@ -6,7 +6,8 @@ export type CombatSound =
   | 'thunder' | 'arc' | 'wave' | 'thread' | 'swipe' | 'impact' | 'pierce' | 'resonance'
   | 'bowDraw' | 'bow' | 'fireCharge' | 'fire' | 'iceCharge' | 'ice' | 'lightningCharge' | 'lightning'
   | 'chain' | 'burst' | 'heal' | 'shield' | 'shieldBreak' | 'revelry' | 'provoke' | 'weave'
-  | 'guard' | 'dodge' | 'hit' | 'down' | 'bossCharge' | 'bossImpact';
+  | 'guard' | 'dodge' | 'hit' | 'down' | 'bossCharge' | 'bossImpact'
+  | 'cryBacchus' | 'cryHeracles' | 'cryDolos' | 'cryHecate' | 'cryAriadne' | 'enemyCry';
 export interface CombatSoundCue { sound: CombatSound; delay: number; gain: number; priority: 0 | 1 | 2 | 3 }
 export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perTick: 6, staleAfter: .25 });
 
@@ -63,6 +64,18 @@ export function combatSoundPlan(event: CombatEvent, actorId?: string): CombatSou
   return [cue(sound, 0, key === 'splitVolley' ? .4 : .6)];
 }
 
+/** Nonverbal pain reactions follow positive resolved damage, including lightning.
+ * A blocked strike, charge, healing tick or burn tick never produces a cry. */
+export function combatReactionPlan(event: CombatEvent, actorId?: string): CombatSoundCue[] {
+  if (!(typeof event.value === 'number' && Number.isFinite(event.value) && event.value > 0) || event.source === 'rainOfFireBurn') return [];
+  if (event.kind === 'hit') {
+    const voices: Record<string, CombatSound> = { bacchus: 'cryBacchus', heracles: 'cryHeracles', dolos: 'cryDolos', hecate: 'cryHecate', ariadne: 'cryAriadne' };
+    return [{ sound: voices[actorId ?? ''] ?? 'cryBacchus', delay: 0, gain: .55, priority: 1 }];
+  }
+  if (['auto', 'weapon', 'magic', 'burst'].includes(event.kind)) return [{ sound: 'enemyCry', delay: presentationContact(event, actorId), gain: event.kind === 'auto' ? .22 : .48, priority: 1 }];
+  return [];
+}
+
 interface PendingSound extends CombatSoundCue { due: number; actor?: number; eventId: number }
 /** A bounded presentation-clock queue. No timer callbacks can outlive a pause,
  * reset, hidden tab or scene. Silent expired contacts never burst on resume. */
@@ -75,7 +88,7 @@ export class CombatAudioQueue {
     if (!Number.isFinite(now) || this.seen.has(event.id)) return;
     this.seen.add(event.id);
     if (this.seen.size > 128) this.seen.delete(this.seen.values().next().value!);
-    for (const cue of combatSoundPlan(event, actorId)) {
+    for (const cue of [...combatSoundPlan(event, actorId), ...combatReactionPlan(event, actorId)]) {
       this.pending.push({ ...cue, due: now + cue.delay, actor: event.actor, eventId: event.id });
       if (this.pending.length > COMBAT_AUDIO_LIMITS.pending) {
         let victim = 0;
@@ -94,7 +107,7 @@ export class CombatAudioQueue {
       if (now - cue.due > COMBAT_AUDIO_LIMITS.staleAfter || (cue.delay > 0 && typeof cue.actor === 'number' && !living[cue.actor])) continue;
       // Group Aegis recipients and simultaneous auto attacks do not multiply
       // volume. Actual signature contacts still retain their separate beats.
-      const interval = cue.priority === 0 ? .14 : cue.sound === 'shield' ? .18 : cue.priority === 1 ? .09 : .035;
+      const interval = cue.sound.startsWith('cry') || cue.sound === 'enemyCry' ? 1.4 : cue.priority === 0 ? .14 : cue.sound === 'shield' ? .18 : cue.priority === 1 ? .09 : .035;
       if (now - (this.played.get(cue.sound) ?? -Infinity) < interval - 1e-7) continue;
       if (out.length >= COMBAT_AUDIO_LIMITS.perTick) break;
       this.played.set(cue.sound, now); out.push(cue);
@@ -140,6 +153,18 @@ const RECIPES: Record<CombatSound, Recipe> = {
   down: { tones: [['sine', 220, 55, .55, .06]] },
   bossCharge: { tones: [['sine', 75, 170, .4, .035]] },
   bossImpact: { noise: ['lowpass', 1800, 100, .6, .14], tones: [['sine', 80, 28, .7, .08]] },
+  cryBacchus: {}, cryHeracles: {}, cryDolos: {}, cryHecate: {}, cryAriadne: {}, enemyCry: {},
+};
+
+// Original formant synthesis: one source through three vowel resonances, no
+// downloaded voice assets, speech requests or additional audio context.
+const VOCALS: Partial<Record<CombatSound, { pitch: number; formants: readonly number[]; duration: number }>> = {
+  cryBacchus: { pitch: 132, formants: [740, 1150, 2450], duration: .23 },
+  cryHeracles: { pitch: 98, formants: [610, 1020, 2200], duration: .29 },
+  cryDolos: { pitch: 158, formants: [730, 1320, 2600], duration: .2 },
+  cryHecate: { pitch: 218, formants: [850, 1420, 2800], duration: .24 },
+  cryAriadne: { pitch: 245, formants: [820, 1560, 2900], duration: .22 },
+  enemyCry: { pitch: 62, formants: [420, 880, 1680], duration: .38 },
 };
 
 export function createCombatAudio() {
@@ -192,6 +217,18 @@ export function createCombatAudio() {
     play(sound: CombatSound, intensity = 1, priority = 2) {
       if (!audible() || !Number.isFinite(intensity) || intensity <= 0) return;
       const recipe = RECIPES[sound], ctx = context!, strength = Math.min(1, intensity);
+      const vocal = VOCALS[sound];
+      if (vocal) {
+        const source = ctx.createOscillator(), gain = envelope(vocal.duration, .055 * strength);
+        source.type = 'sawtooth';
+        source.frequency.setValueAtTime(vocal.pitch * 1.18, ctx.currentTime);
+        source.frequency.exponentialRampToValueAtTime(vocal.pitch * .72, ctx.currentTime + vocal.duration);
+        const filters = vocal.formants.map((frequency, i) => {
+          const filter = ctx.createBiquadFilter(); filter.type = 'bandpass'; filter.frequency.value = frequency; filter.Q.value = i === 0 ? 4 : 7;
+          source.connect(filter); filter.connect(gain); return filter;
+        });
+        track(source, [gain, ...filters], vocal.duration, priority); return;
+      }
       for (const [type, from, to, duration, level] of recipe.tones ?? []) {
         const source = ctx.createOscillator(), gain = envelope(duration, level * strength);
         source.type = type; source.frequency.setValueAtTime(from, ctx.currentTime); source.frequency.exponentialRampToValueAtTime(to, ctx.currentTime + duration);

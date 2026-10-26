@@ -26,7 +26,7 @@ const noise = (n: number) => { const v = Math.sin(n * 127.1 + 311.7) * 43758.545
 /** Limits cover transient meshes and bolts; persistent state cues have five
  * fixed party slots and a fixed boss/chain group, independent of event volume. */
 export function abilityEffectLimits(quality: 'low' | 'high') {
-  return quality === 'high' ? { particles: 84, bolts: 8, shards: 7 } : { particles: 42, bolts: 4, shards: 4 };
+  return quality === 'high' ? { particles: 72, bolts: 8, shards: 7 } : { particles: 34, bolts: 4, shards: 4 };
 }
 
 /** Storm owns its lightning and large healing wave. This layer enriches the
@@ -163,8 +163,13 @@ export function createAbilityEffects(scene: THREE.Scene, quality: 'low' | 'high'
     const p = particles.find(p => p.duration <= 0) ?? particles.reduce((a, b) => a.age / a.duration > b.age / b.duration ? a : b);
     p.shape = options.shape ?? 'mask'; p.motion = options.motion ?? 'still';
     p.mesh.geometry = p.shape === 'ring' ? ring : p.shape === 'crystal' ? crystal : p.shape === 'cone' ? cone : plane;
-    p.mesh.material.map = p.shape === 'mask' ? texture(options.mask ?? 'cleave_contact_core') : null;
-    p.mesh.material.color.set(options.color ?? gold); p.mesh.material.needsUpdate = true;
+    const nextMap = p.shape === 'mask' ? texture(options.mask ?? 'cleave_contact_core') : null;
+    // Map-to-map swaps reuse the same shader program. Only a feature change
+    // needs recompilation; ordinary particle spawns change uniforms alone.
+    const mapFeatureChanged = !!p.mesh.material.map !== !!nextMap;
+    p.mesh.material.map = nextMap;
+    p.mesh.material.color.set(options.color ?? gold);
+    if (mapFeatureChanged) p.mesh.material.needsUpdate = true;
     p.age = 0; p.duration = Math.max(.05, options.duration ?? .5); p.delay = Math.max(0, options.delay ?? 0);
     p.startSize = options.size ?? 1; p.endSize = options.end ?? p.startSize * 1.4;
     p.opacity = options.opacity ?? .8; p.spin = options.spin ?? 0; p.angle = options.angle ?? 0;

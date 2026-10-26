@@ -72,7 +72,7 @@ export default function MainMenu(props: MainMenuProps) {
             : <span className="main-menu-eyebrow">{view === 'home' ? 'THE Q PROTOCOL' : 'ONLINE EXPEDITION'}</span>}
           {view === 'lobby' && <button type="button" className="main-menu-leave" disabled={busy} onClick={props.onLeave}>Leave party <Icon name="close"/></button>}
         </div>
-        <div className="main-menu-title-row">{view === 'home' && <Icon name="sigil"/>}<h1 id="main-menu-title">{titles[view]}</h1></div>
+        <div className="main-menu-title-row">{view === 'home' && <img className="main-menu-crest" src="/assets/vfx/stormlight-crest.svg" width="44" height="44" alt=""/>}<h1 id="main-menu-title">{titles[view]}</h1></div>
         <p>{view === 'home' ? 'Memory fades. Power remains.' : view === 'lobby' ? `${connected} / 5 players · trusts fill open places` : view === 'heroes' ? 'Five heroes. One place in the party is yours.' : 'Choose your next encounter.'}</p>
       </header>
 

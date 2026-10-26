@@ -4,6 +4,7 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { bacchusLocomotionClip, BACCHUS_POSE_BONES, bacchusStrike, createBacchusCombat, type CombatCue } from './bacchus-combat.ts';
 import { ActionLayer } from './action-layer.ts';
 import { createHeroProps, type HeroProps } from './hero-props.ts';
+import { createHeroRegalia, type HeroRegalia } from './hero-regalia.ts';
 import { createHeroMotion, heroLocomotionClip } from './hero-motion.ts';
 import { PARTY } from '../../game/content.ts';
 import type { Role } from '../../game/types.ts';
@@ -138,6 +139,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   let bodyMotion: ReturnType<typeof createHeroMotion> = null;
   let layer: ActionLayer | undefined;
   let props: HeroProps | null = null;
+  let regalia: HeroRegalia | null = null;
   let disposed = false;
   let aliveBefore = true;
   let moving = false;
@@ -155,6 +157,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     update(dt, speed, alive, attack) {
       if (disposed || !Number.isFinite(dt) || dt <= 0) return;
       const delta = Math.min(dt, .25);
+      regalia?.update(attack, alive);
       if (!alive) {
         if (aliveBefore) {
           combat?.stop();
@@ -212,23 +215,25 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       const node = kind === 'weapon' ? model.getObjectByName(id === 'bacchus' ? 'bacchus-thyrsus' : 'hero-weapon-tip')
         : model.getObjectByName(id === 'dolos' ? 'hand_L' : 'hand_R');
       if (!node) return false;
-      object.updateWorldMatrix(true, true);
+      // Refresh only this attachment's ancestor chain. Updating every hero
+      // mesh for each hand/trail sample repeats the whole skeleton traversal.
+      node.updateWorldMatrix(true, false);
       if (kind === 'weapon' && id === 'bacchus') out.set(0, 1.72, 0).applyMatrix4(node.matrixWorld);
       else node.getWorldPosition(out);
       return out.toArray().every(Number.isFinite);
     },
-    resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); } },
+    resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); regalia?.reset(); } },
     setWireframe(value) {
       if (disposed) return;
       materials.forEach(material => {
         if ('wireframe' in material) (material as THREE.MeshStandardMaterial).wireframe = value;
       });
-      combat?.setWireframe(value); props?.setWireframe(value);
+      combat?.setWireframe(value); props?.setWireframe(value); regalia?.setWireframe(value);
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      combat?.dispose(); bodyMotion?.dispose(); layer?.dispose(); props?.dispose();
+      regalia?.dispose(); combat?.dispose(); bodyMotion?.dispose(); layer?.dispose(); props?.dispose();
       mixer?.stopAllAction();
       mixer?.uncacheRoot(model);
       object.removeFromParent();
@@ -265,6 +270,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       if (library.size === 0) bodyMotion = createHeroMotion(id, model, mixer, asset.animations.find(clip => clip.name.toLowerCase() === 'idle'));
       if (bodyMotion || library.size > 0) props = createHeroProps(id, model);
     }
+    regalia = createHeroRegalia(id, model);
     if (library.size > 0) {
       // The shared library owns locomotion blending and one-shot actions. Bacchus's
       // polearm layer keeps its bones; the library may only move the rest of him.
