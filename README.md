@@ -1,4 +1,8 @@
-# Final Terminus Protocol XI
+# Terminus Protocol — Logos Ascension
+
+The supplied Zeus/Logos artwork is the opening screen. **Enter → The Q Protocol** opens the main menu outside the 3D game; Host and Join live there. The arena and hero models mount only when entering a solo run or party lobby. The title artwork is served as a 495 KB WebP at its original 1672×941 dimensions.
+
+Solo play waits for hero loading (with scaffold fallbacks) and initial shader preparation before starting the combat clock. Online lobbies show each connected player's loading state; the server rejects a host's start until those clients are loaded. Empty places remain trusts. A disconnected loading client becomes a trust after the existing presence timeout. An already-running room continues during a late joiner's load. Older clients without the additive readiness field keep their existing behavior.
 
 A first playable foundation for Corey's Terminus Q Protocol: a third-person, real-time party battle built around **auto attacks → TP → weaponskills → skillchains → Magic Bursts**, with a hate (enmity) system deciding who holds the enemy's attention.
 
@@ -126,7 +130,7 @@ The approved map and evidence are in [mechanics UKSL](docs/mechanics-uksl.md) an
 
 ## Online parties and saves
 
-Open **Party → Create online party**, then share the 32-character invite code with people who can access the same Site. Other players use **Join party**. Creating a party starts a fresh server encounter using the selected trial/god mode; it does not upload the local save.
+Open **The Q Protocol → Host a party** from the start menu, then share the 32-character invite code with people who can access the same Site. Other players use **Join a party** there. The in-game waiting menu has no Host or Join entries. Creating a party prepares a fresh server lobby using the selected trial/god mode; it does not upload the local save. The host starts after connected clients finish loading.
 
 A room has exactly five slots. Each joined player receives a separate secret session token. Missing players become trusts after **8 seconds**; their slots remain reserved for reconnect until **45 seconds** after their last accepted sync. **Reconnect saved session** uses the session stored in that browser tab. After reservation expiry, join again to obtain an available slot. Explicitly leaving releases the slot immediately. Rooms expire **24 hours** after creation.
 
