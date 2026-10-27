@@ -1,11 +1,13 @@
 // Reproducible active-input simulation: descent, six sentinels, giant and escape.
-// Not a browser or hardware playtest. --full-game also plays Crown first.
+// Not a browser or hardware playtest. --full-game also plays Crown first;
+// --ready-up exercises the immediate descent skip for the controlled player.
 // Run: node --experimental-strip-types scripts/verify-logos-encounters.mjs
 import assert from 'node:assert/strict';
 import {offensiveTarget,sequenceLocked} from '../game/logos.ts';
 import {createGame,applyAction,stepGame,isInTelegraph,setHuman} from '../game/engine.ts';
 import {WEAPONS,ELEMENTS,ULTIMATES} from '../game/content.ts';
 const fullGame=process.argv.includes('--full-game');
+const readyUp=process.argv.includes('--ready-up');
 for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
  const s=createGame(mode,123);s.party.forEach((_,i)=>setHuman(s,i,i===slot));
  if(fullGame)applyAction(s,slot,{type:'start'});else{s.status='victory';applyAction(s,slot,{type:'faceLogos'});}
@@ -14,7 +16,7 @@ for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
  for(let tick=0;tick<24000&&(s.status==='fighting'||s.status==='victory'&&s.encounter==='crown');tick++){
   if(s.status==='victory'&&s.encounter==='crown'){crownSeconds=s.combatTime;assert.ok(s.party.every(a=>a.hp>0));applyAction(s,slot,{type:'faceLogos'});}
   stages.add(s.encounter==='crown'?'crown':s.logos.stage);
-  if(sequenceLocked(s)){stepGame(s,.05);continue;}
+  if(sequenceLocked(s)){if(readyUp&&s.logos.stage==='descent')assert.ok(applyAction(s,slot,{type:'readyForLogos',ready:true}).ok);else stepGame(s,.05);continue;}
   const a=s.party[slot],b={...s.boss,...offensiveTarget(s,s.party[slot])};
   if(tick%4===0&&a.hp>0){
    let dx=b.x-a.x,dz=b.z-a.z;const d=Math.hypot(dx,dz); const range=slot===0||slot===1?3.3:10;

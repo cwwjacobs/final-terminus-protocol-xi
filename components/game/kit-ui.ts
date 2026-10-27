@@ -38,7 +38,7 @@ export interface CombatActionSlot { id: CombatSlotId; command: Command; presenta
 export function actionCommand(action: Action): Command | null {
   if (action.type === 'weapon') return action.id;
   if (action.type === 'magic') return action.element;
-  if (action.type === 'move' || action.type === 'start' || action.type === 'faceLogos' || action.type === 'selectEnemy') return null;
+  if (action.type === 'move' || action.type === 'start' || action.type === 'faceLogos' || action.type === 'selectEnemy' || action.type === 'readyForLogos') return null;
   return action.type;
 }
 

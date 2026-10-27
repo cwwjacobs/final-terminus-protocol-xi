@@ -8,7 +8,7 @@ GitHub `main` was `d5d6a8826c8483f7795f288eba235c87a8c009a6`; Sites `main` was `
 
 ## Playable route and decisions
 
-Defeat Crown Resonance and choose **Descend to Logos** on Results or the compact result bar. In rooms only the host may lead this transition. The subsequent Logos encounter update restores the party for a one-minute descent and scoreboard intermission, then a six-sentinel wave. The giant rises after all six fall and unlocks the ultimates. Trial Logos has 210,000 HP; god Logos 420,000 HP, with separate 8,000 HP hand targets. Coherence loss starts a six-second floor collapse and escape before victory. See LOGOS-ENCOUNTER.md.
+Defeat Crown Resonance and choose **Descend to Logos** on Results or the compact result bar. In rooms only the host may lead this transition. The subsequent Logos encounter update restores the party for a descent and scoreboard intermission of up to one minute, with a unanimous connected-player ready-up skip, then a six-sentinel wave. The giant rises after all six fall and unlocks the ultimates. Trial Logos has 210,000 HP; god Logos 420,000 HP, with separate 8,000 HP hand targets. Coherence loss starts a six-second floor collapse and escape before victory. See LOGOS-ENCOUNTER.md.
 
 Ultimate cooldowns are **600 simulation seconds**, individually tracked. New balance values where Corey supplied no number are provisional: Fission 9,000 magic base; Rain of Fire 2,000 physical base with its specified 3× critical; 12m ultimate area centered on Logos; form Shock 450 magic / 45 MP / 12s recast / 8m bounce / 2s stun; Bolt 600 magic or 1,500 burst / 70 MP / 6s recast; Clap 350 × (1 + TP/3000) magic / all TP, minimum 1,000 / 12s recast / 12m area centered on Heracles / 3s stun.
 

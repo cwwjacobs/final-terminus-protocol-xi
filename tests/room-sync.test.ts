@@ -20,3 +20,9 @@ test('combat polls retain ordered actions and current movement', () => {
   const pending: Action[] = [{ type: 'revelry' }, { type: 'guard' }];
   assert.deepEqual(roomSyncActions('fighting', pending, movement), [...pending, movement]);
 });
+
+test('descent polls send only readiness and escape polls send no combat or movement', () => {
+  const pending: Action[] = [{ type: 'guard' }, { type: 'readyForLogos', ready: true }];
+  assert.deepEqual(roomSyncActions('fighting', pending, movement, 'descent'), [pending[1]]);
+  for (const stage of ['collapse', 'escaped'] as const) assert.deepEqual(roomSyncActions('fighting', pending, movement, stage), []);
+});

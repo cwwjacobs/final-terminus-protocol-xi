@@ -12,12 +12,7 @@ export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], q
   const cone = new THREE.ConeGeometry(1, 1, 12);
   const torus = new THREE.TorusGeometry(1, .025, 5, 48);
   const glow = (color: string, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
-  const stone = new THREE.MeshStandardMaterial({ color: '#161924', metalness: .6, roughness: .3 });
-  const silver = new THREE.MeshStandardMaterial({ color: '#d0dbef', emissive: '#7488a5', emissiveIntensity: .35, metalness: .9, roughness: .3 });
-  const white = new THREE.MeshStandardMaterial({ color: '#f2f0e1', roughness: .8 });
-  const skin = new THREE.MeshStandardMaterial({ color: '#d4b694', roughness: .65 });
-  const gold = new THREE.MeshStandardMaterial({ color: '#f6d68c', metalness: .75, roughness: .35 });
-  const eye = glow('#e8f4ff'), blue = glow('#b0dcff'), violet = glow('#e8b9ff'), red = glow('#ff7548'), green = glow('#a7ffdf'), yellow = glow('#ffe8a5');
+  const blue = glow('#b0dcff'), violet = glow('#e8b9ff'), red = glow('#ff7548'), green = glow('#a7ffdf'), yellow = glow('#ffe8a5');
   const piece = (parent: THREE.Object3D, shape: THREE.BufferGeometry, material: THREE.Material, x: number, y: number, z: number, sx: number, sy: number, sz: number) => {
     const mesh = new THREE.Mesh(shape, material); mesh.position.set(x, y, z); mesh.scale.set(sx, sy, sz); parent.add(mesh); return mesh;
   };
@@ -25,45 +20,9 @@ export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], q
     const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
     const line = new THREE.Line(geo, material); parent.add(line); return line;
   };
-  const statue = () => {
-    const figure = new THREE.Group();
-    piece(figure, cylinder, stone, 0, .25, 0, 1.35, .5, 1.1);
-    for (const sign of [-1, 1]) {
-      piece(figure, sphere, stone, sign * .58, 1.65, 0, .5, 1.6, .6);
-      piece(figure, sphere, stone, sign * 1.65, 4.15, .05, .48, 1.7, .55);
-      piece(figure, sphere, stone, sign * 1.65, 2.6, .3, .55, .65, .6);
-      piece(figure, sphere, silver, sign * 1.15, 5.1, .1, .58, .1, .6);
-      piece(figure, sphere, eye, sign * .25, 6.46, .63, .14, .035, .05);
-      boltLine(figure, silver, [sign * .2, 5.2, .8, sign * .5, 4.6, .86, sign * .3, 4.3, .89, sign * .8, 3.7, .64]);
-      boltLine(figure, silver, [sign * 1.65, 4.9, .51, sign * 1.5, 4.2, .58, sign * 1.8, 3.4, .58]);
-    }
-    piece(figure, sphere, stone, 0, 4.2, 0, 1.4, 1.85, .85);
-    piece(figure, cylinder, stone, 0, 5.7, 0, .4, .6, .45);
-    piece(figure, sphere, stone, 0, 6.45, 0, .65, .85, .66);
-    piece(figure, sphere, silver, 0, 6.13, .62, .25, .025, .035);
-    return figure;
-  };
-  const logos = statue(); logos.name = 'Logos-black-marble'; root.add(logos);
-  const echoes = [statue(), statue()]; echoes.forEach(echo => { echo.scale.setScalar(.36); root.add(echo); });
+  // The animated hero mesh owns anatomy and clothing. This layer adds only
+  // a reusable lightning aura so transformation preserves real skinning.
   const zeus = new THREE.Group(); zeus.name = 'Son-of-Zeus'; rigs[1].root.add(zeus);
-  piece(zeus, sphere, skin, 0, 1.4, 0, .4, .5, .24);
-  piece(zeus, cone, white, 0, .7, 0, .43, 1.1, .32).rotation.z = Math.PI;
-  piece(zeus, cylinder, gold, 0, 1.07, 0, .41, .08, .27);
-  const sash = piece(zeus, cylinder, white, -.12, 1.48, .19, .1, .68, .07); sash.rotation.z = -.5;
-  for (const sign of [-1, 1]) {
-    piece(zeus, sphere, skin, sign * .46, 1.4, 0, .13, .42, .14).rotation.z = sign * .2;
-    piece(zeus, cylinder, gold, sign * .51, 1.14, .02, .14, .1, .15);
-    piece(zeus, sphere, skin, sign * .17, .34, .02, .11, .3, .12);
-    piece(zeus, sphere, gold, sign * .17, .1, .1, .13, .09, .22);
-  }
-  piece(zeus, sphere, skin, 0, 1.94, 0, .23, .29, .23);
-  for (let i = 0; i < 9; i++) {
-    const a = i / 8 * Math.PI * 2;
-    piece(zeus, sphere, white, Math.sin(a) * .21, 2.06 + Math.cos(a) * .11, -.04, .11, .14, .14);
-  }
-  piece(zeus, cone, white, 0, 1.72, .19, .17, .4, .16).rotation.z = Math.PI;
-  piece(zeus, sphere, blue, -.09, 1.97, .219, .045, .022, .025);
-  piece(zeus, sphere, blue, .09, 1.97, .219, .045, .022, .025);
   boltLine(zeus, blue, [.57, 1.7, .1, .43, 1.34, .12, .64, 1.39, .12, .49, .95, .14]);
   const aura = piece(zeus, torus, blue, 0, .07, 0, .9, .9, .9); aura.rotation.x = Math.PI / 2;
   const wards = rigs.map(rig => {
@@ -142,9 +101,6 @@ export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], q
       if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) { boltAge = 0; strike.position.set(target.x, state.logos.stage === 'giant' && target === state.boss ? 16.8 : 0, target.z); }
     },
     update(dt: number, state: GameState, time: number, reducedMotion: boolean) {
-      logos.visible = false; // The Figma vector encounter renderer owns Logos. logos.position.set(state.boss.x, 0, state.boss.z); logos.rotation.y = state.boss.facing;
-      logos.rotation.z = state.boss.hp <= 0 ? -.28 : state.boss.stunRemaining > 0 ? .03 : 0;
-      echoes.forEach((echo, i) => { const enemy = state.enemies[i]; echo.visible = false; if (enemy) { echo.position.set(enemy.x, 0, enemy.z); const target = state.party[enemy.target]; if (target) echo.rotation.y = Math.atan2(target.x - enemy.x, target.z - enemy.z); } });
       zeus.visible = state.party[1].sonOfZeus;
       rigs.forEach((rig, i) => {
         const actor = state.party[i]; wards[i].visible = actor.hp > 0 && actor.hpShield > 0;

@@ -5,6 +5,7 @@ import { bacchusLocomotionClip, BACCHUS_POSE_BONES, bacchusStrike, createBacchus
 import { ActionLayer } from './action-layer.ts';
 import { createHeroProps, type HeroProps } from './hero-props.ts';
 import { createHeroRegalia, type HeroRegalia } from './hero-regalia.ts';
+import { createHeroDivinity, type HeroDivinity } from './hero-divinity.ts';
 import { createHeroMotion, heroLocomotionClip } from './hero-motion.ts';
 import { PARTY } from '../../game/content.ts';
 import type { Role } from '../../game/types.ts';
@@ -34,6 +35,8 @@ export interface HeroVisual {
   /** Copy a real skeleton/weapon attachment position in world space. */
   getAnchor(kind: 'hand' | 'weapon', out: THREE.Vector3): boolean;
   resetCombat(): void;
+  /** Son of Zeus keeps Heracles's controlled skeleton and fitted skinned anatomy. */
+  setDivineForm?(active: boolean): void;
   setWireframe(value: boolean): void;
   dispose(): void;
 }
@@ -123,7 +126,7 @@ class AssetResources {
 }
 
 function createVisual(id: string, asset: HeroAssetSource, resources: AssetResources,
-  onDispose: (visual: HeroVisual) => void, library: AnimationLibrary = EMPTY_LIBRARY): HeroVisual {
+  onDispose: (visual: HeroVisual) => void, library: AnimationLibrary = EMPTY_LIBRARY, divineAnatomy?: THREE.Object3D): HeroVisual {
   const role: Role = PARTY.find(member => member.id === id)?.role ?? 'vanguard';
   const object = new THREE.Group();
   object.name = `hero:${id}`;
@@ -140,6 +143,9 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   let layer: ActionLayer | undefined;
   let props: HeroProps | null = null;
   let regalia: HeroRegalia | null = null;
+  let divinity: HeroDivinity | null = null;
+  let divineForm = false;
+  let formProps: THREE.Object3D[] = [];
   let disposed = false;
   let aliveBefore = true;
   let moving = false;
@@ -158,6 +164,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       if (disposed || !Number.isFinite(dt) || dt <= 0) return;
       const delta = Math.min(dt, .25);
       regalia?.update(attack, alive);
+      divinity?.update(attack, alive);
       if (!alive) {
         if (aliveBefore) {
           combat?.stop();
@@ -222,18 +229,25 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       else node.getWorldPosition(out);
       return out.toArray().every(Number.isFinite);
     },
-    resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); regalia?.reset(); } },
+    resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); regalia?.reset(); divinity?.reset(); } },
+    setDivineForm(active) {
+      if (disposed || !divinity || divineForm === active) return;
+      divineForm = active; divinity.setActive(active); regalia?.setVisible(!active);
+      // Keep the real body, head and skeleton. Only the normal club and shield
+      // attachments give way to the lightning form's unarmed casting gestures.
+      formProps.forEach(prop => { prop.visible = !active; });
+    },
     setWireframe(value) {
       if (disposed) return;
       materials.forEach(material => {
         if ('wireframe' in material) (material as THREE.MeshStandardMaterial).wireframe = value;
       });
-      combat?.setWireframe(value); props?.setWireframe(value); regalia?.setWireframe(value);
+      combat?.setWireframe(value); props?.setWireframe(value); regalia?.setWireframe(value); divinity?.setWireframe(value);
     },
     dispose() {
       if (disposed) return;
       disposed = true;
-      regalia?.dispose(); combat?.dispose(); bodyMotion?.dispose(); layer?.dispose(); props?.dispose();
+      divinity?.dispose(); regalia?.dispose(); combat?.dispose(); bodyMotion?.dispose(); layer?.dispose(); props?.dispose();
       mixer?.stopAllAction();
       mixer?.uncacheRoot(model);
       object.removeFromParent();
@@ -271,6 +285,8 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
       if (bodyMotion || library.size > 0) props = createHeroProps(id, model);
     }
     regalia = createHeroRegalia(id, model);
+    divinity = createHeroDivinity(id, model, divineAnatomy);
+    formProps = divinity ? ['prop:hand_R', 'prop:forearm_L'].map(name => model.getObjectByName(name)).filter((node): node is THREE.Object3D => !!node) : [];
     if (library.size > 0) {
       // The shared library owns locomotion blending and one-shot actions. Bacchus's
       // polearm layer keeps its bones; the library may only move the rest of him.
@@ -296,6 +312,9 @@ export interface HeroAssetCacheOptions {
   library?: HeroAssetLoader | false;
   /** Explicit test/preview opt-in. Unfinished clips and their props stay off in the game. */
   allowPlaceholderLibrary?: boolean;
+  /** Runtime reuses the cached Bacchus anatomy on Heracles's own skeleton for
+   * Zeus. Custom loaders opt in explicitly when supplying real indexed skins. */
+  divineAnatomy?: boolean;
 }
 
 /** Index a loaded library by clip name. Names are unique per file by construction.
@@ -317,10 +336,12 @@ export class HeroAssetCache {
   private readonly visuals = new Set<HeroVisual>();
   private readonly resources = new AssetResources();
   private disposed = false;
+  private readonly divineAnatomy: boolean;
 
   constructor(loader?: HeroAssetLoader, options: HeroAssetCacheOptions = {}) {
     const gltfLoader = loader && options.library ? undefined : new GLTFLoader();
     this.loader = loader ?? (url => gltfLoader!.loadAsync(url));
+    this.divineAnatomy = options.divineAnatomy ?? !loader;
     const enabled = animationReceipt.placeholder === false || options.allowPlaceholderLibrary === true;
     this.libraryLoader = !enabled || options.library === false ? null
       : options.library ?? (loader ? null : url => gltfLoader!.loadAsync(url));
@@ -346,9 +367,7 @@ export class HeroAssetCache {
     return this.library;
   }
 
-  async load(id: string): Promise<HeroVisual> {
-    if (this.disposed) throw new Error('Hero asset cache is disposed');
-    if (!Object.hasOwn(HERO_ASSET_MANIFEST, id)) throw new Error(`Unknown hero asset: ${id}`);
+  private requestAsset(id: string) {
     let pending = this.requests.get(id);
     if (!pending) {
       pending = Promise.resolve().then(() => {
@@ -365,10 +384,17 @@ export class HeroAssetCache {
         });
       this.requests.set(id, pending);
     }
-    const [asset, library] = await Promise.all([pending, this.loadLibrary()]);
+    return pending;
+  }
+
+  async load(id: string): Promise<HeroVisual> {
+    if (this.disposed) throw new Error('Hero asset cache is disposed');
+    if (!Object.hasOwn(HERO_ASSET_MANIFEST, id)) throw new Error(`Unknown hero asset: ${id}`);
+    const pending = this.requestAsset(id);
+    const [asset, library, anatomy] = await Promise.all([pending, this.loadLibrary(), id === 'heracles' && this.divineAnatomy ? this.requestAsset('bacchus').catch(() => undefined) : undefined]);
     if (this.disposed) throw new Error('Hero asset cache is disposed');
     try {
-      const visual = createVisual(id, asset, this.resources, instance => this.visuals.delete(instance), library);
+      const visual = createVisual(id, asset, this.resources, instance => this.visuals.delete(instance), library, anatomy?.scene);
       this.visuals.add(visual);
       return visual;
     } catch (error) {
