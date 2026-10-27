@@ -17,7 +17,7 @@ function resources(root: THREE.Object3D) {
   return { count: owned.size, disposed: () => disposed };
 }
 
-test('environment stays at three texture-free passes, freezes reduced motion and follows the collapsing floor', () => {
+test('environment stays at two texture-free passes without floating motes, freezes reduced motion and follows the collapsing floor', () => {
   for (const quality of ['low', 'high'] as const) {
     const scene = new THREE.Scene(), floor = new THREE.Group(), state = createGame(); scene.add(floor);
     const fx = createCinematicEnvironment(scene, floor, quality), before = structuredClone(state);
@@ -30,7 +30,7 @@ test('environment stays at three texture-free passes, freezes reduced motion and
     fx.update(.05, state, true, 1, .3);
     assert.equal(sky.material.uniforms.uTime.value, 0); assert.equal(sky.material.uniforms.uFlash.value, 0);
     assert.equal(sky.material.uniforms.uOpacity.value, .3);
-    assert.deepEqual(state, before); assert.equal(fx.stats().passes, 3); assert.equal(fx.stats().textures, 0); assert.equal(fx.stats().renderTargets, 0);
+    assert.deepEqual(state, before); assert.equal(fx.stats().passes, 2); assert.equal(fx.stats().textures, 0); assert.equal(fx.stats().renderTargets, 0);
     fx.dispose(); fx.dispose(); assert.equal(all.disposed(), all.count); assert.equal(scene.getObjectByName('living-obsidian-shader'), undefined);
   }
 });

@@ -1,4 +1,4 @@
-import { COLLAPSE_SECONDS, DESCENT_SECONDS, offensiveTarget, SENTINEL_NAMES, sequenceLocked } from './logos.ts';
+import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_NAMES, sequenceLocked } from './logos.ts';
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
@@ -49,6 +49,7 @@ export function setHuman(state: GameState, slot: number, human: boolean): void {
   const actor = state.party[slot];
   if (actor.human === human) return;
   actor.human = human;
+  if (state.logos.readySlots?.includes(slot)) state.logos.readySlots = state.logos.readySlots.filter(readySlot => readySlot !== slot);
   actor.moveX = 0;
   actor.moveZ = 0;
   actor.aiTimer = 0;
@@ -95,6 +96,12 @@ function clearTransient(actor: Actor) {
   actor.selfChainUntil = 0;
   actor.rapidWeave = null;
   actor.elementalCycle = { elements: [], remaining: 0 };
+}
+
+function beginSentinels(state: GameState) {
+  state.logos = { stage: 'sentinels', elapsed: 0 };
+  state.combatTime = 0; state.runStats = createRunStats(state.party.length);
+  event(state, 'sentinels_awaken', 'The six statues awaken — break their assault!');
 }
 
 function beginGiant(state: GameState) {
@@ -228,7 +235,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
   if (action.type === 'faceLogos') {
     const oldStats = state.runStats, oldTime = state.combatTime;
     const maxHp = state.mode === 'god' ? 420000 : 210000;
-    state.encounter = 'logos'; state.ultimatesUnlocked = false; state.status = 'fighting'; state.logos = { stage: 'descent', elapsed: 0 };
+    state.encounter = 'logos'; state.ultimatesUnlocked = false; state.status = 'fighting'; state.logos = { stage: 'descent', elapsed: 0, readySlots: [] };
     state.combatTime = 0; state.runStats = createRunStats(state.party.length);
     state.chain = state.burst = null; state.duskRemaining = 0;
     state.boss = { name: 'Logos', x: 0, z: -4, hp: maxHp, maxHp, target: slot, phase: 1, facing: 0, attackTimer: 3, specialTimer: 10, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null };
@@ -246,6 +253,13 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
   }
 
   if (action.type === 'selectEnemy') { actor.enemyTarget = action.id; return { ok: true }; }
+  if (action.type === 'readyForLogos') {
+    const ready = new Set(state.logos.readySlots ?? []);
+    if (action.ready) ready.add(slot); else ready.delete(slot);
+    state.logos.readySlots = [...ready].sort((a, b) => a - b);
+    if (descentReadiness(state).allReady) beginSentinels(state);
+    return { ok: true };
+  }
   if (action.type === 'move') {
     if (!Number.isFinite(action.x) || !Number.isFinite(action.z) || Math.abs(action.x) > 100 || Math.abs(action.z) > 100 || (action.facing !== undefined && !Number.isFinite(action.facing))) return fail('Movement must contain finite, bounded numbers.');
     const length = Math.max(1, Math.hypot(action.x, action.z));
@@ -903,7 +917,7 @@ function fixedStep(state: GameState) {
   }
   if (state.status === 'fighting' && sequenceLocked(state)) {
     state.logos.elapsed += dt;
-    if (state.logos.stage === 'descent' && state.logos.elapsed + 1e-8 >= DESCENT_SECONDS) { state.logos = { stage: 'sentinels', elapsed: 0 }; state.combatTime = 0; state.runStats = createRunStats(state.party.length); event(state, 'sentinels_awaken', 'The six statues awaken — break their assault!'); }
+    if (state.logos.stage === 'descent' && (state.logos.elapsed + 1e-8 >= DESCENT_SECONDS || descentReadiness(state).allReady)) beginSentinels(state);
     else if (state.logos.stage === 'collapse' && state.logos.elapsed + 1e-8 >= COLLAPSE_SECONDS) { state.logos = { stage: 'escaped', elapsed: COLLAPSE_SECONDS }; finishIfNeeded(state); }
     return;
   }

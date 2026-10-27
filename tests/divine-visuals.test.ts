@@ -26,11 +26,12 @@ test('Fission displays a joined atom then two separating nuclei; renderer reads 
   effects.reset(); assert.equal(atom.visible, false);
 });
 
-test('Logos and Zeus appearance use authoritative state, repeated effects keep a fixed scene size', () => {
+test('Zeus adds an aura to the animated hero; repeated effects keep a fixed scene size', () => {
   const { state, scene, effects } = fixture();
   state.encounter = 'logos'; state.ultimatesUnlocked = true; state.party[1].sonOfZeus = true;
   effects.update(.05, state, 1, false);
-  assert.equal(scene.getObjectByName('Logos-black-marble')?.visible, false, 'the separate vector renderer owns Logos'); assert.ok(effects.zeus.visible);
+  assert.equal(scene.getObjectByName('Logos-black-marble'), undefined, 'no duplicate primitive Logos is retained'); assert.ok(effects.zeus.visible);
+  assert.equal(effects.zeus.children.filter(child => child instanceof THREE.Mesh).length, 1, 'the aura has no replacement sphere head or cone outfit');
   let originalCount = 0; scene.traverse(() => { originalCount++; });
   for (let i = 0; i < 100; i++) {
     effects.event({ id: i, time: 0, kind: 'ability', text: '', source: i % 2 ? 'rainOfFire' : 'thunderclap', actor: 1 }, state);

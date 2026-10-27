@@ -154,6 +154,11 @@ function parseAction(value: unknown): Action {
     if (typeof action.id !== 'string' || !/^(boss|echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(action.id)) throw new RoomError(400, 'Unknown enemy target.');
     return { type: 'selectEnemy', id: action.id };
   }
+  if (action.type === 'readyForLogos') {
+    exactKeys(action, ['type', 'ready']);
+    if (typeof action.ready !== 'boolean') throw new RoomError(400, 'Ready must be a boolean.');
+    return { type: 'readyForLogos', ready: action.ready };
+  }
   if (action.type === "selectShot") {
     exactKeys(action, ["type", "element"]);
     if (action.element !== undefined && !["fire", "ice", "lightning"].includes(action.element as string)) throw new RoomError(400, "Unknown shot element.");

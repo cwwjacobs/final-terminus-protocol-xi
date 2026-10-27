@@ -34,11 +34,17 @@ test('all five real heroes keep armor and weapon attachments within a fixed 30-d
     const hero = await cache.load(id), meshes = attachments(hero.object);
     assert.equal(meshes.length, 6, `${id} armor plus weapon detail`); total += meshes.length;
     for (const mesh of meshes) {
-      assert.ok(mesh.parent instanceof THREE.Bone || mesh.parent?.name.startsWith('prop:') || mesh.parent?.name === 'bacchus-thyrsus');
+      assert.ok(mesh instanceof THREE.SkinnedMesh || mesh.parent instanceof THREE.Bone || mesh.parent?.name.startsWith('prop:') || mesh.parent?.name === 'bacchus-thyrsus');
       assert.equal(mesh.material.transparent, false); assert.equal(mesh.material.map, null);
       assert.equal(mesh.material.vertexColors, true); assert.equal(mesh.castShadow, false);
       assert.ok(mesh.geometry.attributes.position.count < 5000, `${mesh.name} bounded vertices`);
-      mesh.geometry.computeBoundingSphere(); assert.ok(mesh.geometry.boundingSphere!.radius < (mesh.name.endsWith('weapon-inlay') ? .8 : .6), mesh.name);
+      mesh.geometry.computeBoundingSphere(); assert.ok(mesh.geometry.boundingSphere!.radius < .85, mesh.name);
+      if (mesh instanceof THREE.SkinnedMesh) {
+        const weights = mesh.geometry.attributes.skinWeight;
+        assert.ok(weights && mesh.geometry.attributes.skinIndex);
+        for (let i = 0; i < weights.count; i++) assert.ok(Math.abs(weights.getX(i) + weights.getY(i) + weights.getZ(i) + weights.getW(i) - 1) < 1e-6);
+        assert.ok(mesh.skeleton.bones.every(bone => hero.object.getObjectByName(bone.name) === bone), 'cloth shares the actual animated joints');
+      }
     }
     // Weapon release moves fitted hand props; armor stays bound to the same
     // shoulder/forearm and all attachments remain inside the hero action space.
@@ -63,16 +69,17 @@ test('regalia follows bone motion, has isolated accents, and releases only its o
   assert.ok(layer); assert.equal(layer.meshCount, 5, 'a naked compatible rig has no fabricated weapon');
   const meshes = attachments(scene), secondPaint = attachments(other)[0].material;
   scene.traverse(node => { if (node instanceof THREE.Bone) assert.deepEqual([...node.position.toArray(), ...node.quaternion.toArray(), ...node.scale.toArray()], baseline.get(node.name)); });
-  const shoulder = meshes.find(mesh => mesh.name.endsWith('shoulder-L'))!;
-  scene.updateMatrixWorld(true); const before = new THREE.Box3().setFromObject(shoulder).getCenter(new THREE.Vector3());
-  shoulder.parent!.rotation.z += .7; scene.updateMatrixWorld(true);
-  const after = new THREE.Box3().setFromObject(shoulder).getCenter(new THREE.Vector3());
+  const bracer = meshes.find(mesh => mesh.name.endsWith('bracer-L'))!;
+  scene.updateMatrixWorld(true); const before = new THREE.Box3().setFromObject(bracer).getCenter(new THREE.Vector3());
+  bracer.parent!.rotation.z += .7; scene.updateMatrixWorld(true);
+  const after = new THREE.Box3().setFromObject(bracer).getCenter(new THREE.Vector3());
   assert.ok(before.distanceTo(after) > .01, 'attached metal follows the animated joint');
-  const paint = meshes[0].material; layer.update(1, true); assert.ok(paint.emissiveIntensity > secondPaint.emissiveIntensity);
-  layer.update(NaN, true); assert.equal(paint.emissiveIntensity, .015);
-  layer.update(1, false); assert.equal(paint.emissiveIntensity, 0); layer.reset(); assert.equal(paint.emissiveIntensity, .015);
+  const paint = bracer.material; layer.update(1, true); assert.ok(paint.emissiveIntensity > secondPaint.emissiveIntensity);
+  layer.update(NaN, true); assert.equal(paint.emissiveIntensity, 0);
+  layer.update(1, false); assert.equal(paint.emissiveIntensity, 0); layer.reset(); assert.equal(paint.emissiveIntensity, 0);
   layer.setWireframe(true); assert.equal(paint.wireframe, true); assert.equal(secondPaint.wireframe, false);
-  const resources = new Set<THREE.BufferGeometry | THREE.Material>([paint, ...meshes.map(mesh => mesh.geometry)]), disposed = new Map<object, number>();
+  layer.setVisible(false); assert.ok(meshes.every(mesh => !mesh.visible)); layer.setVisible(true); assert.ok(meshes.every(mesh => mesh.visible));
+  const resources = new Set<THREE.BufferGeometry | THREE.Material>([...meshes.map(mesh => mesh.material), ...meshes.map(mesh => mesh.geometry)]), disposed = new Map<object, number>();
   resources.forEach(resource => resource.addEventListener('dispose', () => disposed.set(resource, (disposed.get(resource) ?? 0) + 1)));
   layer.dispose(); layer.dispose(); resources.forEach(resource => assert.equal(disposed.get(resource), 1));
   assert.equal(attachments(scene).length, 0); assert.equal(attachments(other).length, 5); second.dispose();

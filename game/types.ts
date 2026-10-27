@@ -18,6 +18,7 @@ export type Action =
   | { type: 'fission' | 'rainOfFire' | 'rejuvenator' | 'fearless' | 'thunderclap' }
   | { type: 'lightningShock' | 'bolt' | 'clap' }
   | { type: 'faceLogos' }
+  | { type: 'readyForLogos'; ready: boolean }
   | { type: 'provoke' }
   | { type: 'heal'; target?: number }
   | { type: 'shimmerWave' }
@@ -132,7 +133,7 @@ export interface GameState {
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
   encounter: 'crown' | 'logos';
-  logos: { stage: 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped'; elapsed: number };
+  logos: { stage: 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped'; elapsed: number; readySlots?: number[] };
   ultimatesUnlocked: boolean;
   duskRemaining: number;
   enemies: Enemy[];

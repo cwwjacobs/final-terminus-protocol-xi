@@ -97,7 +97,7 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (!Object.hasOwn(ROLES, role)) return false;
   if (isUltimate(type)) return ULTIMATES[role] === type;
   if ((FORM_ACTIONS as readonly string[]).includes(type)) return role === 'warden';
-  if (type === 'faceLogos' || type === 'selectEnemy') return true;
+  if (type === 'faceLogos' || type === 'selectEnemy' || type === 'readyForLogos') return true;
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
   if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
@@ -138,10 +138,14 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', 'selectEnemy', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', 'readyForLogos', 'selectEnemy', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
   if (action.type === 'faceLogos') return state.status === 'victory' && state.encounter === 'crown' ? null : 'Defeat Crown Resonance to descend to Logos.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
+  if (action.type === 'readyForLogos') {
+    if (typeof action.ready !== 'boolean') return 'Ready must be a boolean.';
+    return state.status === 'fighting' && state.encounter === 'logos' && state.logos.stage === 'descent' && actor.human ? null : 'Ready up is available to players during the descent.';
+  }
   if (actor.hp <= 0) return 'This actor has fallen.';
   if (!canUseActionRole(actor.role, action.type)) return `${actor.name} cannot use this ability.`;
   if (action.type === 'selectEnemy') return enemyTargets(state).some(e => e.id === action.id) ? null : 'That enemy target is unavailable.';

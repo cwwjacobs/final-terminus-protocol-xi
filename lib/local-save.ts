@@ -76,6 +76,7 @@ export function validSave(raw: unknown): raw is GameState {
   if (!['crown', 'logos'].includes(state.encounter) || !['none','descent','sentinels','giant','collapse','escaped'].includes(state.logos.stage) || !nonnegative(state.logos.elapsed) || state.ultimatesUnlocked !== (['giant','collapse','escaped'].includes(state.logos.stage)) ||
     !nonnegative(state.duskRemaining) || state.duskRemaining > 10 + FLOAT_TOLERANCE ||
     !Array.isArray(state.enemies) || state.enemies.length > 6 || state.encounter === 'crown' && (state.enemies.length !== 0 || state.logos.stage !== 'none') || state.encounter === 'logos' && state.logos.stage === 'none') return false;
+  if (state.logos.readySlots !== undefined && (!Array.isArray(state.logos.readySlots) || state.logos.readySlots.length > 5 || !state.logos.readySlots.every(slot) || new Set(state.logos.readySlots).size !== state.logos.readySlots.length || state.logos.stage !== 'descent' && state.logos.readySlots.length > 0)) return false;
   const statusValid = (enemy: { stunRemaining: unknown; burn: unknown }) => {
     if (!nonnegative(enemy.stunRemaining) || enemy.stunRemaining > 5 + FLOAT_TOLERANCE) return false;
     const burn = enemy.burn;

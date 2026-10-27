@@ -788,3 +788,19 @@ test('only the host can descend after Crown victory; room snapshots preserve unl
   const wrongRole = await sync(repo, mage, 2, NOW + 350, [{ type: 'thunderclap' }]);
   assert.equal(wrongRole.actionResults?.[0].ok, false); assert.equal(wrongRole.state.party[3].sonOfZeus, false);
 });
+
+test('descent votes belong to each authenticated player and retries cannot replay the transition', async () => {
+  const repo = new MemoryRepository(), owner = await create(repo);
+  const guest = await handleRoomRequest(repo, { op: 'join', code: owner.code, slot: 3 }, NOW) as RoomCredentials;
+  const stored = repo.rows.get(owner.code)!; stored.state.status = 'victory'; stored.state.boss.hp = 0;
+  await sync(repo, owner, 0, NOW + 100, [{ type: 'faceLogos' }]);
+  const waiting = await sync(repo, guest, 0, NOW + 200, [{ type: 'readyForLogos', ready: true }]);
+  assert.equal(waiting.state.logos.stage, 'descent'); assert.deepEqual(waiting.state.logos.readySlots, [guest.slot]);
+  const retry = await sync(repo, guest, 0, NOW + 250, [{ type: 'readyForLogos', ready: false }]);
+  assert.deepEqual(retry.state.logos.readySlots, [guest.slot], 'duplicate sequence cannot overwrite an accepted vote');
+  const started = await sync(repo, owner, 1, NOW + 300, [{ type: 'readyForLogos', ready: true }]);
+  assert.equal(started.state.logos.stage, 'sentinels'); assert.equal(started.actionResults?.[0].ok, true);
+  const duplicate = await sync(repo, owner, 1, NOW + 350, [{ type: 'readyForLogos', ready: true }]);
+  assert.equal(duplicate.state.events.filter(event => event.kind === 'sentinels_awaken').length, 1);
+  assert.equal(duplicate.state.ultimatesUnlocked, false);
+});

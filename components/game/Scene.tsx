@@ -16,7 +16,8 @@ import { createCinematicCombat } from './cinematic-combat';
 import { RenderBudget } from './render-budget';
 import { createAbilityEffects } from './ability-effects';
 import { createDivinePresentation } from './divine-visuals';
-import { createLogosEncounterVisuals, logosSequencePresentation } from './logos-encounter-visuals';
+import { logosSequencePresentation } from './logos-encounter-visuals';
+import { createLogosRig } from './logos-rig';
 import { offensiveTarget, sequenceLocked } from '../../game/logos.ts';
 import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
@@ -80,18 +81,15 @@ function sectorGeometry(halfAngle: number) {
 }
 
 function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
-  const stone = new THREE.MeshStandardMaterial({ color: '#142033', metalness: .56, roughness: .72 });
-  const edge = new THREE.MeshStandardMaterial({ color: '#6c6553', metalness: .8, roughness: .46 });
-  const dark = new THREE.MeshStandardMaterial({ color: '#0c1323', roughness: .65, metalness: .42 });
-  const gold = new THREE.MeshStandardMaterial({ color: '#bead7e', emissive: '#816435', emissiveIntensity: .32, metalness: .7, roughness: .35 });
-  const light = new THREE.MeshBasicMaterial({ color: '#e2c989' });
+  const stone = new THREE.MeshStandardMaterial({ color: '#0c0c10', metalness: .48, roughness: .5 });
+  const edge = new THREE.MeshStandardMaterial({ color: '#38363a', metalness: .7, roughness: .4 });
   const floorGroup = new THREE.Group(); floorGroup.name = 'encounter-floor'; scene.add(floorGroup);
-  const architectureGroup = new THREE.Group(); architectureGroup.name = 'upper-arena-architecture'; scene.add(architectureGroup);
-  const platform = mesh(floorGroup, new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS + .6, .8, 128), edge.clone(), 0, -.42);
+  const floorSegments = quality === 'high' ? 96 : 48;
+  const platform = mesh(floorGroup, new THREE.CylinderGeometry(ARENA_RADIUS, ARENA_RADIUS + .6, .8, floorSegments), edge, 0, -.42);
   platform.receiveShadow = true;
-  const ground = mesh(floorGroup, new THREE.CircleGeometry(ARENA_RADIUS, 128), stone, 0, .001);
+  const ground = mesh(floorGroup, new THREE.CircleGeometry(ARENA_RADIUS, floorSegments), stone, 0, .001);
   ground.rotation.x = floorRotation; ground.receiveShadow = true;
-  ring(floorGroup, ARENA_RADIUS - .32, ARENA_RADIUS - .18, '#e2c989');
+  ring(floorGroup, ARENA_RADIUS - .32, ARENA_RADIUS - .22, '#b39a65', .65);
   ring(floorGroup, ARENA_RADIUS - .8, ARENA_RADIUS - .77, '#a2926b', .75);
   ring(floorGroup, 18.95, 19.02, '#6e7f8a', .42);
   ring(floorGroup, 12.95, 13.02, '#6e7f8a', .42);
@@ -114,65 +112,8 @@ function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
   lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3));
   floorGroup.add(new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({ color: '#9b957c', transparent: true, opacity: .25 })));
 
-  // Instancing holds architecture to a handful of draw calls as the scene grows.
-  const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), scale = new THREE.Vector3();
-  const quaternion = new THREE.Quaternion(), euler = new THREE.Euler();
-  const pillars = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), dark, 28);
-  const crowns = new THREE.InstancedMesh(new THREE.OctahedronGeometry(.5, 0), gold, 28);
-  const seams = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), light, 28);
-  for (let i = 0; i < 28; i++) {
-    const a = i / 28 * Math.PI * 2, radius = 31 + (i % 3) * 5;
-    const height = 7 + ((i * 7) % 11), x = Math.sin(a) * radius, z = Math.cos(a) * radius;
-    quaternion.setFromEuler(euler.set(0, -a, Math.sin(i * 4.7) * .14));
-    position.set(x, height / 2 - 6, z); scale.set(1.7 + i % 2, height, 1.5);
-    matrix.compose(position, quaternion, scale); pillars.setMatrixAt(i, matrix);
-    position.y += height / 2 + 1; scale.set(2.5, 4, 2.5);
-    matrix.compose(position, quaternion, scale); crowns.setMatrixAt(i, matrix);
-    position.set(x + Math.sin(a) * -.84, height / 2 - 6, z + Math.cos(a) * -.84);
-    scale.set(.055, height * .84, .055); matrix.compose(position, quaternion, scale); seams.setMatrixAt(i, matrix);
-  }
-  architectureGroup.add(pillars, crowns, seams);
-
-  // A broken orbital gate anchors the horizon beyond Crown Resonance.
-  const gate = new THREE.Group(); gate.position.set(0, 10, -37); gate.rotation.z = .12;
-  mesh(gate, new THREE.TorusGeometry(12, .18, 5, 100, Math.PI * 1.73), gold);
-  mesh(gate, new THREE.TorusGeometry(12.8, .06, 4, 100, Math.PI * 1.58), light);
-  mesh(gate, new THREE.TorusGeometry(10.8, .025, 4, 100), light);
-  architectureGroup.add(gate);
-
-  const shardCount = quality === 'high' ? 180 : 90;
-  const shards = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), edge, shardCount);
-  for (let i = 0; i < shardCount; i++) {
-    const a = i * 2.3999632297, radius = 29 + (i * 13 % 55), h = -7 + (i * 17 % 45);
-    position.set(Math.sin(a) * radius, h, Math.cos(a) * radius);
-    quaternion.setFromEuler(euler.set(i * .8, i * .5, i * .3));
-    const size = .2 + (i % 7) * .12; scale.set(size, size * (2 + i % 4), size);
-    matrix.compose(position, quaternion, scale); shards.setMatrixAt(i, matrix);
-  }
-  architectureGroup.add(shards);
-
-  const starCount = quality === 'high' ? 1100 : 550;
-  const starPositions = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i++) {
-    const a = i * 2.3999632297, b = Math.acos(1 - 2 * (i + .5) / starCount);
-    starPositions[i * 3] = Math.sin(b) * Math.cos(a) * 120;
-    starPositions[i * 3 + 1] = Math.cos(b) * 100;
-    starPositions[i * 3 + 2] = Math.sin(b) * Math.sin(a) * 120;
-  }
-  const starGeometry = new THREE.BufferGeometry(); starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
-  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: '#abc0d6', size: .12, transparent: true, opacity: .62, sizeAttenuation: true, depthWrite: false }));
-  scene.add(stars);
-  const lowerArena = new THREE.Group(); lowerArena.name = 'lower-arena-architecture'; lowerArena.visible = false; scene.add(lowerArena);
-  const lowerPaint = new THREE.MeshStandardMaterial({ color: '#252039', metalness: .7, roughness: .4, transparent: true });
-  const lowerLight = new THREE.MeshBasicMaterial({ color: '#c7b9ef', transparent: true, opacity: .7, depthWrite: false });
-  const lowerColumn = new THREE.CylinderGeometry(.55, 1.1, 12, 6);
-  for (let i = 0; i < 12; i++) {
-    const a = i / 12 * Math.PI * 2, x = Math.sin(a) * 28, z = Math.cos(a) * 28;
-    mesh(lowerArena, lowerColumn, lowerPaint, x, 3 + i % 3, z);
-    mesh(lowerArena, new THREE.OctahedronGeometry(.5, 0), lowerLight, x, 9 + i % 3, z).scale.set(1, 2, 1);
-  }
-  const lowerHalo = ring(lowerArena, 26.5, 26.65, '#c0afd9', .65, -.2);
-  lowerHalo.rotation.x = floorRotation;
+  // The Quantum Realm is an open void: no decorative spires, floating stone
+  // shards, orbital gates or star dome around the readable combat platform.
   const floorMaterials: { material: THREE.Material; opacity: number; transparent: boolean }[] = [];
   const known = new Set<THREE.Material>();
   floorGroup.traverse(object => {
@@ -180,7 +121,7 @@ function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
       if (!known.has(material)) { known.add(material); floorMaterials.push({ material, opacity: material.opacity, transparent: material.transparent }); }
     }
   });
-  return { shards, gate, stars, floorGroup, architectureGroup, lowerArena, lowerPaint, lowerLight, floorMaterials, stone, edge, gold };
+  return { floorGroup, floorMaterials, stone };
 }
 
 interface Effect {
@@ -265,7 +206,7 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.dataset.renderScale = String(renderBudget.pixelRatio);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.28;
+    renderer.toneMappingExposure = 1.12;
     renderer.shadowMap.enabled = props.quality === 'high';
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;outline:none;touch-action:none';
@@ -273,15 +214,15 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.dataset.gameCanvas = 'true';
     host.insertBefore(renderer.domElement, host.firstChild);
 
-    const scene = new THREE.Scene(); scene.background = new THREE.Color('#060b17');
-    scene.fog = new THREE.FogExp2('#080e20', .0105);
+    const scene = new THREE.Scene(); scene.background = new THREE.Color('#000000');
+    scene.fog = new THREE.FogExp2('#000001', .004);
     const camera = new THREE.PerspectiveCamera(58, 1, .15, 220);
-    scene.add(new THREE.HemisphereLight('#b3cbdc', '#2b1739', 2.5));
+    scene.add(new THREE.HemisphereLight('#c2c7cf', '#09080d', 1.8));
     const key = new THREE.DirectionalLight('#ffdfac', 3.1); key.position.set(-10, 18, 9);
     key.castShadow = props.quality === 'high'; key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -27; key.shadow.camera.right = 27; key.shadow.camera.top = 27; key.shadow.camera.bottom = -27;
     key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; scene.add(key);
-    const rim = new THREE.DirectionalLight('#8d88ff', 2.4); rim.position.set(8, 9, -16); scene.add(rim);
+    const rim = new THREE.DirectionalLight('#a5b6d1', 1.7); rim.position.set(8, 9, -16); scene.add(rim);
     const world = buildWorld(scene, props.quality);
     const atmosphere = createCinematicEnvironment(scene, world.floorGroup, props.quality);
     const assets = new ActorAssets();
@@ -299,14 +240,14 @@ export default function Scene(props: SceneProps) {
     const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
     const divine = createDivinePresentation(scene, rigs, props.quality);
-    const logosArt = createLogosEncounterVisuals(scene, props.quality);
+    const logosRig = createLogosRig(props.quality); scene.add(logosRig.root);
     const escapeLight = new THREE.Group(); escapeLight.name = 'abstract-recall-light'; escapeLight.visible = false; scene.add(escapeLight);
     const recallPaint = new THREE.MeshBasicMaterial({ color: '#e4dcff', transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
     mesh(escapeLight, new THREE.CylinderGeometry(22, 20, 35, 48, 1, true), recallPaint, 0, 15, 0);
     const recallRing = ring(escapeLight, 20, 21.5, '#f5edff', .6, .03);
-    const crownBackground = new THREE.Color('#060b17'), lowerBackground = new THREE.Color('#0b0619'), escapeBackground = new THREE.Color('#b6abc8');
-    const crownFog = new THREE.Color('#080e20'), lowerFog = new THREE.Color('#1b102d');
-    const crownStone = new THREE.Color('#142033'), lowerStone = new THREE.Color('#21172e');
+    const crownBackground = new THREE.Color('#000000'), lowerBackground = new THREE.Color('#000000'), escapeBackground = new THREE.Color('#b6abc8');
+    const crownFog = new THREE.Color('#000001'), lowerFog = new THREE.Color('#010003');
+    const crownStone = new THREE.Color('#0c0c10'), lowerStone = new THREE.Color('#0a080e');
     bossRig.root.position.set(latest.current.state.boss.x, 0, latest.current.state.boss.z);
 
     const targetRing = ring(scene, 2.95, 3.01, '#ead39a', .9, .045);
@@ -349,8 +290,8 @@ export default function Scene(props: SceneProps) {
       const actor = state.party[event.actor ?? -1];
       const target = actor ? offensiveTarget(state, actor) : state.boss;
       const id = event.enemyId ?? ('id' in target ? target.id : 'boss');
-      const anchor = logosArt.targets.get(id); if (!anchor) return false;
-      anchor.getWorldPosition(out); out.y += id.includes('hand') ? 4.2 : id.startsWith('sentinel-') ? 2.2 : 0; return true;
+      const anchor = logosRig.targets.get(id); if (!anchor) return false;
+      anchor.getWorldPosition(out); return true;
     });
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
     const motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -363,6 +304,7 @@ export default function Scene(props: SceneProps) {
     renderer.domElement.dataset.characterStyle = props.characterStyle;
     renderer.domElement.dataset.characterModels = '0';
     renderer.domElement.dataset.characterModelFailures = '0';
+    void logosRig.ready.then(() => { if (!stopped) renderer.domElement.dataset.logosRig = logosRig.stats.assetStatus; });
     const modelRequests = props.characterStyle === 'painted' ? latest.current.state.party.map((actor, i) => {
         return heroCache.load(actor.id).then(visual => {
           if (stopped) { visual.dispose(); return; }
@@ -382,7 +324,7 @@ export default function Scene(props: SceneProps) {
       }) : [];
     // A run starts after models (or their scaffold fallbacks) and initial shader
     // compilation are ready, instead of spending the combat clock on loading.
-    void Promise.allSettled(modelRequests).then(async () => {
+    void Promise.allSettled([...modelRequests, logosRig.ready]).then(async () => {
       if (stopped) return;
       try {
         await renderer.compileAsync(scene, camera);
@@ -395,7 +337,7 @@ export default function Scene(props: SceneProps) {
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let presentationActive = latest.current.presentationActive !== false && !document.hidden;
     const clearPresentation = () => {
-      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); cinema.reset(); atmosphere.reset(); divine.reset(); logosArt.reset();
+      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); cinema.reset(); atmosphere.reset(); divine.reset(); logosRig.reset();
       heroVisuals.forEach(visual => visual?.resetCombat());
       rigs.forEach(rig => { rig.attack = 0; }); bossRig.attack = 0;
       effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
@@ -474,10 +416,10 @@ export default function Scene(props: SceneProps) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
         const height = feedback.target === 'boss' ? 3.4 : heroVisuals[feedback.target]?.labelHeight ?? 2.4;
         const enemy = event.enemyId ? state.enemies.find(enemy => enemy.id === event.enemyId) : undefined;
-        const anchor = state.encounter === 'logos' && feedback.target === 'boss' ? logosArt.targets.get(event.enemyId ?? 'boss') : undefined;
+        const anchor = state.encounter === 'logos' && feedback.target === 'boss' ? logosRig.targets.get(event.enemyId ?? 'boss') : undefined;
         if (anchor) {
           anchor.getWorldPosition(feedbackWorld);
-          feedbackWorld.y += event.enemyId?.includes('hand') ? 4.2 : event.enemyId ? 3 : .6;
+          feedbackWorld.y += .55;
           numbers.spawn(feedback, feedbackWorld);
         } else numbers.spawn(feedback, { x: enemy?.x ?? target.root.position.x, y: enemy ? 2.8 : target.root.position.y + height + .2, z: enemy?.z ?? target.root.position.z });
       }
@@ -536,14 +478,12 @@ export default function Scene(props: SceneProps) {
         if (material.transparent !== nextTransparent) { material.transparent = nextTransparent; material.needsUpdate = true; }
         material.opacity = opacity * sequence.floorOpacity;
       });
-      world.architectureGroup.position.y = sequence.descentHeight;
-      world.lowerArena.visible = sequence.lowerBlend > 0; world.lowerPaint.opacity = sequence.lowerBlend; world.lowerLight.opacity = sequence.lowerBlend * .7;
       world.stone.color.copy(crownStone).lerp(lowerStone, sequence.lowerBlend);
       (scene.background as THREE.Color).copy(crownBackground).lerp(lowerBackground, sequence.lowerBlend).lerp(escapeBackground, sequence.escapeOpacity * .7);
       (scene.fog as THREE.FogExp2).color.copy(crownFog).lerp(lowerFog, sequence.lowerBlend);
       escapeLight.visible = sequence.escapeOpacity > 0; escapeLight.position.y = sequence.actorY;
       recallPaint.opacity = sequence.escapeOpacity * .09; (recallRing.material as THREE.MeshBasicMaterial).opacity = sequence.escapeOpacity * .6;
-      logosArt.update(presentationActive ? dt : 0, state, reducedMotion, selectedTarget);
+      logosRig.update(presentationActive ? dt : 0, state, reducedMotion);
       const nextActive = latest.current.presentationActive !== false && !document.hidden;
       if (nextActive !== presentationActive) rebaselinePresentation();
       const incoming = eventFeed.read(state, presentationEpoch);
@@ -553,6 +493,11 @@ export default function Scene(props: SceneProps) {
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
         heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
+        logosRig.root.traverse(object => {
+          if (object instanceof THREE.Mesh) for (const material of Array.isArray(object.material) ? object.material : [object.material]) {
+            if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe;
+          }
+        });
         lastWireframe = wireframe;
       }
       for (const event of presentationActive ? incoming.events : []) {
@@ -585,9 +530,9 @@ export default function Scene(props: SceneProps) {
         const speed = Math.hypot(rig.root.position.x - beforeX, rig.root.position.z - beforeZ) / dt;
         const visual = heroVisuals[i];
         rig.root.scale.setScalar(actor.sonOfZeus ? 2 : 1);
-        rig.body.visible = !actor.sonOfZeus && !visual;
-        rig.ornament.visible = !actor.sonOfZeus && !visual;
-        if (visual) visual.object.visible = !actor.sonOfZeus;
+        rig.body.visible = !visual;
+        rig.ornament.visible = !visual;
+        if (visual) { visual.object.visible = true; visual.setDivineForm?.(actor.sonOfZeus); }
         if (visual) {
           rig.attack = Math.max(0, rig.attack - dt * 2.5);
           visual.update(dt, speed, actor.hp > 0, rig.attack);
@@ -621,8 +566,8 @@ export default function Scene(props: SceneProps) {
       targetRing.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .18));
       targetMaterial.color.setRGB(.86 + pulse * .14, .69 + pulse * .31, .4 + pulse * .6);
       targetMaterial.opacity = .65 + pulse * .35;
-      const targetAnchor = state.encounter === 'logos' ? logosArt.targets.get(targetId) : undefined;
-      if (targetAnchor) { targetAnchor.getWorldPosition(targetWorld); targetWorld.y += targetId.includes('hand') ? 4 : targetId.startsWith('sentinel-') ? 3 : 0; targetReticle.position.copy(targetWorld); }
+      const targetAnchor = state.encounter === 'logos' ? logosRig.targets.get(targetId) : undefined;
+      if (targetAnchor) { targetAnchor.getWorldPosition(targetWorld); targetReticle.position.copy(targetWorld); }
       else targetReticle.position.set(bossRig.root.position.x, 3.8, bossRig.root.position.z);
       targetReticle.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .5));
       reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
@@ -672,10 +617,6 @@ export default function Scene(props: SceneProps) {
         effect.ring.material.opacity = (1 - progress) * (effect.calm ? .55 : .85);
         effect.beam.visible = effect.beam.visible && (effect.calm || progress < .28);
       }
-      if (!reducedMotion) {
-        world.shards.rotation.y = Math.sin(now * .000015) * .018;
-        world.stars.rotation.y = now * .000001;
-      }
       // Engaging locks the view toward the living enemy; disengaging leaves this
       // heading in place for free orbit. Input reads the same yaw for movement.
       const orbit = cameraState ?? fallbackCamera;
@@ -685,7 +626,7 @@ export default function Scene(props: SceneProps) {
       cameraLook.set(pose.lookAt.x, pose.lookAt.y, pose.lookAt.z);
       cameraPosition.y += sequence.actorY; cameraLook.y += sequence.actorY;
       if (state.encounter === 'logos' && state.logos.stage === 'giant' && lockedTarget === state.boss) {
-        logosArt.targets.get('boss')?.getWorldPosition(targetWorld); cameraLook.lerp(targetWorld, .35);
+        logosRig.targets.get('boss')?.getWorldPosition(targetWorld); cameraLook.lerp(targetWorld, .35);
       }
       if (!initializedCamera) { camera.position.copy(cameraPosition); smoothedLook.copy(cameraLook); initializedCamera = true; }
       else { camera.position.lerp(cameraPosition, 1 - Math.exp(-7 * dt)); smoothedLook.lerp(cameraLook, 1 - Math.exp(-9 * dt)); }
@@ -723,7 +664,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosArt.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose();
       document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
@@ -744,7 +685,7 @@ export default function Scene(props: SceneProps) {
   // Visual preferences rebuild the scene; simulation snapshots are read through latest.
   }, [props.quality, props.characterStyle]);
 
-  return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#060b17' }}>
+  return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#000000' }}>
     {props.state.party.map((actor, index) => {
       return <div className="party-world-label" key={actor.id} ref={element => { labelRefs.current[index] = element; }} style={labelStyle}>
         <span style={{ color: actor.color }}><Icon name={roleIcon(actor.role)} className="label-sigil"/>{actor.name}</span>
