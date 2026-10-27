@@ -43,6 +43,8 @@ export interface MainMenuProps {
   onSettings: () => void;
   onControls: () => void;
   onGuide: () => void;
+  onRetryLoad: () => void;
+  onLightLoad: () => void;
   loading?: { ready: boolean; loaded: number; total: number; error?: string };
 }
 
@@ -54,7 +56,9 @@ export default function MainMenu(props: MainMenuProps) {
   const { view, state, slot, selectedHeroSlot, controlLabel, mode, roomCode, hostSlot, members, busy, error, inviteInput, canResume, canReconnect, footer } = props;
   const selectedHero = PARTY[selectedHeroSlot] ?? PARTY[0];
   const panel = useRef<HTMLElement>(null);
+  useEffect(() => { panel.current?.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [view]);
   useEffect(() => { panel.current?.querySelector<HTMLElement>('[data-autofocus]')?.focus({ preventScroll: true }); }, [view, busy]);
+  useEffect(() => { if (props.loading?.error) panel.current?.querySelector<HTMLElement>('.battlefield-recovery button')?.focus(); }, [props.loading?.error]);
   const connected = members ? members.filter(member => member.connected).length : state.party.filter(actor => actor.human).length;
   const isHost = hostSlot !== null && hostSlot !== undefined && hostSlot === slot;
   const partyLoading = !props.loading?.ready || members?.some(member => member.connected && member.loaded === false);
@@ -94,11 +98,15 @@ export default function MainMenu(props: MainMenuProps) {
           <progress max={Math.max(1,props.loading?.total ?? 5)} value={props.loading?.ready ? Math.max(1,props.loading.total) : props.loading?.loaded ?? 0} aria-label="Battlefield loading"/>
           <small>{props.loading?.error ?? (props.loading?.ready ? 'Your heroes and arena are ready.' : `${props.loading?.loaded ?? 0} / ${props.loading?.total ?? 5} heroes · preparing shaders`)}</small>
         </div>}
+        {(view === 'loading'||view === 'lobby') && !props.loading?.ready && <div className="battlefield-recovery">
+          <p>{props.loading?.error ? 'Your run is kept. Choose a recovery option below.' : 'Slow connection or older phone? Basic hero models need less memory and no model downloads.'}</p>
+          <div><button type="button" onClick={props.onLightLoad} disabled={busy}>Use lighter 3D</button>{props.loading?.error && <button type="button" onClick={props.onRetryLoad} disabled={busy}>Retry loading</button>}</div>
+        </div>}
         {view === 'loading' && <><ul className="main-menu-party" aria-label="Your expedition">{state.party.map((actor,index)=><li key={actor.id}><span className="main-menu-party-sigil" style={{color:actor.color}}><Icon name={roleIcon(actor.role)}/></span><span className="main-menu-party-name">{actor.name}<small>{actor.role}</small></span><span className="main-menu-party-status">{index===slot?'YOU':'TRUST'}</span></li>)}</ul><p className="main-menu-note">The encounter begins when the battlefield finishes loading.</p></>}
         {view === 'home' && <div className="main-menu-choices">
           {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}><span>Resume encounter<small>Continue as {state.party[slot]?.name ?? selectedHero.name}</small></span><Icon name="arrow"/></button>}
-          <button type="button" className="main-menu-choose-hero" disabled={busy} onClick={() => props.onView('heroes')}><span className="main-menu-chosen-sigil" style={{ color: selectedHero.color }}><Icon name={roleIcon(selectedHero.role)}/></span><span>Choose hero<small>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></small></span><Icon name="arrow"/></button>
           <button type="button" className={canResume ? '' : 'primary'} data-autofocus={!canResume || undefined} disabled={busy} onClick={() => props.onView('solo')}><span>Play solo<small>You and four trusts</small></span><Icon name="arrow"/></button>
+          <button type="button" className="main-menu-choose-hero" disabled={busy} onClick={() => props.onView('heroes')}><span className="main-menu-chosen-sigil" style={{ color: selectedHero.color }}><Icon name={roleIcon(selectedHero.role)}/></span><span>Choose hero<small>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></small></span><Icon name="arrow"/></button>
           <div className="main-menu-online-choices">
             <button type="button" disabled={busy} onClick={() => props.onView('host')}><Icon name="party"/><span>Host a party<small>1–5 players</small></span></button>
             <button type="button" disabled={busy} onClick={() => props.onView('join')}><Icon name="arrowOut"/><span>Join a party<small>Invite code or link</small></span></button>
@@ -163,7 +171,7 @@ export default function MainMenu(props: MainMenuProps) {
         </>}
       </div>
 
-      <footer className="main-menu-footer">
+      <footer className="main-menu-footer" data-launch={['heroes','solo','host','join','lobby'].includes(view)}>
         {view === 'heroes' && <button type="button" className="primary main-menu-launch" disabled={busy} onClick={() => props.onView('home')}>Continue as {selectedHero.name}<Icon name="arrow"/></button>}
         {view === 'solo' && <button type="button" className="primary main-menu-launch" disabled={busy} onClick={props.onSolo}>Start solo encounter <Icon name="arrow"/></button>}
         {view === 'host' && <button type="button" data-autofocus className="primary main-menu-launch" disabled={busy} onClick={props.onHost}>{busy ? 'Creating room…' : 'Create party room'}<Icon name="arrow"/></button>}
