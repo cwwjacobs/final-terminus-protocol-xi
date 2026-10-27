@@ -56,7 +56,7 @@
 .main-menu-party-status{text-align:right;font-size:8px;letter-spacing:.8px;color:var(--mint,#80e9df)}
 .main-menu-party-status small{display:block;margin-top:4px;color:var(--gold,#d2b47a);font-size:7px;letter-spacing:.7px}
 .main-menu-footer{padding-top:13px}
-.main-menu-panel .main-menu-launch{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:43px;padding:11px 13px}
+.main-menu-panel .main-menu-launch{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:48px;padding:11px 13px}
 .main-menu-panel .main-menu-controls{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:44px;padding:9px 12px;text-align:left}
 .main-menu-controls small{margin-top:3px}
 .main-menu-links{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px}
@@ -89,3 +89,16 @@
 .main-menu-loading{background:linear-gradient(140deg,#181b26f5,#171322f2);backdrop-filter:none;-webkit-backdrop-filter:none}
 @media(max-width:650px){.main-menu-stage[data-outside=true]{padding:12px;justify-items:center}.main-menu-stage[data-outside=true]::before{background:#05050575}.main-menu-home .main-menu-heading h1{font-size:20px;letter-spacing:.5px}.main-menu-subtitle{font-size:9px;letter-spacing:3px}.main-menu-stage[data-view=splash] .start-screen-art{object-position:center 35%}.main-menu-splash{bottom:max(7vh,env(safe-area-inset-bottom))}}
 @media(forced-colors:active){.start-screen-art{display:none}.start-screen-enter,.start-screen-music{background:Canvas!important;color:CanvasText!important;border:1px solid CanvasText}.main-menu-splash .screen-reader-only{position:static;width:auto;height:auto;clip:auto;white-space:normal;margin:0 0 24px}}
+
+/* A phone's browser bars can leave less than 300px in landscape. Scroll the
+   whole menu here: fixed heading/footer rows must never collapse Play to 0px. */
+@media(max-height:600px){
+  .main-menu-panel{overflow-y:auto;overscroll-behavior:contain;scroll-padding:12px;scrollbar-width:thin}
+  .main-menu-solo,.main-menu-host,.main-menu-heroes,.main-menu-join,.main-menu-lobby{scroll-padding-bottom:150px}
+  .main-menu-content{flex:0 0 auto;overflow:visible;margin-bottom:4px}
+  .main-menu-footer[data-launch=true]{position:sticky;bottom:-12px;z-index:3;margin:0 -6px;padding:10px 6px 6px;background:#14121bf5;border-top:1px solid #d7bf8933;box-shadow:0 -8px 18px #0004}
+  .main-menu-panel .main-menu-launch{min-height:48px;touch-action:manipulation}
+}
+.main-menu-panel button,.start-screen-enter{touch-action:manipulation}
+
+.battlefield-recovery{padding:10px;border:1px solid #d7bf8933;border-radius:6px;margin:0 0 12px;background:#17151c}.battlefield-recovery p{font-size:11px;line-height:1.5;color:#c5bed0;margin:0 0 8px}.battlefield-recovery>div{display:flex;flex-wrap:wrap;gap:8px}.main-menu-panel .battlefield-recovery button{min-height:44px;padding:8px 12px}

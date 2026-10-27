@@ -14,6 +14,7 @@ import { createStormEffects } from './storm-effects';
 import { createCinematicEnvironment } from './cinematic-environment';
 import { createCinematicCombat } from './cinematic-combat';
 import { RenderBudget } from './render-budget';
+import { awaitBattlefield } from './scene-loading';
 import { createAbilityEffects } from './ability-effects';
 import { createDivinePresentation } from './divine-visuals';
 import { logosSequencePresentation } from './logos-encounter-visuals';
@@ -196,8 +197,8 @@ export default function Scene(props: SceneProps) {
     } catch {
       // Renderer startup is external system state; surface its failure in the UI.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setError('The 3D renderer could not start. Enable WebGL / hardware acceleration, then reload to enter the Quantum Plane.');
-      latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.state.party.length, error: 'The battlefield needs WebGL. Enable hardware acceleration, then reload to enter.' });
+      setError('3D could not start in this browser. Try lighter graphics or open the game in your device’s main browser.');
+      latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.state.party.length, error: '3D could not start here. Try lighter graphics, or open this game in your device’s main browser.' });
       return;
     }
     setError(null);
@@ -240,7 +241,7 @@ export default function Scene(props: SceneProps) {
     const heroVisuals: (HeroVisual | null)[] = rigs.map(() => null);
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
     const divine = createDivinePresentation(scene, rigs, props.quality);
-    const logosRig = createLogosRig(props.quality); scene.add(logosRig.root);
+    const logosRig = createLogosRig(props.quality, { loader: props.characterStyle === 'scaffold' ? false : undefined }); scene.add(logosRig.root);
     const escapeLight = new THREE.Group(); escapeLight.name = 'abstract-recall-light'; escapeLight.visible = false; scene.add(escapeLight);
     const recallPaint = new THREE.MeshBasicMaterial({ color: '#e4dcff', transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
     mesh(escapeLight, new THREE.CylinderGeometry(22, 20, 35, 48, 1, true), recallPaint, 0, 15, 0);
@@ -301,13 +302,14 @@ export default function Scene(props: SceneProps) {
 
     let frame = 0, stopped = false, previous = performance.now(), reportAt = previous, frames = 0, animationTime = 0;
     let loadedModels = 0, failedModels = 0;
+    let loadingFailed = false;
     renderer.domElement.dataset.characterStyle = props.characterStyle;
     renderer.domElement.dataset.characterModels = '0';
     renderer.domElement.dataset.characterModelFailures = '0';
     void logosRig.ready.then(() => { if (!stopped) renderer.domElement.dataset.logosRig = logosRig.stats.assetStatus; });
     const modelRequests = props.characterStyle === 'painted' ? latest.current.state.party.map((actor, i) => {
         return heroCache.load(actor.id).then(visual => {
-          if (stopped) { visual.dispose(); return; }
+          if (stopped || loadingFailed) { visual.dispose(); return; }
           const rig = rigs[i];
           visual.setWireframe(latest.current.wireframe);
           // Keep the world root and selection ring. Only replace its artwork.
@@ -315,23 +317,28 @@ export default function Scene(props: SceneProps) {
           rig.root.add(visual.object); heroVisuals[i] = visual;
           renderer.domElement.dataset.characterModels = String(++loadedModels);
         }).catch(() => {
-          if (stopped) return;
+          if (stopped || loadingFailed) return;
           // A missing asset leaves this actor's fully functional scaffold visible.
           renderer.domElement.dataset.characterModelFailures = String(++failedModels);
         }).finally(() => {
-          if (!stopped) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: latest.current.state.party.length });
+          if (!stopped && !loadingFailed) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: latest.current.state.party.length });
         });
       }) : [];
     // A run starts after models (or their scaffold fallbacks) and initial shader
     // compilation are ready, instead of spending the combat clock on loading.
-    void Promise.allSettled([...modelRequests, logosRig.ready]).then(async () => {
-      if (stopped) return;
-      try {
-        await renderer.compileAsync(scene, camera);
-        if (!stopped) latest.current.onLoadStatus?.({ ready: true, loaded: modelRequests.length, total: modelRequests.length });
-      } catch {
-        if (!stopped) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: modelRequests.length, error: 'The battlefield could not finish preparing. Return to the title and try Performance graphics.' });
-      }
+    const loadingController = new AbortController();
+    const preparation = Promise.allSettled([...modelRequests, logosRig.ready]).then(async () => {
+      if (stopped || loadingFailed) return;
+      // The lightweight route has no model downloads or parallel-driver wait.
+      if (props.characterStyle === 'scaffold') renderer.compile(scene, camera);
+      else await renderer.compileAsync(scene, camera);
+      if (!stopped && !loadingFailed) renderer.render(scene, camera);
+    });
+    void awaitBattlefield(preparation, loadingController.signal).then(() => {
+      if (!stopped) latest.current.onLoadStatus?.({ ready: true, loaded: modelRequests.length, total: modelRequests.length });
+    }).catch(() => {
+      loadingFailed = true;
+      if (!stopped) latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels + failedModels, total: modelRequests.length, error: 'The battlefield did not finish loading. Retry, or use lighter graphics to enter with basic hero models.' });
     });
     let eventFeed = new PresentationEvents(latest.current.state, latest.current.presentationEpoch);
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
@@ -396,7 +403,7 @@ export default function Scene(props: SceneProps) {
     if (host.parentElement) dockObserver.observe(host.parentElement, { childList: true, attributes: true, attributeFilter: ['data-layout', 'data-interface', 'data-front'] });
     resize();
     const onContextLost = (event: Event) => {
-      event.preventDefault(); stopped = true; cancelAnimationFrame(frame); clearPresentation();
+      event.preventDefault(); stopped = true; loadingController.abort(); cancelAnimationFrame(frame); clearPresentation();
       setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
       latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels, total: props.state.party.length, error: 'The graphics context was interrupted. Reload to restore the battlefield.' });
     };
@@ -663,7 +670,7 @@ export default function Scene(props: SceneProps) {
     };
     frame = requestAnimationFrame(render);
     return () => {
-      stopped = true; cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
+      stopped = true; loadingController.abort(); cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
       motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose();
       document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);

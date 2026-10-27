@@ -4,6 +4,8 @@ The supplied Zeus/Logos artwork is the opening screen. **Enter → The Q Protoco
 
 Solo play waits for hero loading (with scaffold fallbacks) and initial shader preparation before starting the combat clock. Online lobbies show each connected player's loading state; the server rejects a host's start until those clients are loaded. Empty places remain trusts. A disconnected loading client becomes a trust after the existing presence timeout. An already-running room continues during a late joiner's load. Older clients without the additive readiness field keep their existing behavior.
 
+On short landscape screens the whole menu scrolls, with Play solo first and Start kept visible during hero selection. Loading offers **Use lighter 3D** (Performance graphics and basic models without GLB downloads); failed or stalled attempts offer **Retry loading** after at most 20 seconds. New touch devices default to Performance graphics. See [mobile entry verification](docs/MOBILE-ENTRY.md).
+
 A first playable foundation for Corey's Terminus Q Protocol: a third-person, real-time party battle built around **auto attacks → TP → weaponskills → skillchains → Magic Bursts**, with a hate (enmity) system deciding who holds the enemy's attention.
 
 Lead one character and four trusts, or replace trust slots with other players for a party of one to five. The camera follows behind the controlled character. This milestone has a single arena, five painted character models, Crown Resonance followed by the lower-arena sentinel and giant Logos sequence, a shorter trial and a sustained god mode. Its combat rhythm draws from Final Fantasy XI; the cast and presentation use Terminus vocabulary and character references.
