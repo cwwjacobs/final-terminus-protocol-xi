@@ -68,12 +68,12 @@ test('the shared presentation schedule delays ordinary contacts only', () => {
   assert.equal(presentationContact({ kind: 'boss_impact', text: '' }), 0);
 });
 
-test('the engine emits weaponskill, chain, magic and shot identity with unchanged costs and damage', () => {
+test('the engine emits weaponskill, chain, magic and shot identity with the tuned elemental passives', () => {
   const s = battle(); s.party[0].tp = 1000;
   assert.equal(applyAction(s, 0, { type: 'weapon', id: 'cleave' }).ok, true);
   const cleave = s.events.at(-1)!;
-  assert.equal(cleave.abilityId, 'weapon:cleave'); assert.equal(cleave.weaponId, 'cleave'); assert.equal(cleave.value, 660);
-  assert.equal(s.rng, 1015568748); assert.equal(s.party[0].tp, 0); assert.equal(s.party[0].cooldowns['weapon:cleave'], 2);
+  assert.equal(cleave.abilityId, 'weapon:cleave'); assert.equal(cleave.weaponId, 'cleave'); assert.equal(cleave.value, 891);
+  assert.equal(s.rng, 1015568748); assert.equal(s.party[0].tp, 200); assert.equal(s.party[0].cooldowns['weapon:cleave'], 2);
   stepGame(s, 1.6); s.party[1].tp = 1000;
   assert.equal(applyAction(s, 1, { type: 'weapon', id: 'pierce' }).ok, true);
   const chain = s.events.at(-1)!;
@@ -82,11 +82,11 @@ test('the engine emits weaponskill, chain, magic and shot identity with unchange
   assert.equal(applyAction(s, 3, { type: 'magic', element: 'fire' }).ok, true);
   const fire = s.events.at(-1)!;
   assert.equal(fire.kind, 'burst'); assert.equal(fire.abilityId, 'magic:fire'); assert.equal(fire.element, 'fire'); assert.equal(fire.value, 1122);
-  assert.equal(s.party[3].mp, 1430); assert.equal(s.party[3].spellRecovery, 2); assert.equal(s.boss.hp, 101888);
+  assert.equal(s.party[3].mp, 1430); assert.equal(s.party[3].spellRecovery, 2); assert.equal(s.boss.hp, 101657);
   s.party[2].shotElement = 'ice';
   assert.equal(applyAction(s, 2, { type: 'elementalShot' }).ok, true);
   const shot = s.events.at(-1)!;
-  assert.equal(shot.abilityId, 'elementalShot'); assert.equal(shot.element, 'ice'); assert.equal(shot.value, 230);
+  assert.equal(shot.abilityId, 'elementalShot'); assert.equal(shot.element, 'ice'); assert.equal(shot.value, 276);
   assert.equal(s.party[2].mp, 285); assert.equal(s.rng, rng, 'presentation identity never draws randomness');
 });
 

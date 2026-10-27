@@ -72,8 +72,8 @@ export function abilityDetail(actor: Actor, action: Action): string {
   if (cooldown > 0) return `${formatCooldown(cooldown)} recast`;
   if (action.type === 'clap') return '1,000+ TP · area stun';
   if (['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator'].includes(action.type)) return 'Ultimate ready · 10m recast';
-  if (action.type === 'elementalShot') return '35 MP · selected element';
-  if (action.type === 'weapon') return '1,000+ TP';
+  if (action.type === 'elementalShot') return '35 MP · +200 TP on hit';
+  if (action.type === 'weapon') return actor.role === 'vanguard' || actor.role === 'hunter' ? '1,000+ TP · +200 on hit' : '1,000+ TP';
   if (action.type === 'magic' || action.type === 'heal') return '70 MP';
   if (action.type === 'shimmerWave') return '120 MP · party heal';
   if (action.type === 'mendingThread') return '80 MP · 12s recovery';

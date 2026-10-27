@@ -7,7 +7,7 @@ const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
 const ELEMENTS = ['fire', 'ice', 'lightning'];
 const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse', 'logosRay', 'logosShudder', 'logosFracture'];
-const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'bossImpact', 'rainOfFireBurn']);
+const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'static_reflect', 'static_retaliation', 'bossImpact', 'rainOfFireBurn']);
 const WEAPON_IDS = ['cleave', 'pierce', 'resonance'];
 const PRESENTATION_AREA_KEYS = ['kind', 'x', 'z', 'radius', 'angle', 'total'];
 const PRESENTATION_AREA_OPTIONAL_KEYS = ['target', 'pulses', 'abilityId'];
@@ -37,7 +37,7 @@ function validPresentationMetadata(event: Record<string, unknown>): boolean {
   }
   if (!Object.hasOwn(event, 'area')) return true;
   const area = event.area;
-  if (!record(area) || !['cast', 'boss_impact', 'enrage'].includes(event.kind as string) ||
+  if (!record(area) || !['cast', 'boss_impact', 'enrage', 'static_strike'].includes(event.kind as string) ||
     !PRESENTATION_AREA_KEYS.every(key => Object.hasOwn(area, key)) ||
     Object.keys(area).some(key => !PRESENTATION_AREA_KEYS.includes(key) && !PRESENTATION_AREA_OPTIONAL_KEYS.includes(key)) ||
     typeof area.kind !== 'string' || !['circle', 'cone', 'raid'].includes(area.kind) ||
@@ -95,7 +95,7 @@ export function validSave(raw: unknown): raw is GameState {
     state.remainder < -FLOAT_TOLERANCE || state.remainder >= FIXED_STEP + FLOAT_TOLERANCE) return false;
 
   const storm = state.storm;
-  if (!record(storm) || !exactKeys(storm, ['rng', 'remaining', 'charge']) || !integer(storm.rng, 0, 0xffffffff) || !nonnegative(storm.remaining) || storm.remaining > 300 + FLOAT_TOLERANCE || !nonnegative(storm.charge) || storm.charge > 2 + FLOAT_TOLERANCE) return false;
+  if (!record(storm) || !exactKeys(storm, ['rng', 'remaining', 'charge', 'target', 'x', 'z', 'enemyId']) || !integer(storm.rng, 0, 0xffffffff) || !nonnegative(storm.remaining) || storm.remaining > 300 + FLOAT_TOLERANCE || !nonnegative(storm.charge) || storm.charge > 2 + FLOAT_TOLERANCE || !['boss', 'heracles', 'arena'].includes(storm.target) || !withinArena(storm.x, storm.z) || typeof storm.enemyId !== 'string' || !/^(boss|echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(storm.enemyId)) return false;
   const stats = state.runStats;
   if (!record(stats) || !exactKeys(stats, ['startedAt', 'partial', 'party']) ||
     !nonnegative(stats.startedAt) || stats.startedAt > state.combatTime + FLOAT_TOLERANCE ||
@@ -114,6 +114,8 @@ export function validSave(raw: unknown): raw is GameState {
       !integer(actor.criticalCharges, 0, actor.id === 'bacchus' ? 10 : 5) ||
       !nonnegative(actor.hpShield) || actor.hpShield > actor.maxHp ||
       (actor.sonOfZeus && actor.role !== 'warden') ||
+      !nonnegative(actor.ce) || !nonnegative(actor.ve) || actor.ce > (actor.role === 'arcanist' ? 5000 : 10000) || actor.ve > (actor.role === 'arcanist' ? 5000 : 10000) ||
+      !nonnegative(actor.staticShock) || actor.staticShock > 20 + FLOAT_TOLERANCE || (actor.staticShock > 0 && actor.id !== 'heracles') ||
       actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY || actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
       actor.hp < 0 || actor.hp > actor.maxHp || actor.mp < 0 || actor.mp > actor.maxMp || actor.tp < 0 || actor.tp > 3000 ||
       Math.hypot(actor.moveX, actor.moveZ) > 1 + FLOAT_TOLERANCE || !withinArena(actor.x, actor.z) ||

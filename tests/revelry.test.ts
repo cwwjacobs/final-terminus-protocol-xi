@@ -42,7 +42,7 @@ test('Revelry grants one independent stack to every living ally regardless of ra
   assert.deepEqual(state.party.map(p => p.revelryStacks), [1, 4, 0, 1, 1]);
   assert.equal(state.party[0].cooldowns.revelry, REVELRY.cooldown);
   assert.equal(state.party[0].mp, mp);
-  assert.equal(state.party[0].tp, tp);
+  assert.equal(state.party[0].tp, tp + 500);
   assert.equal(state.events.at(-1)?.kind, 'revelry');
 });
 
@@ -200,7 +200,7 @@ test('autos and weaponskills scale with Physical attack and generate hate from a
   assert.equal(state.party[0].ce, 1 + 118 * 0.65);
   state.party[0].tp = 1000;
   assert.equal(applyAction(state, 0, { type: 'weapon', id: 'cleave' }).ok, true);
-  assert.equal(state.events.at(-1)?.value, 693, '660 base damage at105 Physical attack');
+  assert.equal(state.events.at(-1)?.value, 936, '660 base at105 Physical attack with35% elemental passive');
   assert.equal(state.party[0].revelryStacks, 1);
 });
 
@@ -212,7 +212,7 @@ test('closer and mage use their own stacks once for skillchains and Magic Bursts
   applyAction(state, 0, { type: 'weapon', id: 'cleave' });
   stepGame(state, 1.5);
   applyAction(state, 2, { type: 'weapon', id: 'pierce' });
-  assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 770);
+  assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 924);
   assert.equal(state.events.find(e => e.kind === 'chain')?.value, 693, '630 chain base scales once, not from already boosted770 weaponskill');
   applyAction(state, 3, { type: 'magic', element: 'fire' });
   assert.equal(state.events.at(-1)?.value, 1403, 'Magic Burst includes Hecate’s 10% trait bonus.');
@@ -234,7 +234,7 @@ test('physical and magical damage channels stay distinct when role attack bases 
     applyAction(state, 0, { type: 'weapon', id: 'cleave' });
     stepGame(state, 1.5);
     applyAction(state, 2, { type: 'weapon', id: 'pierce' });
-    assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 1435, '700 ×205 Physical attack /100');
+    assert.equal(state.events.find(e => e.kind === 'weapon' && e.actor === 2)?.value, 1722, '700 ×205 Physical attack /100 ×1.2 elemental passive');
     assert.equal(state.events.find(e => e.kind === 'chain')?.value, 977, '630 ×155 Magic attack /100');
     applyAction(state, 3, { type: 'magic', element: 'fire' });
     assert.equal(state.events.at(-1)?.value, 1739, '1020 ×155 Magic attack /100 ×1.1 burst trait');

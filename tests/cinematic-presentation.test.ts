@@ -70,6 +70,97 @@ test('forked storm ribbons hit players and selected enemies, have finite geometr
   fx.dispose(); fx.dispose(); assert.equal(all.disposed(), all.count);
 });
 
+test('ambient lightning repeats every two to five seconds with vertical and horizontal ribbons', () => {
+  const scene = new THREE.Scene(), state = createGame(), fx = createStormEffects(scene, 'low');
+  const before = structuredClone(state), strikeTimes: number[] = [];
+  let wasActive = false;
+  for (let tick = 1; tick <= 1800; tick++) {
+    fx.update(.01, state, false);
+    const active = fx.stats().active > 0;
+    if (active && !wasActive) {
+      strikeTimes.push(tick / 100);
+      const bolts = scene.getObjectByName('storm-effects')!.children.filter(n => n.name === 'forked-lightning' && n.visible) as THREE.Mesh[];
+      assert.equal(bolts.length, 2);
+      const spans = bolts.map(bolt => {
+        const positions = bolt.geometry.getAttribute('position');
+        bolt.geometry.computeBoundingBox();
+        assert.ok(Array.from(positions.array).every(Number.isFinite));
+        return bolt.geometry.boundingBox!.getSize(new THREE.Vector3());
+      });
+      assert.ok(spans[0].y > 30, 'sky bolt crosses vertically down toward the arena');
+      assert.ok(Math.hypot(spans[1].x, spans[1].z) > 55 && spans[1].y < 5, 'cross-arena bolt stays visibly horizontal');
+    }
+    wasActive = active;
+  }
+  assert.ok(strikeTimes.length >= 4);
+  assert.ok(strikeTimes[0] >= 2 && strikeTimes[0] <= 2.02);
+  for (let i = 1; i < strikeTimes.length; i++) assert.ok(strikeTimes[i] - strikeTimes[i - 1] >= 2 && strikeTimes[i] - strikeTimes[i - 1] <= 5.02);
+  assert.deepEqual(state, before);
+  fx.reset();
+  for (let tick = 0; tick < 201; tick++) fx.update(.01, state, true);
+  assert.equal(fx.flash, 0);
+  const calm = scene.getObjectByName('storm-effects')!.children.filter(n => n.name === 'forked-lightning' && n.visible) as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>[];
+  assert.equal(calm.length, 2); assert.ok(calm.every(bolt => bolt.material.uniforms.uOpacity.value <= .22));
+  fx.dispose();
+});
+
+test('storm strikes land on their actual recipient and Heracles returns lightning from his own position', () => {
+  const scene = new THREE.Scene(), state = createGame(), fx = createStormEffects(scene, 'low');
+  const heracles = state.party.findIndex(actor => actor.id === 'heracles');
+  assert.ok(heracles >= 0);
+  const ribbons = () => scene.getObjectByName('storm-effects')!.children.filter(n => n.name === 'forked-lightning' && n.visible) as THREE.Mesh[];
+  const endpoint = (mesh: THREE.Mesh, start = false) => {
+    const positions = mesh.geometry.getAttribute('position'), a = start ? 0 : 15 * 12 + 2, b = start ? 1 : 15 * 12 + 4;
+    return [0, 1, 2].map(axis => (positions.getComponent(a, axis) + positions.getComponent(b, axis)) / 2);
+  };
+  const near = (actual: number[], expected: number[]) => actual.forEach((value, index) => assert.ok(Math.abs(value - expected[index]) < .00001));
+  fx.event(cue(1, { kind: 'static_strike', actor: heracles, value: undefined }), state);
+  assert.equal(ribbons().length, 2);
+  near(endpoint(ribbons()[0]), [state.party[heracles].x, 1.6, state.party[heracles].z]);
+  fx.reset();
+  fx.event(cue(2, { kind: 'static_strike', actor: undefined, enemyId: 'boss', value: undefined }), state);
+  near(endpoint(ribbons()[0]), [state.boss.x, 2.8, state.boss.z]);
+  fx.reset();
+  fx.event(cue(3, { kind: 'static_strike', actor: undefined, value: undefined, area: { kind: 'circle', x: 9, z: -8, radius: 3, angle: 0, total: 2 } }), state);
+  near(endpoint(ribbons()[0]), [9, .2, -8]);
+  for (const source of ['static_reflect', 'static_retaliation']) {
+    fx.reset();
+    fx.event(cue(4, { actor: heracles, enemyId: 'boss', source }), state);
+    assert.equal(ribbons().length, 1);
+    near(endpoint(ribbons()[0], true), [state.party[heracles].x, 1.8, state.party[heracles].z]);
+    near(endpoint(ribbons()[0]), [state.boss.x, 2.8, state.boss.z]);
+  }
+  fx.dispose();
+});
+
+test('charge cues follow boss, Heracles or arena coordinates and Static Shock restores from state', () => {
+  const scene = new THREE.Scene(), state = createGame(), fx = createStormEffects(scene, 'low');
+  const heracles = state.party.find(actor => actor.id === 'heracles')!;
+  state.status = 'fighting'; state.storm.charge = 1;
+  state.storm.x = 10; state.storm.z = -12;
+  const charge = scene.getObjectByName('static-charge-halo')!;
+  const filaments = scene.getObjectByName('static-charge-filaments')!;
+  for (const [target, expected] of [['boss', state.boss], ['heracles', heracles], ['arena', state.storm]] as const) {
+    state.storm.target = target;
+    fx.update(.01, state, false);
+    assert.equal(charge.visible, true);
+    assert.equal(charge.position.x, expected.x); assert.equal(charge.position.z, expected.z);
+    assert.equal(filaments.position.x, expected.x); assert.equal(filaments.position.z, expected.z);
+  }
+  state.storm.charge = 0; heracles.staticShock = 12;
+  const before = structuredClone(state), aura = scene.getObjectByName('heracles-static-shock')!;
+  const staticFilaments = scene.getObjectByName('heracles-static-filaments')!;
+  fx.reset(); assert.equal(aura.visible, false);
+  fx.update(.01, state, true);
+  assert.equal(charge.visible, false); assert.equal(aura.visible, true); assert.equal(staticFilaments.visible, true);
+  assert.equal(aura.position.x, heracles.x); assert.equal(aura.position.z, heracles.z);
+  assert.equal(staticFilaments.rotation.y, 0); assert.equal(fx.flash, 0);
+  assert.deepEqual(state, before);
+  heracles.staticShock = 0; fx.update(.01, state, false);
+  assert.equal(aura.visible, false); assert.equal(staticFilaments.visible, false);
+  fx.dispose();
+});
+
 test('resolution adapts only after sustained combat load, with slow recovery and strict quality/device ceilings', () => {
   const budget = new RenderBudget('high', 3); assert.equal(budget.pixelRatio, 1.5);
   assert.equal(budget.sample(30), null); assert.equal(budget.sample(60), null); assert.equal(budget.sample(30), null);

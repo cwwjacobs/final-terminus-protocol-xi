@@ -47,9 +47,9 @@ test('new heals reject wrong roles, dead/out-of-range/full targets and insuffici
   for (const type of ['shimmerWave', 'mendingThread'] as const) { const before = JSON.stringify(s); assert.equal(applyAction(s, 4, { type }).ok, false); assert.equal(JSON.stringify(s), before); }
 });
 
-test('storm intervals remain between 3 and 5 minutes and do not consume combat RNG', () => {
+test('storm intervals remain between 15 and 25 seconds and do not consume combat RNG', () => {
   const a = createStaticStorm(42), b = createStaticStorm(42);
-  for (let i = 0; i < 100; i++) { const interval = nextStaticInterval(a); assert.equal(interval, nextStaticInterval(b)); assert.ok(interval >= 180 && interval < 300); }
+  for (let i = 0; i < 100; i++) { const interval = nextStaticInterval(a); assert.equal(interval, nextStaticInterval(b)); assert.ok(interval >= 15 && interval < 25); }
   const s = combat(), rng = s.rng, first = s.storm.remaining;
   advance(s, first - .1); assert.equal(s.storm.charge, 0);
   advance(s, .15); assert.ok(s.storm.charge > 1.9); assert.equal(s.rng, rng);
@@ -57,10 +57,10 @@ test('storm intervals remain between 3 and 5 minutes and do not consume combat R
 });
 
 test('charged enemy waits two seconds, then arcs to at most three distinct nearby players; spreading breaks the chain', () => {
-  const s = combat(); s.storm.remaining = .05;
+  const s = combat(); s.storm.charge = 2; s.storm.remaining = 100;
   s.party.forEach((p, i) => { p.x = i * 3; p.z = -1; });
   assert.deepEqual(staticArcTargets(s), [0, 1, 2]);
-  const hp = s.party.map(p => p.hp); stepGame(s, .05); stepGame(s, 1.95);
+  const hp = s.party.map(p => p.hp); stepGame(s, 1.95);
   assert.deepEqual(s.party.map(p => p.hp), hp);
   const restored = restoreSave(s)!; assert.ok(restored); stepGame(s, .05); stepGame(restored, .05); assert.deepEqual(s, restored);
   assert.deepEqual(s.party.map((p, i) => hp[i] - p.hp), [420, 315, 236, 0, 0]);
@@ -88,7 +88,7 @@ test('a lethal static chain ends combat immediately and clears active healing', 
 
 test('old snapshots gain additive defaults but malformed storm/thread state is rejected', () => {
   const legacy = structuredClone(combat()) as any; delete legacy.storm; legacy.party.forEach((p: any) => delete p.mendingThread);
-  const restored = restoreSave(legacy)!; assert.ok(restored); assert.ok(restored.storm.remaining >= 180); assert.equal(restored.party[0].mendingThread, null);
+  const restored = restoreSave(legacy)!; assert.ok(restored); assert.ok(restored.storm.remaining >= 15 && restored.storm.remaining <= 25); assert.equal(restored.party[0].mendingThread, null);
   for (const value of [NaN, -1, 301]) { const s = combat(); s.storm.remaining = value; assert.equal(validSave(s), false); }
   const s = combat(); s.party[0].mendingThread = { remaining: 12, tickIn: 2, source: 0 }; assert.equal(validSave(s), false);
 });

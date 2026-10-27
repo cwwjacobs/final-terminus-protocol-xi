@@ -67,14 +67,14 @@ test('Critical Dash lands exactly three guaranteed 2× hits, earns TP, pauses au
   stepGame(s, 1.2);
   const hits = s.events.filter(e => e.source === 'criticalDash' && e.kind === 'weapon');
   assert.equal(hits.length, 3);
-  assert.deepEqual(hits.map(e => e.value), [224, 224, 224]);
+  assert.deepEqual(hits.map(e => e.value), [302, 302, 302]);
   assert.deepEqual(hits.map(e => e.hitIndex), [0, 1, 2]);
   assert.ok(hits.every(e => e.sequenceId === 1));
   assert.ok(hits.every(e => e.critical));
   assert.deepEqual(hits.map(e => e.time), [.2, .6000000000000001, 1]);
   assert.deepEqual([a.x, a.z], origin);
   assert.equal(a.attackTimer, .7);
-  assert.equal(a.tp, 720);
+  assert.equal(a.tp, 1320);
   assert.equal(a.sequence, null);
   assert.equal(s.rng, rng, 'guaranteed criticals do not consume RNG');
   assert.equal(s.chain, null);
@@ -97,12 +97,12 @@ test('Dash remains vulnerable, dodge cancels future hits and actor death cancels
 test('Pierce → Split Volley from zero TP → Resonance performs one permitted self Distortion chain', () => {
   const s = combat(); const a = s.party[2]; a.tp = 1000;
   assert.equal(applyAction(s, 2, { type: 'weapon', id: 'pierce' }).ok, true);
-  assert.equal(a.tp, 0);
+  assert.equal(a.tp, 200);
   stepGame(s, .5);
   assert.equal(applyAction(s, 2, { type: 'splitVolley' }).ok, true);
   stepGame(s, 1.05);
   assert.equal(s.events.filter(e => e.source === 'splitVolley' && e.kind === 'weapon').length, 5);
-  assert.equal(a.tp, 1250);
+  assert.equal(a.tp, 1450);
   assert.equal(s.chain?.weapon, 'pierce', 'arrows cannot replace the opener');
   assert.equal(applyAction(s, 2, { type: 'weapon', id: 'resonance' }).ok, true);
   assert.equal(s.chain?.property, 'Distortion'); assert.equal(s.burst?.element, 'ice');
@@ -213,9 +213,9 @@ test('Restore explicit target overrides automatic triage and invalid selections 
   applyAction(s, 4, { type: 'heal' }); assert.equal(s.events.at(-1)?.target, 1);
 });
 
-test('Heracles receives 10% physical mitigation and generates 30% extra enmity', () => {
+test('Heracles receives 10% physical mitigation and generates 150% extra normal-form enmity', () => {
   const s = combat(); applyAction(s, 1, { type: 'provoke' });
-  assert.equal(s.party[1].ce, 390); assert.equal(s.party[1].ve, 3640);
+  assert.equal(s.party[1].ce, 750); assert.equal(s.party[1].ve, 7000);
   s.boss.attackTimer = 0; stepGame(s, .05);
   assert.equal(s.party[1].maxHp - s.party[1].hp, 170);
 });

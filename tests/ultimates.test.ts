@@ -49,6 +49,7 @@ test('ultimates are role-locked, awaken ready only after Crown victory, and reje
 
 test('Fission hits every enemy in its 12m area, leaves distant enemies unharmed and starts a 600 second recast', () => {
   const state = logos(); state.enemies[1].x = 20;
+  state.storm.remaining = 10000; // Isolate the ten-minute recast from frequent storm damage.
   const hp = state.boss.hp;
   assert.equal(applyAction(state, 3, { type: 'fission' }).ok, true);
   assert.equal(state.boss.hp, hp - 9000); assert.equal(state.enemies[0].hp, 0); assert.equal(state.enemies[1].hp, 9000);

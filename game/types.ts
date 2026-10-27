@@ -56,6 +56,7 @@ export interface Actor {
   hpShield: number;
   criticalCharges: number;
   sonOfZeus: boolean;
+  staticShock: number;
   mendingThread: null | { remaining: number; tickIn: number; source: number };
   recovery: number;
   spellRecovery: number;

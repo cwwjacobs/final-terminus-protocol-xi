@@ -30,11 +30,18 @@ export const GOD_ENRAGE_CAST = 10;
 export const ATTACK_BASELINE = 100;
 export const DEFAULT_SEED = 0x51f15e;
 export const ELEMENTS: Element[] = ['fire', 'ice', 'lightning'];
+export const WEAPON_ELEMENTS: Record<WeaponId, Element> = { cleave: 'fire', pierce: 'ice', resonance: 'lightning' };
+export const DPS_PASSIVES = {
+  vanguard: { tpPerHit: 200, elementalModifier: 1.35 },
+  hunter: { tpPerHit: 160, elementalModifier: 1.2 },
+} as const;
+export const ENMITY_CAP = 10000;
+export const ARCANIST_ENMITY_CAP = 5000;
 export const TRAITS: Record<Role, { name: string; description: string; critChance: number; extraHitChance: number; storeTp: number; enmity: number; physicalReduction: number; healingPower: number }> = {
-  vanguard: { name: 'Relentless', description: '10% critical chance; 15% chance for a half-strength extra auto hit.', critChance: .10, extraHitChance: .15, storeTp: 1, enmity: 1, physicalReduction: 0, healingPower: 100 },
-  warden: { name: 'Iron Resolve', description: '10% extra auto hit; +30% enmity; 10% less physical damage.', critChance: .05, extraHitChance: .10, storeTp: 1, enmity: 1.3, physicalReduction: .10, healingPower: 100 },
-  hunter: { name: 'Tactical Precision', description: '15% critical chance; +25% TP from outgoing hits.', critChance: .15, extraHitChance: 0, storeTp: 1.25, enmity: 1, physicalReduction: 0, healingPower: 100 },
-  arcanist: { name: 'Elemental Cycle', description: 'Three distinct spells within 12 seconds restore 140 MP. Magic Bursts deal 10% more damage.', critChance: 0, extraHitChance: 0, storeTp: 1, enmity: 1, physicalReduction: 0, healingPower: 100 },
+  vanguard: { name: 'Relentless', description: '10% critical chance; 15% extra auto hit. Weaponskills and Critical Dash gain 35% elemental damage and 200 bonus TP per landed hit. Revelry grants 500 TP.', critChance: .10, extraHitChance: .15, storeTp: 1, enmity: 1, physicalReduction: 0, healingPower: 100 },
+  warden: { name: 'Iron Resolve', description: '10% extra auto hit; +150% enmity in normal form (+30% as Son of Zeus); wins equal-enmity ties; 10% less physical damage.', critChance: .05, extraHitChance: .10, storeTp: 1, enmity: 2.5, physicalReduction: .10, healingPower: 100 },
+  hunter: { name: 'Tactical Precision', description: '15% critical chance; +25% outgoing TP. Weaponskills, Split Volley and Elemental Shot gain 20% elemental damage. Weaponskills and shots return 200 TP; Volley grants 250 TP per arrow after Store TP.', critChance: .15, extraHitChance: 0, storeTp: 1.25, enmity: 1, physicalReduction: 0, healingPower: 100 },
+  arcanist: { name: 'Elemental Cycle', description: 'Three distinct spells within 12 seconds restore 140 MP. Magic Bursts deal 10% more damage. Damage generates 50% less enmity, capped at 5,000 cumulative and 5,000 volatile.', critChance: 0, extraHitChance: 0, storeTp: 1, enmity: .5, physicalReduction: 0, healingPower: 100 },
   luminary: { name: 'Triage', description: '20% stronger healing below 35% health; healing generates 25% less enmity.', critChance: 0, extraHitChance: 0, storeTp: 1, enmity: 1, physicalReduction: 0, healingPower: 100 },
 };
 export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: number; mp: number; description: string }> = {
@@ -52,13 +59,13 @@ export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: numbe
   'magic:fire': { name: 'Solar Flare', cooldown: 6, mp: 70, description: 'Fire magic; 2 second spell recovery.' },
   'magic:ice': { name: 'Stillwinter', cooldown: 6, mp: 70, description: 'Ice magic; 2 second spell recovery.' },
   'magic:lightning': { name: 'Ion Judgment', cooldown: 6, mp: 70, description: 'Thunder magic; 2 second spell recovery.' },
-  criticalDash: { name: 'Critical Dash', cooldown: 45, mp: 0, description: 'Three guaranteed 2× critical hits, gaining TP; return to the starting position.' },
-  elementalShot: { name: 'Elemental Shot', cooldown: 6, mp: 35, description: 'Fire the selected elemental arrow. 35 MP; matching shots Magic Burst. Shared 6 second recast.' },
-  splitVolley: { name: 'Split Volley', cooldown: 45, mp: 0, description: 'Five arrows generate 1,250 TP and permit one self-chain for 8 seconds.' },
+  criticalDash: { name: 'Critical Dash', cooldown: 45, mp: 0, description: 'Three guaranteed 2× critical hits with +35% Fire damage and 440 TP per landed hit (1,320 total); return to the starting position.' },
+  elementalShot: { name: 'Elemental Shot', cooldown: 6, mp: 35, description: 'Fire the selected elemental arrow with +20% damage and gain 200 TP on hit. 35 MP; matching shots Magic Burst. Shared 6 second recast.' },
+  splitVolley: { name: 'Split Volley', cooldown: 45, mp: 0, description: 'Five arrows with +20% damage in the selected shot element generate 250 TP each (1,250 total) and permit one self-chain for 8 seconds.' },
   rapidWeave: { name: 'Rapid Weave', cooldown: 180, mp: 0, description: '12 seconds: two rapid casts of each element, with 0.5 second recovery.' },
   aegis: { name: 'Aegis', cooldown: 90, mp: 120, description: 'All living allies within 18 units block their next incoming hit.' },
-  revelry: { name: 'Revelry', cooldown: 45, mp: 0, description: 'Grant a stacking party attack bonus.' },
-  provoke: { name: 'Provoke', cooldown: 18, mp: 0, description: 'Generate enmity.' },
+  revelry: { name: 'Revelry', cooldown: 45, mp: 0, description: 'Grant a stacking party attack bonus and gain 500 TP.' },
+  provoke: { name: 'Provoke', cooldown: 18, mp: 0, description: 'Generate enmity, amplified by Iron Resolve even outside Son of Zeus form.' },
   shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
   mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', cooldown: 5, mp: 70, description: 'Heal a selected ally, or the lowest health percentage in range.' },
@@ -190,7 +197,7 @@ export const ACTIONS = {
   engage: { name: 'Engage', description: 'Begin auto attacks when in range.' },
   weapon: { name: 'Weaponskill', description: 'Spend all TP (minimum 1,000). Close a compatible chain 1.5–8 seconds later; Dolos can self-chain after Split Volley.' },
   magic: { name: 'Magic', description: '70 MP. Match the burst element within 8 seconds for amplified damage.' },
-  revelry: { name: REVELRY.name, description: 'Grant one stack of +5 Physical attack and +5 Magic attack to every living party member, up to five. Damage clears only the recipient’s stacks. 45 second cooldown.' },
+  revelry: { name: REVELRY.name, description: 'Gain 500 TP and grant one stack of +5 Physical attack and +5 Magic attack to every living party member, up to five. Damage clears only the recipient’s stacks. 45 second cooldown.' },
   criticalDash: ABILITY_DEFINITIONS.criticalDash,
   splitVolley: ABILITY_DEFINITIONS.splitVolley,
   rapidWeave: ABILITY_DEFINITIONS.rapidWeave,

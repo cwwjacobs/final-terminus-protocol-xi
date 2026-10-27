@@ -693,7 +693,7 @@ test("Critical Dash duplicate requests and reconnect snapshots retain the hit cu
   assert.equal(activation.state.party[0].sequence?.id, 1);
   const partial = await sync(repo, owner, 1, NOW + 400);
   assert.equal(partial.state.party[0].sequence?.nextHit, 1);
-  assert.equal(partial.state.runStats.party[0].damage, 224);
+  assert.equal(partial.state.runStats.party[0].damage, 302);
   const before = structuredClone(repo.rows.get(owner.code));
   const duplicate = await sync(repo, owner, 1, NOW + 800, [{ type: "criticalDash" }]);
   assert.deepEqual(duplicate, partial);

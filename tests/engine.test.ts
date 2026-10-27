@@ -84,7 +84,7 @@ test('weaponskill checks TP, range, engagement and cooldown before spending all 
   state.party[0].engaged = true;
   state.party[0].tp = 2500;
   assert.equal(applyAction(state, 0, { type: 'weapon', id: 'cleave' }).ok, true);
-  assert.equal(state.party[0].tp, 0);
+  assert.equal(state.party[0].tp, 200);
   assert.equal(state.chain?.property, 'Liquefaction');
   state.party[0].tp = 1000;
   assert.equal(applyAction(state, 0, { type: 'weapon', id: 'pierce' }).ok, false);
@@ -255,7 +255,7 @@ test('one player plus four trusts sustain the complete trial and god encounter l
     const { state, chains, bursts, phases } = simulate(mode);
     assert.equal(state.status, 'victory', `${mode} failed at ${state.time}s`);
     t.diagnostic(`${mode}: victory in ${state.time.toFixed(2)}s, ${chains} skillchains, ${bursts} magic bursts, ${phases + 1} phases`);
-    assert.ok(state.time >= (mode === 'trial' ? 100 : 300) && state.time < (mode === 'trial' ? 180 : 500), `${mode}: ${state.time}s`);
+    assert.ok(state.time >= (mode === 'trial' ? 80 : 240) && state.time < (mode === 'trial' ? 180 : 500), `${mode}: ${state.time}s`);
     assert.ok(chains > 10 && bursts > 8);
     assert.equal(phases, 2);
     assert.equal(state.boss.hp, 0);
@@ -280,21 +280,24 @@ test('party wipe closes the encounter and events remain bounded', () => {
   assert.ok(trial.eventSeq > 60);
 });
 
-test('god collapse uses combat elapsed time, warns visibly, and defeats an idle player with trusts', () => {
+test('god collapse uses combat elapsed time, warns visibly, and defeats an idle party', () => {
   const state = createGame('god');
+  state.party.forEach((actor, slot) => { setHuman(state, slot, true); actor.attackTimer = 10000; });
+  state.boss.attackTimer = state.boss.specialTimer = 10000;
+  state.storm.remaining = 10000;
   for (let i = 0; i < 20; i++) stepGame(state, 30);
   assert.equal(state.time, 600);
   assert.equal(state.combatTime, 0, 'preparation time cannot consume the god deadline');
   applyAction(state, 0, { type: 'start' });
   assert.equal(state.combatTime, 0);
   assert.ok(state.events.some(e => e.kind === 'warning' && e.text.includes('7:30')));
-  while (state.combatTime < GOD_ENRAGE_TIME - 30) stepGame(state, 0.05);
+  while (state.status === 'fighting' && state.combatTime < GOD_ENRAGE_TIME - 30) stepGame(state, 0.05);
   assert.equal(state.status, 'fighting');
   assert.ok(state.events.some(e => e.kind === 'warning' && e.text.includes('30 seconds')));
-  while (state.combatTime < GOD_ENRAGE_TIME - 10) stepGame(state, 0.05);
+  while (state.status === 'fighting' && state.combatTime < GOD_ENRAGE_TIME - 10) stepGame(state, 0.05);
   assert.equal(state.boss.cast?.name, 'Coherence Collapse');
   assert.equal(state.boss.cast?.remaining, 10);
-  while (state.combatTime < GOD_ENRAGE_TIME - 0.05) stepGame(state, 0.05);
+  while (state.status === 'fighting' && state.combatTime < GOD_ENRAGE_TIME - 0.05) stepGame(state, 0.05);
   assert.equal(state.status, 'fighting');
   // The time limit must not be bypassable by a last-frame defensive action.
   for (const actor of state.party) { actor.guardUntil = state.time + 10; actor.dodgeUntil = state.time + 10; }

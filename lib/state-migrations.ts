@@ -21,6 +21,12 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     state.runStats = createRunStats((state.party as unknown[]).length, partial ? state.combatTime : 0, partial);
   }
   if (!Object.hasOwn(state, 'storm')) state.storm = createStaticStorm(Number.isInteger(state.rng) ? state.rng as number : LEGACY_SEED);
+  if (record(state.storm) && !Object.hasOwn(state.storm, 'target')) {
+    for (const [key, value] of Object.entries({ target: 'boss', x: record(state.boss) ? state.boss.x : 0, z: record(state.boss) ? state.boss.z : -4, enemyId: 'boss' })) {
+      if (!Object.hasOwn(state.storm, key)) state.storm[key] = value;
+    }
+    if (timer(state.storm.remaining) && state.storm.remaining <= 300) state.storm.remaining = Math.min(25, state.storm.remaining);
+  }
   if (!Object.hasOwn(state, 'encounter')) state.encounter = 'crown';
   if (!Object.hasOwn(state, 'logos')) state.logos = { stage: state.encounter === 'logos' ? 'giant' : 'none', elapsed: 0 };
   if (!Object.hasOwn(state, 'ultimatesUnlocked')) state.ultimatesUnlocked = false;
@@ -38,6 +44,10 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     if (!Object.hasOwn(actor, 'hpShield')) actor.hpShield = 0;
     if (!Object.hasOwn(actor, 'criticalCharges')) actor.criticalCharges = 0;
     if (!Object.hasOwn(actor, 'sonOfZeus')) actor.sonOfZeus = false;
+    if (!Object.hasOwn(actor, 'staticShock')) actor.staticShock = 0;
+    if (actor.role === 'arcanist') for (const key of ['ce', 've']) {
+      if (timer(actor[key]) && actor[key] <= 10000) actor[key] = Math.min(5000, actor[key]);
+    }
   }
   if (state.version === 2) return state;
   if (!record(state.boss)) return null;

@@ -2,8 +2,9 @@ import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, S
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
-import { createStaticStorm, nextStaticInterval, STATIC_CHARGE_SECONDS, staticArcTargets } from './static-storm.ts';
+import { createStaticStorm, nextStaticInterval, selectStaticStrike, STATIC_CHARGE_SECONDS, STATIC_REFLECT_DAMAGE, STATIC_RETALIATION_DAMAGE, STATIC_SHOCK_SECONDS, staticArcTargets } from './static-storm.ts';
 import { DUSK_WINDOW, isUltimate, matchesBurst, ULTIMATES } from './content.ts';
+import { ARCANIST_ENMITY_CAP, DPS_PASSIVES, ENMITY_CAP, WEAPON_ELEMENTS } from './content.ts';
 import type { Action, ActionResult, Actor, BossCast, CombatPresentationMetadata, Enemy, EnemyStatus, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
@@ -24,7 +25,7 @@ function castArea(cast: BossCast): NonNullable<CombatPresentationMetadata['area'
 
 export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState {
   const safeMode = mode === 'god' ? 'god' : 'trial';
-  // New rotations retain the 100–180s Trial / 300–450s God active-play targets.
+  // Stronger DPS passives target 80–180s Trial / 240–450s God active play.
   const maxHp = safeMode === 'god' ? 310000 : 105000;
   return {
     version: 2, rng: seed >>> 0, sequenceSeq: 0, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready', runStats: createRunStats(PARTY.length),
@@ -36,7 +37,7 @@ export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState
       hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0, revelryStacks: 0,
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
-      shieldCharges: 0, hpShield: 0, criticalCharges: 0, sonOfZeus: false, mendingThread: null, recovery: 0, spellRecovery: 0, shotElement: 'fire', enemyTarget: 'boss', selfChainUntil: 0,
+      shieldCharges: 0, hpShield: 0, criticalCharges: 0, sonOfZeus: false, staticShock: 0, mendingThread: null, recovery: 0, spellRecovery: 0, shotElement: 'fire', enemyTarget: 'boss', selfChainUntil: 0,
       rapidWeave: null, elementalCycle: { elements: [], remaining: 0 }, sequence: null,
     })),
     boss: { name: LORE.boss, x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null },
@@ -64,8 +65,14 @@ function bounds(actor: Actor) {
 }
 
 function threat(actor: Actor, cumulative: number, volatile: number) {
-  actor.ce = clamp(actor.ce + cumulative * TRAITS[actor.role].enmity, 0, 10000);
-  actor.ve = clamp(actor.ve + volatile * TRAITS[actor.role].enmity, 0, 10000);
+  const multiplier = actor.role === 'warden' && actor.sonOfZeus ? 1.3 : TRAITS[actor.role].enmity;
+  const cap = actor.role === 'arcanist' ? ARCANIST_ENMITY_CAP : ENMITY_CAP;
+  actor.ce = clamp(actor.ce + cumulative * multiplier, 0, cap);
+  actor.ve = clamp(actor.ve + volatile * multiplier, 0, cap);
+}
+
+function compareThreat(a: { a: Actor; i: number }, b: { a: Actor; i: number }) {
+  return (b.a.ce + b.a.ve) - (a.a.ce + a.a.ve) || Number(b.a.role === 'warden') - Number(a.a.role === 'warden') || a.i - b.i;
 }
 
 function random(state: GameState): number {
@@ -92,6 +99,7 @@ function clearTransient(actor: Actor) {
   actor.hpShield = 0;
   actor.criticalCharges = 0;
   actor.sonOfZeus = false;
+  actor.staticShock = 0;
   actor.mendingThread = null;
   actor.selfChainUntil = 0;
   actor.rapidWeave = null;
@@ -159,20 +167,25 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   if (enemy && 'id' in enemy) metadata = { ...metadata, enemyId: enemy.id };
   if (state.status !== 'fighting' || !enemy || enemy.hp <= 0 || state.party[slot].hp <= 0) return 0;
   const actor = state.party[slot];
+  // These passives reward landed kit hits only: no autos, chain echoes, or AoE ultimate refunds.
+  const passive = actor.role === 'vanguard' || actor.role === 'hunter' ? DPS_PASSIVES[actor.role] : undefined;
+  const abilityHit = !!passive && (metadata.abilityId?.startsWith('weapon:') || source === 'criticalDash' || source === 'splitVolley' || source === 'elementalShot');
   const stats = getAttackStats(actor);
   const attack = kind === 'chain' || kind === 'magic' || kind === 'burst' ? stats.matk : stats.patk;
   const physical = kind === 'auto' || kind === 'weapon';
-  const empowered = kind !== 'chain' && source !== 'rainOfFireBurn' && actor.criticalCharges > 0;
+  const empowered = kind !== 'chain' && !['rainOfFireBurn', 'static_reflect', 'static_retaliation'].includes(source ?? '') && actor.criticalCharges > 0;
   const critical = guaranteedCritical || empowered || (physical && TRAITS[actor.role].critChance > 0 && random(state) < TRAITS[actor.role].critChance);
   const multiplier = critical ? criticalScale : 1;
   const headExposed = enemy === state.boss && state.logos.stage === 'giant' && state.enemies.some(e => e.id.endsWith('-hand')) && state.enemies.every(e => e.hp <= 0 || e.target >= 0 && ['warden', 'vanguard'].includes(state.party[e.target].role));
-  const damage = Math.min(enemy.hp, Math.round(amount * (headExposed ? 2 : 1) * attack / ATTACK_BASELINE * multiplier * (kind === 'burst' && actor.role === 'arcanist' ? 1.1 : 1)));
+  const elementalModifier = abilityHit && metadata.element ? passive!.elementalModifier : 1;
+  const damage = Math.min(enemy.hp, Math.round(amount * elementalModifier * (headExposed ? 2 : 1) * attack / ATTACK_BASELINE * multiplier * (kind === 'burst' && actor.role === 'arcanist' ? 1.1 : 1)));
   enemy.hp -= damage;
   if ('id' in enemy && enemy.id.endsWith('-hand') && enemy.hp <= 0) { enemy.attackTimer = 12; event(state, 'hand_broken', `${enemy.name} is staggered for 12 seconds. The head is exposed.`, slot); }
   if (damage > 0 && empowered) {
     actor.criticalCharges--;
     if (actor.id === 'bacchus') actor.tp = TP_MAX;
   }
+  if (damage > 0 && abilityHit && source !== 'splitVolley') grantTp(actor, passive!.tpPerHit);
   state.runStats.party[slot].damage += damage;
   threat(state.party[slot], damage * 0.65, damage * 0.8);
   event(state, kind, `${actor.name}: ${label}${metadata.enemyId ? ` → ${enemy.name}` : ''} · ${damage}`, slot, damage, undefined, source, physical || empowered || guaranteedCritical ? critical : undefined, sequenceId, hitIndex, metadata);
@@ -180,7 +193,14 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   return damage;
 }
 
-function damageActor(state: GameState, slot: number, amount: number, label: string, physical = false) {
+function staticCounter(state: GameState, slot: number, enemyId: string, amount: number, source: 'static_reflect' | 'static_retaliation') {
+  const dealt = damageBoss(state, slot, amount, 'magic', source === 'static_reflect' ? 'Static reflection' : 'Static Shock retaliation', source, false, undefined, undefined, { abilityId: source, element: 'lightning', enemyId });
+  // Triple normal damage enmity, in addition to Iron Resolve's multiplier.
+  if (dealt > 0) threat(state.party[slot], dealt * .65 * 2, dealt * .8 * 2);
+}
+
+function damageActor(state: GameState, slot: number, amount: number, label: string, physical = false, attackerId: string | null = 'boss') {
+  if (state.status !== 'fighting' || sequenceLocked(state)) return;
   const actor = state.party[slot];
   if (actor.hp <= 0) return;
   if (actor.dodgeUntil > state.time) {
@@ -212,6 +232,9 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
     actor.engaged = false;
     actor.ce = actor.ve = actor.moveX = actor.moveZ = 0;
     event(state, 'down', `${actor.name} falls.`, slot);
+  }
+  if (damage > 0 && actor.hp > 0 && actor.id === 'heracles' && actor.staticShock > 0 && attackerId) {
+    staticCounter(state, slot, attackerId, STATIC_RETALIATION_DAMAGE, 'static_retaliation');
   }
 }
 
@@ -362,6 +385,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     for (const recipient of state.party) {
       if (recipient.hp > 0) recipient.revelryStacks = Math.min(REVELRY.maxStacks, recipient.revelryStacks + 1);
     }
+    grantTp(actor, 500);
     event(state, 'revelry', `${actor.name} grants one Revelry stack to every living party member.`, slot);
     return { ok: true };
   }
@@ -380,7 +404,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     const previous = state.chain;
     const fearlessChain = actor.id === 'bacchus' && actor.criticalCharges > 0;
     const combination = previous && (previous.opener !== slot || fearlessChain || (actor.role === 'hunter' && actor.selfChainUntil > state.time)) && state.time - previous.openedAt + 1e-8 >= CHAIN_MIN_DELAY && previous.remaining > 0 ? SKILLCHAINS[`${previous.weapon}:${action.id}`] : undefined;
-    damageBoss(state, slot, damage, 'weapon', def.name, undefined, false, undefined, undefined, { abilityId: key, weaponId: action.id });
+    damageBoss(state, slot, damage, 'weapon', def.name, undefined, false, undefined, undefined, { abilityId: key, weaponId: action.id, ...(actor.role === 'vanguard' || actor.role === 'hunter' ? { element: WEAPON_ELEMENTS[action.id] } : {}) });
     if (state.status !== 'fighting') return { ok: true };
     if (combination) {
       if (previous?.opener === slot) actor.selfChainUntil = 0;
@@ -569,7 +593,7 @@ function enemiesStep(state: GameState, dt: number) {
       continue;
     }
     const forced = forcedTarget(state);
-    const threatTarget = state.party.map((a,i)=>({a,i})).filter(x=>x.a.hp>0).sort((a,b)=>(b.a.ce+b.a.ve)-(a.a.ce+a.a.ve)||a.i-b.i)[0]?.i ?? -1;
+    const threatTarget = state.party.map((a,i)=>({a,i})).filter(x=>x.a.hp>0).sort(compareThreat)[0]?.i ?? -1;
     enemy.target = forced >= 0 ? forced : threatTarget;
     if (enemy.stunRemaining > 0) { enemy.stunRemaining = Math.max(0, enemy.stunRemaining - dt); if (enemy.stunRemaining <= 1e-8) enemy.stunRemaining = 0; continue; }
     const target = state.party[enemy.target];
@@ -582,7 +606,7 @@ function enemiesStep(state: GameState, dt: number) {
     if (enemy.attackTimer <= 1e-8 && range <= reach + .5) {
       const hand = enemy.id.endsWith('-hand');
       const leaper = enemy.id.startsWith('sentinel-') && Number(enemy.id.at(-1)) % 3 === 1;
-      damageActor(state, enemy.target, hand ? 220 : leaper ? 110 : 85, hand ? 'Titan palm' : leaper ? 'Sentinel leap' : thrower ? 'Ranged throw' : 'Melee charge', !thrower); enemy.attackTimer = hand ? 4 : leaper ? 5 : 3.5;
+      damageActor(state, enemy.target, hand ? 220 : leaper ? 110 : 85, hand ? 'Titan palm' : leaper ? 'Sentinel leap' : thrower ? 'Ranged throw' : 'Melee charge', !thrower, enemy.id); enemy.attackTimer = hand ? 4 : leaper ? 5 : 3.5;
       finishIfNeeded(state);
     }
   }
@@ -610,7 +634,7 @@ function sequenceStep(state: GameState, slot: number, dt: number) {
   while (sequence.nextHit < times.length && sequence.elapsed + 1e-8 >= times[sequence.nextHit]) {
     const hitIndex = sequence.nextHit++;
     if (!dash && distance(actor, offensiveTarget(state, actor)) > ROLES.hunter.range) continue;
-    const dealt = damageBoss(state, slot, dash ? ROLES.vanguard.damage : ROLES.hunter.damage * .4, 'weapon', dash ? 'Critical Dash' : 'Split Volley', sequence.kind, dash, sequence.id, hitIndex);
+    const dealt = damageBoss(state, slot, dash ? ROLES.vanguard.damage : ROLES.hunter.damage * .4, 'weapon', dash ? 'Critical Dash' : 'Split Volley', sequence.kind, dash, sequence.id, hitIndex, { element: dash ? 'fire' : actor.shotElement });
     if (dealt > 0) {
       grantTp(actor, dash ? 240 : 200);
       if (!dash && sequence.landedHits === 0 && state.status === 'fighting') actor.selfChainUntil = state.time + 8;
@@ -737,7 +761,7 @@ function bossStep(state: GameState, dt: number) {
     return;
   }
   const candidates = state.party.map((a, i) => ({ a, i })).filter(({ a }) => a.hp > 0 && (a.engaged || a.ce + a.ve > 0));
-  candidates.sort((a, b) => (b.a.ce + b.a.ve) - (a.a.ce + a.a.ve) || a.i - b.i);
+  candidates.sort(compareThreat);
   boss.target = forced >= 0 ? forced : candidates[0]?.i ?? -1;
   const phase = boss.hp / boss.maxHp <= 0.33 ? 3 : boss.hp / boss.maxHp <= 0.67 ? 2 : 1;
   if (phase !== boss.phase) {
@@ -761,6 +785,7 @@ function bossStep(state: GameState, dt: number) {
       for (let i = 0; i < state.party.length; i++) {
         if (decree ? i === cast.target : isInTelegraph(state.party[i], cast)) damageActor(state, i, base * 1.05 * (1 + (boss.phase - 1) * 0.15) * (state.mode === 'god' ? 1.1 : 1), cast.name, decree || cast.kind === 'cone');
       }
+      if (state.status !== 'fighting' || sequenceLocked(state)) return;
       if (echo && (cast.pulses ?? 1) > 1) {
         cast.pulses = 1;
         cast.total = cast.remaining = 1;
@@ -834,20 +859,38 @@ function stormStep(state: GameState, dt: number) {
     storm.charge = Math.max(0, storm.charge - dt);
     if (storm.charge <= 1e-8) {
       storm.charge = 0;
-      const targets = staticArcTargets(state);
+      const heracles = state.party.findIndex(actor => actor.id === 'heracles' && actor.hp > 0);
+      if (storm.target === 'heracles') {
+        if (heracles >= 0) {
+          state.party[heracles].staticShock = STATIC_SHOCK_SECONDS;
+          event(state, 'static_charge', 'Heracles gains Static Shock: attackers take reflected lightning for 20 seconds.', heracles, STATIC_SHOCK_SECONDS, undefined, 'staticStorm', undefined, undefined, undefined, { element: 'lightning' });
+        }
+        return;
+      }
+      if (storm.target === 'arena') {
+        event(state, 'static_discharge', 'Lightning grounds through the arena.', undefined, undefined, undefined, 'staticStorm');
+        return;
+      }
+      if (heracles >= 0) staticCounter(state, heracles, storm.enemyId, STATIC_REFLECT_DAMAGE, 'static_reflect');
+      if (state.status !== 'fighting') return;
+      const origin = storm.enemyId === 'boss' ? state.boss : state.enemies.find(enemy => enemy.id === storm.enemyId);
+      const targets = origin && origin.hp > 0 ? staticArcTargets({ boss: { ...state.boss, x: origin.x, z: origin.z }, party: state.party }) : [];
       event(state, 'static_discharge', targets.length ? 'Static discharge — spread out!' : 'Static discharge grounds harmlessly.', undefined, undefined, undefined, 'staticStorm');
       targets.forEach((target, jump) => {
         event(state, 'static_arc', `Static arcs to ${state.party[target].name}.`, target, undefined, jump > 0 ? targets[jump - 1] : undefined, 'staticStorm');
-        damageActor(state, target, 420 * Math.pow(.75, jump), 'Static arc');
+        damageActor(state, target, 420 * Math.pow(.75, jump), 'Static arc', false, null);
       });
       finishIfNeeded(state);
       if (state.status !== 'fighting') return;
     }
   }
   if (storm.remaining <= 1e-8) {
+    selectStaticStrike(state);
     storm.charge = STATIC_CHARGE_SECONDS;
     storm.remaining = nextStaticInterval(storm);
-    event(state, 'static_strike', 'Lightning charges the enemy — spread out or prepare Aegis!', undefined, undefined, undefined, 'staticStorm');
+    const heracles = state.party.findIndex(actor => actor.id === 'heracles' && actor.hp > 0);
+    const label = storm.target === 'heracles' ? 'Lightning charges Heracles — Static Shock is gathering!' : storm.target === 'arena' ? 'Lightning strikes the arena.' : 'Lightning charges the enemy — Heracles will reflect it!';
+    event(state, 'static_strike', label, storm.target === 'heracles' && heracles >= 0 ? heracles : undefined, undefined, undefined, 'staticStorm', undefined, undefined, undefined, { element: 'lightning', ...(storm.target === 'boss' ? { enemyId: storm.enemyId } : {}), area: { kind: 'circle', x: storm.x, z: storm.z, radius: 2.5, angle: 0, total: STATIC_CHARGE_SECONDS } });
   }
 }
 
@@ -874,6 +917,7 @@ function fixedStep(state: GameState) {
     for (const key of Object.keys(actor.cooldowns)) actor.cooldowns[key] = Math.max(0, actor.cooldowns[key] - dt);
     actor.recovery = Math.max(0, actor.recovery - dt);
     actor.spellRecovery = Math.max(0, actor.spellRecovery - dt);
+    actor.staticShock = Math.max(0, actor.staticShock - dt);
     if (actor.hp <= 0) { clearTransient(actor); continue; }
     if (sequenceLocked(state)) { actor.moveX = actor.moveZ = 0; continue; }
     if (actor.mendingThread && state.status === 'fighting') {

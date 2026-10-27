@@ -18,10 +18,10 @@ test('each selected shot bursts only on a live matching element; cooldown shared
   s.burst={element,remaining:5};
   assert.equal(abilityCue(s,2,{type:'elementalShot'},false)?.kind,'burst-ready');
   assert.equal(applyAction(s,2,{type:'elementalShot'}).ok,true);
-  const hit=s.events.at(-1)!;assert.equal(hit.kind,'burst');assert.equal(hit.value,780);assert.equal(a.mp,285);assert.equal(actionKey(hit),'auto');
+  const hit=s.events.at(-1)!;assert.equal(hit.kind,'burst');assert.equal(hit.value,936);assert.equal(a.mp,285);assert.equal(actionKey(hit),'auto');
   assert.equal(applyAction(s,2,{type:'selectShot'}).ok,true);
   const before=JSON.stringify(s);assert.equal(applyAction(s,2,{type:'elementalShot'}).ok,false);assert.equal(JSON.stringify(s),before);
-  stepGame(s,6.1);assert.equal(applyAction(s,2,{type:'elementalShot'}).ok,true);assert.equal(s.events.at(-1)!.kind,'magic');assert.equal(s.events.at(-1)!.value,230);
+  stepGame(s,6.1);assert.equal(applyAction(s,2,{type:'elementalShot'}).ok,true);assert.equal(s.events.at(-1)!.kind,'magic');assert.equal(s.events.at(-1)!.value,276);
  }
 });
 test('a mismatched shot never bursts or creates a burst window',()=>{
