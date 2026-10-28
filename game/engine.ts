@@ -5,7 +5,7 @@ import { createRunStats } from './run-stats.ts';
 import { GROUND_BALANCE, GROUND_EMERGE_SECONDS, isGroundEnemy, nextGroundWave } from './ground-enemies.ts';
 import { createStaticStorm, nextStaticInterval, selectStaticStrike, STATIC_CHARGE_SECONDS, STATIC_REFLECT_DAMAGE, STATIC_RETALIATION_DAMAGE, STATIC_SHOCK_SECONDS, staticArcTargets } from './static-storm.ts';
 import { DUSK_WINDOW, isUltimate, matchesBurst, ULTIMATES } from './content.ts';
-import { ARCANIST_ENMITY_CAP, DPS_PASSIVES, ENMITY_CAP, WEAPON_ELEMENTS } from './content.ts';
+import { ARCANIST_ENMITY_CAP, DPS_PASSIVES, ENMITY_CAP, WAR_CRY, warCryTargets, WEAPON_ELEMENTS } from './content.ts';
 import type { Action, ActionResult, Actor, BossCast, CombatPresentationMetadata, Enemy, EnemyStatus, GameState, Mode, WeaponId } from './types.ts';
 
 const clamp = (n: number, low: number, high: number) => Math.max(low, Math.min(high, n));
@@ -39,7 +39,7 @@ export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState
       hp: p.hp, maxHp: p.hp, mp: p.mp, maxMp: p.mp, tp: 0, revelryStacks: 0,
       human: i === 0, engaged: false, moveX: 0, moveZ: 0, ce: 0, ve: 0,
       cooldowns: {}, attackTimer: 0, guardUntil: 0, dodgeUntil: 0, aiTimer: 0,
-      shieldCharges: 0, hpShield: 0, criticalCharges: 0, sonOfZeus: false, staticShock: 0, mendingThread: null, recovery: 0, spellRecovery: 0, shotElement: 'fire', enemyTarget: 'boss', selfChainUntil: 0,
+      shieldCharges: 0, hpShield: 0, criticalCharges: 0, sonOfZeus: false, staticShock: 0, warCryRemaining: 0, mendingThread: null, recovery: 0, spellRecovery: 0, shotElement: 'fire', enemyTarget: 'boss', selfChainUntil: 0,
       rapidWeave: null, elementalCycle: { elements: [], remaining: 0 }, sequence: null,
     })),
     boss: { name: LORE.boss, x: 0, z: -4, hp: maxHp, maxHp, target: -1, phase: 1, facing: 0, attackTimer: 2.5, specialTimer: 9, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null },
@@ -102,6 +102,7 @@ function clearTransient(actor: Actor) {
   actor.criticalCharges = 0;
   actor.sonOfZeus = false;
   actor.staticShock = 0;
+  actor.warCryRemaining = 0;
   actor.mendingThread = null;
   actor.selfChainUntil = 0;
   actor.rapidWeave = null;
@@ -539,6 +540,17 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     }
     return { ok: true };
   }
+  if (action.type === 'warCry') {
+    const targets = warCryTargets(state, actor);
+    actor.cooldowns.warCry = definition.cooldown;
+    actor.mp -= definition.mp;
+    actor.warCryRemaining = WAR_CRY.duration;
+    actor.recovery = .5;
+    if (targets.length > 0) threat(actor, WAR_CRY.cumulative, WAR_CRY.volatile);
+    event(state, 'ability', `${actor.name}: War Cry — faster attacks for 12 seconds.`, slot, undefined, undefined, 'warCry');
+    for (const enemy of targets) damageBoss(state, slot, WAR_CRY.damage, 'weapon', 'War Cry', 'warCry', false, undefined, undefined, { abilityId: 'warCry', enemyId: enemy.id });
+    return { ok: true };
+  }
   if (action.type === 'provoke') {
     if (distance(actor, offensiveTarget(state, actor)) > MAGIC_RANGE) return fail('Move into provoke range.');
     actor.cooldowns.provoke = 18;
@@ -792,6 +804,7 @@ function trustAction(state: GameState, slot: number) {
     if (state.party.some(p => p.hp > 0 && p.maxHp - p.hp > 360)) applyAction(state, slot, { type: 'heal' });
   }
   if (actor.role === 'warden') {
+    if (warCryTargets(state, actor).length > 0) applyAction(state, slot, { type: 'warCry' });
     applyAction(state, slot, { type: 'provoke' });
     if (actor.hp < actor.maxHp * 0.72) applyAction(state, slot, { type: 'guard' });
     if (actor.sonOfZeus) {
@@ -1014,6 +1027,8 @@ function fixedStep(state: GameState) {
     actor.recovery = Math.max(0, actor.recovery - dt);
     actor.spellRecovery = Math.max(0, actor.spellRecovery - dt);
     actor.staticShock = Math.max(0, actor.staticShock - dt);
+    const warCryTime = Math.min(dt, actor.warCryRemaining ?? 0);
+    actor.warCryRemaining = Math.max(0, (actor.warCryRemaining ?? 0) - dt);
     if (actor.hp <= 0) { clearTransient(actor); continue; }
     if (sequenceLocked(state)) { actor.moveX = actor.moveZ = 0; continue; }
     if (actor.mendingThread && state.status === 'fighting') {
@@ -1044,7 +1059,7 @@ function fixedStep(state: GameState) {
     actor.z += actor.moveZ * MOVE_SPEED * dt;
     bounds(actor);
     if (state.status !== 'fighting') continue;
-    actor.attackTimer = Math.max(0, actor.attackTimer - dt);
+    actor.attackTimer = Math.max(0, actor.attackTimer - dt - warCryTime * WAR_CRY.speedBonus);
     if (actor.engaged && actor.attackTimer <= 1e-8 && distance(actor, offensiveTarget(state, actor)) <= ROLES[actor.role].range) {
       const role = ROLES[actor.role];
       const dealt = damageBoss(state, i, role.damage, 'auto', 'auto attack');

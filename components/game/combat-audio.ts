@@ -25,6 +25,7 @@ export function combatSound(event: CombatEvent): CombatSound | null {
   }
   if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) return 'lightning';
   const key = presentationKey(event);
+  if (key === 'warCry') return event.kind === 'ability' ? 'provoke' : null;
   if (key === 'mendingThread') return event.kind === 'ability' ? 'thread' : null;
   if (key === 'shimmerWave') return event.kind === 'shimmer_wave' ? 'wave' : null;
   if (key === 'criticalDash') return event.kind === 'ability' ? 'dodge' : event.kind === 'weapon' ? 'impact' : null;

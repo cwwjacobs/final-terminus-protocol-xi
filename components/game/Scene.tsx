@@ -459,7 +459,7 @@ export default function Scene(props: SceneProps) {
       }
       if (handled) return;
       if (!['auto', 'weapon', 'chain', 'burst', 'magic', 'heal', 'provoke', 'hit', 'guard', 'dodge', 'revelry', 'revelry_lost', 'shield', 'ability'].includes(event.kind)) return;
-      if (event.kind === 'ability' && !['aegis', 'rapidWeave', 'mendingThread'].includes(event.source ?? '')) return;
+      if (event.kind === 'ability' && !['aegis', 'rapidWeave', 'mendingThread', 'warCry'].includes(event.source ?? '')) return;
       // Old saves have no heal recipient. Skip its target effect rather than
       // suggesting that the caster was healed or parsing a human-readable log.
       if (event.kind === 'heal' && !feedback) return;

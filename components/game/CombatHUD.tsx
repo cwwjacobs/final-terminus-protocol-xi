@@ -50,6 +50,7 @@ export default function CombatHUD({ state, slot, controls, interface: layout, se
         {actor.hpShield > 0 && <span><Icon name="rejuvenator"/> Shield {Math.ceil(actor.hpShield)}</span>}
         {actor.sonOfZeus && <span><Icon name="thunderclap"/> Son of Zeus · forced target</span>}
         {actor.revelryStacks > 0 && <span title="Revelry stacks; lost after taking damage"><Icon name="revelry"/> {actor.revelryStacks}/5</span>}
+        {actor.warCryRemaining > 0 && <span><Icon name="warCry"/> War Cry · +30% attack speed · {Math.ceil(actor.warCryRemaining)}s</span>}
         {actor.mendingThread && <span>Mending {Math.ceil(actor.mendingThread.remaining)}s</span>}
         {actor.shieldCharges > 0 && <span title="Aegis blocks the next hit"><Icon name="aegis"/> 1 hit</span>}
         {actor.selfChainUntil > state.time && <span>Self-chain {Math.ceil(actor.selfChainUntil - state.time)}s</span>}

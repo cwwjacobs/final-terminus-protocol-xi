@@ -1,5 +1,5 @@
 import { createGame } from '../game/engine.ts';
-import { ABILITY_DEFINITIONS, ARENA_RADIUS, FIXED_STEP, GOD_ENRAGE_CAST, REVELRY, ROLES } from '../game/content.ts';
+import { ABILITY_DEFINITIONS, ARENA_RADIUS, FIXED_STEP, GOD_ENRAGE_CAST, REVELRY, ROLES, WAR_CRY } from '../game/content.ts';
 import type { GameState } from '../game/types.ts';
 import { migrateGameState } from './state-migrations.ts';
 
@@ -137,6 +137,7 @@ export function validSave(raw: unknown): raw is GameState {
       (actor.sonOfZeus && actor.role !== 'warden') ||
       !nonnegative(actor.ce) || !nonnegative(actor.ve) || actor.ce > (actor.role === 'arcanist' ? 5000 : 10000) || actor.ve > (actor.role === 'arcanist' ? 5000 : 10000) ||
       !nonnegative(actor.staticShock) || actor.staticShock > 20 + FLOAT_TOLERANCE || (actor.staticShock > 0 && actor.id !== 'heracles') ||
+      !nonnegative(actor.warCryRemaining) || actor.warCryRemaining > WAR_CRY.duration + FLOAT_TOLERANCE || (actor.warCryRemaining > 0 && actor.role !== 'warden') ||
       actor.maxHp <= 0 || actor.maxHp > MAX_RESOURCE_CAPACITY || actor.maxMp <= 0 || actor.maxMp > MAX_RESOURCE_CAPACITY ||
       actor.hp < 0 || actor.hp > actor.maxHp || actor.mp < 0 || actor.mp > actor.maxMp || actor.tp < 0 || actor.tp > 3000 ||
       Math.hypot(actor.moveX, actor.moveZ) > 1 + FLOAT_TOLERANCE || !withinArena(actor.x, actor.z) ||

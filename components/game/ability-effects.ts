@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { ARENA_RADIUS, CONE_HALF_ANGLE, MAGIC } from '../../game/content.ts';
+import { ARENA_RADIUS, CONE_HALF_ANGLE, MAGIC, WAR_CRY } from '../../game/content.ts';
 import type { Element, GameState } from '../../game/types.ts';
 import type { CombatEvent } from './world-feedback.ts';
 import { presentationElement, presentationKey } from './presentation-cues.ts';
@@ -127,10 +127,11 @@ export function createAbilityEffects(scene: THREE.Scene, quality: 'low' | 'high'
     return { line, age: 0, duration: 0 };
   });
   const partyCues = Array.from({ length: 5 }, () => ({
-    guard: mesh(plane, '#91caff'), revelry: mesh(plane, gold), aegis: mesh(plane, light),
+    guard: mesh(plane, '#91caff'), warCry: mesh(ring, '#ffce82'), revelry: mesh(plane, gold), aegis: mesh(plane, light),
     weave: [mesh(crystal, MAGIC.fire.color), mesh(crystal, MAGIC.ice.color), mesh(crystal, MAGIC.lightning.color)],
   }));
   for (const [i, cue] of partyCues.entries()) {
+    cue.warCry.name = `vfx-warCry:${i}`;
     cue.guard.name = `vfx-guard:${i}`; cue.revelry.name = `vfx-revelry:${i}`; cue.aegis.name = `vfx-aegis:${i}`;
     cue.weave.forEach((g, n) => { g.name = `vfx-weave:${i}:${n}`; });
     cue.guard.material.map = texture('enhancement_guard');
@@ -319,6 +320,11 @@ export function createAbilityEffects(scene: THREE.Scene, quality: 'low' | 'high'
       case 'revelry':
         ground(at, gold, 4, .8, .45);
         state.party.forEach((p, i) => { if (p.hp > 0) spawn(actorPoint(state, i), { mask: 'cleave_contact_core', color: gold, size: .8, end: 1.5, duration: .7, motion: 'rise', velocity: new THREE.Vector3(0, 1, 0), opacity: .6 }); }); break;
+      case 'warCry':
+        if (event.kind !== 'ability') break;
+        ground(at, '#ffce82', WAR_CRY.radius, .65, .48);
+        ground(at, '#b8dcff', WAR_CRY.radius, .9, .28);
+        spawn(at, { mask: 'martial_shout', color: '#ffe0a1', size: 2.5, end: 4.5, duration: .65, opacity: .7 }); break;
       case 'provoke':
         for (let i = 0; i < 3; i++) ground(at, '#9acbff', 2 + i * 1.1, .7 + i * .12, .5 - i * .08);
         spawn(at, { mask: 'martial_shout', color: '#b8dcff', size: 2, end: 4, duration: .65, opacity: .6 }); break;
@@ -389,6 +395,9 @@ export function createAbilityEffects(scene: THREE.Scene, quality: 'low' | 'high'
     }
     partyCues.forEach((cue, i) => {
       const actor = state.party[i], alive = !!actor && actor.hp > 0 && state.status === 'fighting';
+      cue.warCry.visible = alive && actor.warCryRemaining > 0;
+      cue.warCry.position.set(actor?.x ?? 0, .12, actor?.z ?? 0); cue.warCry.rotation.set(-Math.PI / 2, 0, 0);
+      cue.warCry.scale.setScalar(reduced ? 1.55 : 1.55 + Math.sin(time * 4) * .08); cue.warCry.material.opacity = .4;
       cue.guard.visible = alive && actor.guardUntil > state.time;
       cue.guard.position.set(actor?.x ?? 0, 1.05, actor?.z ?? 0); cue.guard.quaternion.copy(camera.quaternion); cue.guard.scale.setScalar(1.05); cue.guard.material.opacity = .32;
       cue.revelry.visible = alive && actor.revelryStacks > 0;
@@ -431,7 +440,7 @@ export function createAbilityEffects(scene: THREE.Scene, quality: 'low' | 'high'
   }
   function reset() {
     particles.forEach(p => { p.duration = 0; p.mesh.visible = false; }); bolts.forEach(b => { b.duration = 0; b.line.visible = false; });
-    partyCues.forEach(cue => { cue.guard.visible = cue.revelry.visible = cue.aegis.visible = false; cue.weave.forEach(g => { g.visible = false; }); });
+    partyCues.forEach(cue => { cue.guard.visible = cue.warCry.visible = cue.revelry.visible = cue.aegis.visible = false; cue.weave.forEach(g => { g.visible = false; }); });
     threads.forEach(t => { t.visible = false; }); chainSeal.visible = chainOrbit.visible = bossCharge.visible = false;
     starts.clear(); impacts.clear(); time = 0;
   }

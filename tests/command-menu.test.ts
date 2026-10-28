@@ -50,7 +50,7 @@ test('nested spells preserve ally/adversary meaning and back closes one level at
 test('role-filtered pages expose only existing permissions, with honest empty categories', () => {
   const game = createGame();
   assert.deepEqual(commandEntries(game, 0, 'abilities').map(row => row.id), ['fearless', 'revelry', 'criticalDash', 'guard', 'dodge']);
-  assert.deepEqual(commandEntries(game, 1, 'abilities').map(row => row.id), ['thunderclap', 'provoke', 'guard', 'dodge']);
+  assert.deepEqual(commandEntries(game, 1, 'abilities').map(row => row.id), ['thunderclap', 'provoke', 'warCry', 'guard', 'dodge']);
   for (const [slot, signature, ultimate] of [[2, 'splitVolley', 'rainOfFire'], [3, 'rapidWeave', 'fission'], [4, 'aegis', 'rejuvenator']] as const) assert.deepEqual(commandEntries(game, slot, 'abilities').map(row => row.id), [ultimate, ...(slot === 2 ? ['elementalShot'] : slot === 4 ? ['shimmerWave', 'mendingThread'] : []), signature, 'guard', 'dodge']);
   for (const slot of [0, 1, 2]) assert.equal(commandEntries(game, slot, 'weapons').length, 3);
   for (const slot of [3, 4]) assert.deepEqual(commandEntries(game, slot, 'weapons'), []);

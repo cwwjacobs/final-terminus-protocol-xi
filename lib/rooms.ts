@@ -179,7 +179,7 @@ function parseAction(value: unknown): Action {
     }
     return { type: action.type, ...(Object.hasOwn(action, "target") ? { target: action.target as number } : {}) };
   }
-  if (["engage", "provoke", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave", "faceLogos", "fission", "rainOfFire", "rejuvenator", "fearless", "thunderclap", "lightningShock", "bolt", "clap"].includes(action.type as string)) {
+  if (["engage", "provoke", "warCry", "guard", "dodge", "start", "revelry", "criticalDash", "splitVolley", "rapidWeave", "aegis", "elementalShot", "shimmerWave", "faceLogos", "fission", "rainOfFire", "rejuvenator", "fearless", "thunderclap", "lightningShock", "bolt", "clap"].includes(action.type as string)) {
     exactKeys(action, ["type"]);
     return { type: action.type } as Action;
   }

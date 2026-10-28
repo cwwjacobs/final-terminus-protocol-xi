@@ -805,3 +805,21 @@ test('descent votes belong to each authenticated player and retries cannot repla
   assert.equal(duplicate.state.events.filter(event => event.kind === 'sentinels_awaken').length, 1);
   assert.equal(duplicate.state.ultimatesUnlocked, false);
 });
+
+test('Heracles War Cry is authoritative in rooms and duplicate packets cannot spend twice', async () => {
+  const repo = new MemoryRepository();
+  const owner = await handleRoomRequest(repo, { op: 'create', mode: 'trial', slot: 1 }, NOW) as RoomCredentials;
+  const stored = repo.rows.get(owner.code)!;
+  stored.state.party.forEach(actor => { actor.x = 0; actor.z = 0; actor.attackTimer = 1000; });
+  const result = await sync(repo, owner, 1, NOW, [{ type: 'start' }, { type: 'warCry' }]);
+  assert.ok(result.actionResults?.every(action => action.ok));
+  assert.equal(result.state.party[1].warCryRemaining, 12);
+  assert.equal(result.state.party[1].mp, 360);
+  assert.equal(result.state.party[1].cooldowns.warCry, 30);
+  const hp = result.state.boss.hp;
+  const duplicate = await sync(repo, owner, 1, NOW, [{ type: 'start' }, { type: 'warCry' }]);
+  assert.equal(duplicate.state.party[1].mp, 360); assert.equal(duplicate.state.boss.hp, hp);
+  const other = await handleRoomRequest(repo, { op: 'join', code: owner.code, slot: 2 }, NOW) as RoomCredentials;
+  const rejected = await sync(repo, other, 1, NOW, [{ type: 'warCry' }]);
+  assert.equal(rejected.actionResults?.[0].ok, false);
+});

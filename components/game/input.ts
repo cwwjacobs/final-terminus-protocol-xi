@@ -30,7 +30,7 @@ const combat: Partial<Record<Command, Action>> = {
   engage: { type: 'engage' }, cleave: { type: 'weapon', id: 'cleave' },
   pierce: { type: 'weapon', id: 'pierce' }, resonance: { type: 'weapon', id: 'resonance' },
   fire: { type: 'magic', element: 'fire' }, ice: { type: 'magic', element: 'ice' }, lightning: { type: 'magic', element: 'lightning' },
-  provoke: { type: 'provoke' }, heal: { type: 'heal' }, guard: { type: 'guard' }, dodge: { type: 'dodge' },
+  provoke: { type: 'provoke' }, warCry: { type: 'warCry' }, heal: { type: 'heal' }, guard: { type: 'guard' }, dodge: { type: 'dodge' },
   revelry: { type: 'revelry' }, criticalDash: { type: 'criticalDash' },
   shimmerWave: { type: 'shimmerWave' }, mendingThread: { type: 'mendingThread' },
   elementalShot: { type: 'elementalShot' }, selectShot: { type: 'selectShot' },

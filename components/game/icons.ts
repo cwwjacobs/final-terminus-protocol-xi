@@ -67,6 +67,7 @@ export const ICONS = {
   fire: mark(ABILITY_MARKS.fire), ice: mark(ABILITY_MARKS.ice), lightning: mark(ABILITY_MARKS.lightning),
   // Utility actions
   revelry: icon(fill('M12 2l2.2 7.8L22 12l-7.8 2.2L12 22l-2.2-7.8L2 12l7.8-2.2z')),
+  warCry: icon(stroke('M3 8h4l5-4v16l-5-4H3z'), stroke('M15 8q4 4 0 8M18 5q7 7 0 14')),
   provoke: icon(stroke('M6 21h12M8 20v-8h8v8M6.5 12h11M6.5 12V4h3v3h2V4h2v3h2V4h2.5v8')),
   criticalDash: icon(stroke('M3 18 9 6M8 18 14 6M13 18 19 6'), stroke('m17 4 4 2-1 4')),
   splitVolley: icon(stroke('M4 19 12 4l8 15M12 4v16M8 7l4-3 4 3M3 15l1 4 4-1m9-3 3 4-4-1')),

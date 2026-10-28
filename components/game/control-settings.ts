@@ -24,7 +24,7 @@ export const COMMANDS = [
   { id: 'primary3', label: 'Primary ability 3 · role dependent', group: 'Combat', defaultKey: 'Digit3', defaultButton: 5 },
   { id: 'engage', label: 'Engage / disengage', group: 'Combat', defaultKey: 'Space', defaultButton: 0 },
   { id: 'utility1', label: 'Role technique · Dash / Provoke / Volley / Weave', group: 'Combat', defaultKey: 'KeyQ', defaultButton: 7 },
-  { id: 'utility2', label: 'Role support · Revelry', group: 'Combat', defaultKey: 'KeyE', defaultButton: 6 },
+  { id: 'utility2', label: 'Role support · Revelry / War Cry', group: 'Combat', defaultKey: 'KeyE', defaultButton: 6 },
   { id: 'ultimate', label: 'Divine ultimate · unlocks against Logos', group: 'Combat', defaultKey: 'KeyG', defaultButton: 10 },
   ...(['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator', 'lightningShock', 'bolt', 'clap'] as const).map(id => ({ id, label: id === 'rainOfFire' ? 'Rain of Fire' : id === 'lightningShock' ? 'Lightning Shock' : id[0].toUpperCase() + id.slice(1), group: 'Direct ability overrides', defaultKey: '' })),
   { id: 'cleave', label: 'Arc Cleave', group: 'Direct ability overrides', defaultKey: '' },
@@ -34,6 +34,7 @@ export const COMMANDS = [
   { id: 'ice', label: 'Ice magic', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'lightning', label: 'Lightning magic', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'provoke', label: 'Provoke', group: 'Direct ability overrides', defaultKey: '' },
+  { id: 'warCry', label: 'War Cry', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'heal', label: 'Restore', group: 'Direct ability overrides', defaultKey: '' },
   { id: 'guard', label: 'Guard', group: 'Combat', defaultKey: 'ShiftLeft', defaultButton: 4 },
   { id: 'dodge', label: 'Evade', group: 'Combat', defaultKey: 'KeyC', defaultButton: 1 },
@@ -121,7 +122,7 @@ export const ROLE_SLOT_COMMANDS: readonly RoleSlotCommand[] = ['primary1', 'prim
 /** The same slots drive input, HUD ordering and effective binding labels. */
 export const ROLE_ACTION_SLOTS: Record<Role, readonly (Command | null)[]> = {
   vanguard: ['cleave', 'pierce', 'resonance', 'criticalDash', 'revelry'],
-  warden: ['cleave', 'pierce', 'resonance', 'provoke', null],
+  warden: ['cleave', 'pierce', 'resonance', 'provoke', 'warCry'],
   hunter: ['cleave', 'pierce', 'resonance', 'splitVolley', 'elementalShot'],
   arcanist: ['fire', 'ice', 'lightning', 'rapidWeave', null],
   luminary: ['heal', 'aegis', 'shimmerWave', 'mendingThread', null],

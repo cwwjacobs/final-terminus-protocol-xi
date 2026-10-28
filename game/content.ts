@@ -6,6 +6,7 @@ export const ARENA_RADIUS = 24;
 export const MOVE_SPEED = 6;
 export const MELEE_RANGE = 4.6;
 export const MAGIC_RANGE = 18;
+export const WAR_CRY = { duration: 12, speedBonus: .30, radius: 8, damage: 220, cumulative: 600, volatile: 1800 } as const;
 export const CHAIN_WINDOW = 8;
 export const CHAIN_MIN_DELAY = 1.5;
 export const BURST_WINDOW = 8;
@@ -66,6 +67,7 @@ export const ABILITY_DEFINITIONS: Record<string, { name: string; cooldown: numbe
   aegis: { name: 'Aegis', cooldown: 90, mp: 120, description: 'All living allies within 18 units block their next incoming hit.' },
   revelry: { name: 'Revelry', cooldown: 45, mp: 0, description: 'Grant a stacking party attack bonus and gain 500 TP.' },
   provoke: { name: 'Provoke', cooldown: 18, mp: 0, description: 'Generate enmity, amplified by Iron Resolve even outside Son of Zeus form.' },
+  warCry: { name: 'War Cry', cooldown: 30, mp: 40, description: 'Roar for 220 base physical damage to enemies within 8m and generate high enmity. Gain 30% faster auto-attacks for 12 seconds. 40 MP; 30 second recast.' },
   shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
   mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', cooldown: 5, mp: 70, description: 'Heal a selected ally, or the lowest health percentage in range.' },
@@ -87,7 +89,7 @@ export const PARTY = [
 
 export const ROLES: Record<Role, { description: string; damage: number; delay: number; tp: number; range: number; patk: number; matk: number }> = {
   vanguard: { description: 'Lead the assault. Open a chain; let the party answer.', damage: 112, delay: 2.35, tp: 240, range: MELEE_RANGE, patk: 100, matk: 100 },
-  warden: { description: 'Hold enmity with Provoke, then Guard Crown Resonance’s blows.', damage: 78, delay: 2.8, tp: 245, range: MELEE_RANGE, patk: 100, matk: 100 },
+  warden: { description: 'Gather enemies with War Cry, swing faster, and hold enmity with Provoke and Guard.', damage: 78, delay: 2.8, tp: 245, range: MELEE_RANGE, patk: 100, matk: 100 },
   hunter: { description: 'Attack from range. Close another actor’s weaponskill into a timed skillchain.', damage: 120, delay: 2.15, tp: 240, range: 13, patk: 100, matk: 100 },
   arcanist: { description: 'Match the chain’s element to land a Magic Burst.', damage: 46, delay: 3.1, tp: 200, range: 13, patk: 100, matk: 100 },
   luminary: { description: 'Restore the lowest-health ally and keep the lattice alive.', damage: 38, delay: 3.3, tp: 180, range: 13, patk: 100, matk: 100 },
@@ -108,7 +110,7 @@ export function canUseActionRole(role: Role, type: Action['type']): boolean {
   if (type === 'weapon') return role === 'vanguard' || role === 'warden' || role === 'hunter';
   if (type === 'magic') return role === 'arcanist';
   if (type === 'heal' || type === 'aegis' || type === 'shimmerWave' || type === 'mendingThread') return role === 'luminary';
-  if (type === 'provoke') return role === 'warden';
+  if (type === 'provoke' || type === 'warCry') return role === 'warden';
   if (type === 'revelry' || type === 'criticalDash') return role === 'vanguard';
   if (type === 'elementalShot' || type === 'selectShot') return role === 'hunter';
   if (type === 'splitVolley') return role === 'hunter';
@@ -145,7 +147,7 @@ export function getCooldown(actor: Actor, action: Action): number {
 export function actionUnavailable(state: GameState, slot: number, action: Action): string | null {
   if (!Number.isInteger(slot) || slot < 0 || slot >= state.party.length) return 'Invalid party slot.';
   if (!action || typeof action !== 'object' || Array.isArray(action)) return 'Invalid action.';
-  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', 'readyForLogos', 'selectEnemy', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
+  if (!['move', 'engage', 'weapon', 'magic', 'revelry', 'provoke', 'warCry', 'heal', 'guard', 'dodge', 'start', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'elementalShot', 'selectShot', 'shimmerWave', 'mendingThread', 'faceLogos', 'readyForLogos', 'selectEnemy', ...Object.values(ULTIMATES), ...FORM_ACTIONS].includes(action.type)) return 'Unknown action.';
   if (action.type === 'faceLogos') return state.status === 'victory' && state.encounter === 'crown' ? null : 'Defeat Crown Resonance to descend to Logos.';
   if (state.status === 'victory' || state.status === 'defeat') return 'The encounter is over.';
   const actor = state.party[slot];
@@ -167,13 +169,13 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   if (action.type === 'weapon' && !Object.hasOwn(WEAPONS, action.id)) return 'Unknown weaponskill.';
   if (action.type === 'magic' && !Object.hasOwn(MAGIC, action.element)) return 'Unknown magic element.';
   if (getCooldown(actor, action) > 1e-8) return `${ABILITY_DEFINITIONS[cooldownKey(action)]?.name ?? action.type} is on cooldown.`;
-  const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot', 'fission', 'rainOfFire', ...FORM_ACTIONS].includes(action.type);
+  const offensive = ['warCry', 'weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot', 'fission', 'rainOfFire', ...FORM_ACTIONS].includes(action.type);
   if (offensive && statuesEntering(state)) return 'The statues are still landing.';
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
   if (['magic', 'elementalShot', 'bolt', 'lightningShock', 'fission'].includes(action.type) && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';
   const target = offensiveTarget(state, actor);
-  if (offensive && 'id' in target && (target.emergeRemaining ?? 0) > 0) return 'Wait for the lightning to awaken this ground.';
+  if (offensive && action.type !== 'warCry' && 'id' in target && (target.emergeRemaining ?? 0) > 0) return 'Wait for the lightning to awaken this ground.';
   const range = Math.hypot(actor.x - target.x, actor.z - target.z);
   if (action.type === 'weapon' || action.type === 'criticalDash' || action.type === 'splitVolley' || action.type === 'elementalShot') {
     if (!actor.engaged) return 'Engage before attacking.';
@@ -195,6 +197,13 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   return null;
 }
 
+/** Radial attacks resolve legal, landed targets independently of soft selection. */
+export function warCryTargets(state: GameState, actor: Actor) {
+  if (statuesEntering(state)) return [];
+  return enemyTargets(state).filter(enemy => Math.hypot(actor.x - enemy.x, actor.z - enemy.z) <= WAR_CRY.radius &&
+    (enemy.id === 'boss' || (state.enemies.find(candidate => candidate.id === enemy.id)?.emergeRemaining ?? 0) <= 0));
+}
+
 export const ACTIONS = {
   engage: { name: 'Engage', description: 'Begin auto attacks when in range.' },
   weapon: { name: 'Weaponskill', description: 'Spend all TP (minimum 1,000). Close a compatible chain 1.5–8 seconds later; Dolos can self-chain after Split Volley.' },
@@ -205,6 +214,7 @@ export const ACTIONS = {
   rapidWeave: ABILITY_DEFINITIONS.rapidWeave,
   aegis: ABILITY_DEFINITIONS.aegis,
   provoke: { name: 'Provoke', description: 'Generate cumulative and volatile enmity. 18 second cooldown.' },
+  warCry: ABILITY_DEFINITIONS.warCry,
   shimmerWave: { name: 'Shimmer Wave', cooldown: 20, mp: 120, description: 'Restore 350 HP to each living ally within 18 units. Triage strengthens healing below 35% HP.' },
   mendingThread: { name: 'Mending Thread', cooldown: 18, mp: 80, description: 'Restore 100 HP every 2 seconds for 12 seconds to a selected ally, or the most wounded in range. Triage applies; refreshes rather than stacks.' },
   heal: { name: 'Restore', description: '70 MP. Heal the most wounded living ally within 18 units.' },

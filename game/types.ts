@@ -20,6 +20,7 @@ export type Action =
   | { type: 'faceLogos' }
   | { type: 'readyForLogos'; ready: boolean }
   | { type: 'provoke' }
+  | { type: 'warCry' }
   | { type: 'heal'; target?: number }
   | { type: 'shimmerWave' }
   | { type: 'mendingThread'; target?: number }
@@ -57,6 +58,7 @@ export interface Actor {
   criticalCharges: number;
   sonOfZeus: boolean;
   staticShock: number;
+  warCryRemaining: number;
   mendingThread: null | { remaining: number; tickIn: number; source: number };
   recovery: number;
   spellRecovery: number;

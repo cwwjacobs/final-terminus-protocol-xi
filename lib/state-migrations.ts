@@ -45,6 +45,7 @@ export function migrateGameState(raw: unknown): Record<string, unknown> | null {
     if (!Object.hasOwn(actor, 'criticalCharges')) actor.criticalCharges = 0;
     if (!Object.hasOwn(actor, 'sonOfZeus')) actor.sonOfZeus = false;
     if (!Object.hasOwn(actor, 'staticShock')) actor.staticShock = 0;
+    if (!Object.hasOwn(actor, 'warCryRemaining')) actor.warCryRemaining = 0;
     if (actor.role === 'arcanist') for (const key of ['ce', 've']) {
       if (timer(actor[key]) && actor[key] <= 10000) actor[key] = Math.min(5000, actor[key]);
     }

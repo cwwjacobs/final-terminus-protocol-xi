@@ -44,6 +44,7 @@ function definitions(id: string): Record<string, Definition> {
     shimmerWave: move(.95, .18, pose([-.14, 1.14, .4], [.14, 1.14, .4]), wide),
     mendingThread: move(.8, .16, pose([-.12, 1.21, .34], [.11, 1.21, .35]), pose([-.36, 1.27, .3], [.37, 1.27, .55], .06)),
     aegis: move(1.02, .2, castGather, raised),
+    warCry: move(1.05, .18, pose([-.4, 1.2, .25], [.3, 1.25, .4], -.18, -.08), pose([-.6, 1.65, .28], [.4, 1.5, .6], .1, .12)),
     provoke: move(.9, .18, pose([-.37, 1.35, .25], [.26, 1.3, .48], -.15, -.06), pose([-.48, 1.52, .33], [.3, 1.3, .56], .06, .1)),
     guard: move(.8, .12, defender, pose([-.25, 1.27, .35], [.16, 1.45, .56], -.18, .09)),
     dodge: move(.45, .09, ready, pose([-.28, 1.09, .23], [.28, 1.13, .26], -.38, -.14)),

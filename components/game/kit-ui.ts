@@ -12,6 +12,7 @@ export const utilityAbilities: AbilityPresentation[] = [
   { key: 'revelry', pad: '', name: 'Revelry', icon: 'revelry', color: 'gold', action: { type: 'revelry' }, hint: ABILITY_DEFINITIONS.revelry.description },
   { key: 'criticalDash', pad: '', name: 'Critical Dash', icon: 'criticalDash', color: 'gold', action: { type: 'criticalDash' }, hint: ABILITY_DEFINITIONS.criticalDash.description },
   { key: 'provoke', pad: '', name: 'Provoke', icon: 'provoke', color: 'gold', action: { type: 'provoke' }, hint: ABILITY_DEFINITIONS.provoke.description },
+  { key: 'warCry', pad: '', name: 'War Cry', icon: 'warCry', color: 'gold', action: { type: 'warCry' }, hint: ABILITY_DEFINITIONS.warCry.description },
   { key: 'elementalShot', pad: '', name: 'Elemental Shot', icon: 'fire', color: 'fire', action: { type: 'elementalShot' }, hint: ABILITY_DEFINITIONS.elementalShot.description },
   { key: 'splitVolley', pad: '', name: 'Split Volley', icon: 'splitVolley', color: 'mint', action: { type: 'splitVolley' }, hint: ABILITY_DEFINITIONS.splitVolley.description },
   { key: 'rapidWeave', pad: '', name: 'Rapid Weave', icon: 'rapidWeave', color: 'violet', action: { type: 'rapidWeave' }, hint: ABILITY_DEFINITIONS.rapidWeave.description },
@@ -70,6 +71,7 @@ export function abilityDetail(actor: Actor, action: Action): string {
   if (action.type === 'magic' && actor.rapidWeave && actor.rapidWeave.charges[action.element] > 0)
     return `${actor.rapidWeave.charges[action.element]} rapid · ${cooldown > 0 ? `${cooldown.toFixed(1)}s` : '70 MP'}`;
   if (cooldown > 0) return `${formatCooldown(cooldown)} recast`;
+  if (action.type === 'warCry') return '40 MP · +30% attack speed · 12s';
   if (action.type === 'clap') return '1,000+ TP · area stun';
   if (['fearless', 'thunderclap', 'rainOfFire', 'fission', 'rejuvenator'].includes(action.type)) return 'Ultimate ready · 10m recast';
   if (action.type === 'elementalShot') return '35 MP · +200 TP on hit';

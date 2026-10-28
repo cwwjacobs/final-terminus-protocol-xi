@@ -16,11 +16,11 @@ export interface PresentationCue {
 export type PresentationKey =
   | 'auto' | WeaponId | Element | 'elementalShot'
   | 'criticalDash' | 'splitVolley' | 'rapidWeave' | 'aegis'
-  | 'revelry' | 'provoke' | 'heal' | 'shimmerWave' | 'mendingThread'
+  | 'revelry' | 'provoke' | 'warCry' | 'heal' | 'shimmerWave' | 'mendingThread'
   | 'guard' | 'dodge' | 'hit' | 'down' | 'chain' | 'shieldBreak'
   | 'bossCast' | 'bossImpact' | 'staticStrike' | 'staticDischarge' | 'buffLost';
 
-const signatures = ['criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'shimmerWave', 'mendingThread', 'elementalShot'] as const;
+const signatures = ['warCry', 'criticalDash', 'splitVolley', 'rapidWeave', 'aegis', 'shimmerWave', 'mendingThread', 'elementalShot'] as const;
 const supported = new Set(['auto', 'weapon', 'magic', 'burst', 'ability', 'shimmer_wave', 'heal']);
 
 /** Resolve explicit identity before inspecting legacy labels. No gameplay writes. */
