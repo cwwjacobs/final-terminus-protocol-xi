@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyAction, createGame, isInTelegraph, setHuman, stepGame } from '../game/engine.ts';
+import { nextGroundWave } from '../game/ground-enemies.ts';
 import { ARENA_RADIUS, canUseActionRole, CHAIN_MIN_DELAY, GOD_ENRAGE_TIME, ROLES, WEAPONS } from '../game/content.ts';
 import type { Action, GameState, Mode } from '../game/types.ts';
 
@@ -289,6 +290,11 @@ test('god collapse uses combat elapsed time, warns visibly, and defeats an idle 
   assert.equal(state.time, 600);
   assert.equal(state.combatTime, 0, 'preparation time cannot consume the god deadline');
   applyAction(state, 0, { type: 'start' });
+  // Isolate the hard deadline from ordinary enemy damage by completing the
+  // finite ground-wave ledger, just as boss attacks and storm are disabled.
+  state.combatTime = 300;
+  for (let wave = 0; wave < 3; wave++) state.enemies.push(...nextGroundWave(state).map(enemy => ({ ...enemy, hp: 0 })));
+  state.combatTime = 0;
   assert.equal(state.combatTime, 0);
   assert.ok(state.events.some(e => e.kind === 'warning' && e.text.includes('7:30')));
   while (state.status === 'fighting' && state.combatTime < GOD_ENRAGE_TIME - 30) stepGame(state, 0.05);

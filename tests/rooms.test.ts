@@ -1,4 +1,5 @@
 import { stepGame } from '../game/engine.ts';
+import { SENTINEL_ENTRY_SECONDS } from '../game/logos.ts';
 import test from "node:test";
 import assert from "node:assert/strict";
 import { REVELRY } from "../game/content.ts";
@@ -779,7 +780,7 @@ test('only the host can descend after Crown victory; room snapshots preserve unl
   assert.equal(descended.state.encounter, 'logos'); assert.equal(descended.state.ultimatesUnlocked, false); assert.equal(descended.state.logos.stage, 'descent');
   assert.equal(descended.state.boss.name, 'Logos'); assert.equal(descended.state.enemies.length, 6);
   const current = repo.rows.get(owner.code)!.state;
-  current.party.forEach(a=>{a.human=true;}); stepGame(current,30); stepGame(current,30); current.enemies.forEach(e=>{e.hp=0;}); stepGame(current,.05); current.party[3].z=-1;
+  current.party.forEach(a=>{a.human=true;}); stepGame(current,30); stepGame(current,30); stepGame(current,SENTINEL_ENTRY_SECONDS); current.enemies.forEach(e=>{e.hp=0;}); stepGame(current,.05); current.party[3].z=-1;
   const cast = await sync(repo, mage, 1, NOW + 250, [{ type: 'fission' }]);
   assert.equal(cast.actionResults?.[0].ok, true); assert.equal(cast.state.party[3].cooldowns.fission, 600);
   const retry = await sync(repo, mage, 1, NOW + 300, [{ type: 'fission' }]);

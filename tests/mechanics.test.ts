@@ -217,7 +217,7 @@ test('Heracles receives 10% physical mitigation and generates 150% extra normal-
   const s = combat(); applyAction(s, 1, { type: 'provoke' });
   assert.equal(s.party[1].ce, 750); assert.equal(s.party[1].ve, 7000);
   s.boss.attackTimer = 0; stepGame(s, .05);
-  assert.equal(s.party[1].maxHp - s.party[1].hp, 170);
+  assert.equal(s.party[1].maxHp - s.party[1].hp, Math.round(155 * 1.05 * .9));
 });
 
 test('Decree locks one ally, respects physical mitigation and fizzles when that ally has died', () => {

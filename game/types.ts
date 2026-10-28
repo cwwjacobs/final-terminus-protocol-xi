@@ -105,6 +105,11 @@ export interface Enemy extends EnemyStatus {
   maxHp: number;
   target: number;
   attackTimer: number;
+  /** Crown ground manifestations; absent on historical statues and hands. */
+  kind?: 'ground-shard' | 'storm-shard';
+  emergeRemaining?: number;
+  spawnX?: number;
+  spawnZ?: number;
 }
 
 export interface ActorRunStats {

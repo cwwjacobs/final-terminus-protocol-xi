@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { SENTINEL_ENTRY_SECONDS } from '../../game/logos.ts';
 
 type Stage = 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped';
 export interface LogosRigState {
@@ -361,6 +362,14 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const stone = createStoneMaterial();
   const silver = new THREE.MeshStandardMaterial({ color: '#8e969d', metalness: .72, roughness: .3, envMapIntensity: .7 });
   silver.name = 'Logos-restrained-warm-silver-crown';
+  const sentinelPaints = sentinelContacts.map(() => {
+    const body = createStoneMaterial(), trim = silver.clone();
+    body.name = 'sentinel-polished-stone'; trim.name = 'sentinel-silver-trim';
+    return { body, trim };
+  });
+  const distantStatueAnchors = new Map(sentinelContacts.map((contact, i) => [`sentinel-${i}`, contact]));
+  const distantLighting = sentinelContacts.map(() => 0);
+  const distantDistortion = sentinelContacts.map(() => 0);
   const ownGeometries = new Set<THREE.BufferGeometry>();
   const ownSkeletons = new Set<THREE.Skeleton>();
   const sources = new Set<THREE.Group>();
@@ -398,18 +407,18 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     thrones.splice(0).forEach(throne => throne.removeFromParent());
     root.clear();
   };
-  const makeFigure = (source: THREE.Group, scale: number, name: string, drapery: THREE.BufferGeometry): Figure => {
+  const makeFigure = (source: THREE.Group, scale: number, name: string, drapery: THREE.BufferGeometry, bodyPaint = stone, trimPaint = silver): Figure => {
     const frame = new THREE.Group(); frame.name = name; root.add(frame);
     const model = cloneSkeleton(source); model.name = `${name}-continuous-anatomy`; model.scale.setScalar(scale); frame.add(model);
     const bones = new Map<string, THREE.Bone>();
     model.traverse(object => {
       if (object instanceof THREE.Bone) bones.set(object.name, object);
-      if (object instanceof THREE.Mesh) { object.material = stone; object.castShadow = true; object.receiveShadow = true; }
+      if (object instanceof THREE.Mesh) { object.material = bodyPaint; object.castShadow = true; object.receiveShadow = true; }
       if (object instanceof THREE.SkinnedMesh) { ownSkeletons.add(object.skeleton); object.frustumCulled = false; }
     });
     let anatomy: THREE.SkinnedMesh | undefined;
     model.traverse(object => { if (!anatomy && object instanceof THREE.SkinnedMesh) anatomy = object; });
-    const cloth = new THREE.SkinnedMesh(drapery, stone); cloth.name = `${name}-sculpted-himation-sash`;
+    const cloth = new THREE.SkinnedMesh(drapery, bodyPaint); cloth.name = `${name}-sculpted-himation-sash`;
     cloth.castShadow = true; cloth.receiveShadow = true; cloth.frustumCulled = false; model.add(cloth);
     cloth.bind(anatomy!.skeleton, anatomy!.bindMatrix);
     const rest: Rest[] = [...bones.values()].map(bone => ({ bone, position: bone.position.clone(), quaternion: bone.quaternion.clone(), scale: bone.scale.clone() }));
@@ -420,15 +429,15 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     const headWorld = headBone.getWorldQuaternion(new THREE.Quaternion());
     const frameWorld = frame.getWorldQuaternion(new THREE.Quaternion());
     adornment.quaternion.copy(headWorld.invert().multiply(frameWorld)); headBone.add(adornment);
-    const crownMesh = new THREE.Mesh(crown, silver); crownMesh.castShadow = true; crownMesh.name = `${name}-solid-laurel-crown`; adornment.add(crownMesh);
-    const hairMesh = new THREE.Mesh(hair, stone); hairMesh.castShadow = true; hairMesh.name = `${name}-carved-brow-hair-beard`; adornment.add(hairMesh);
+    const crownMesh = new THREE.Mesh(crown, trimPaint); crownMesh.castShadow = true; crownMesh.name = `${name}-solid-laurel-crown`; adornment.add(crownMesh);
+    const hairMesh = new THREE.Mesh(hair, bodyPaint); hairMesh.castShadow = true; hairMesh.name = `${name}-carved-brow-hair-beard`; adornment.add(hairMesh);
     const headContact = new THREE.Object3D(); headContact.position.set(0, .143, .13); adornment.add(headContact);
     const chestContact = new THREE.Object3D(); chestContact.position.set(0, 0, .14); bones.get('upper_chest')!.add(chestContact);
     const arms = ['R', 'L'].map((side, i) => {
       const end = bones.get(`hand_${side}`)!;
       // The custom palm's axes follow the source wrist; its finger joints are
       // independent of the 22-joint source, adding 16 real bones to each hand.
-      const hand = makeHand(end, shapes[i], stone, `${name}-${i === 0 ? 'left' : 'right'}-hand`);
+      const hand = makeHand(end, shapes[i], bodyPaint, `${name}-${i === 0 ? 'left' : 'right'}-hand`);
       ownSkeletons.add(hand.mesh.skeleton);
       return { upper: bones.get(`upper_arm_${side}`)!, lower: bones.get(`forearm_${side}`)!, end, hand };
     });
@@ -468,8 +477,8 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     giant.head.add(head); giant.arms[0].hand!.anchor.add(leftHand); giant.arms[1].hand!.anchor.add(rightHand);
     head.position.set(0, 0, 0); leftHand.position.set(0, 0, 0); rightHand.position.set(0, 0, 0);
     sentinels = sentinelContacts.map((contact, i) => {
-      const figure = makeFigure(source, 1.75, `Logos-sentinel-${i}`, drapery); figure.chest.add(contact); contact.position.set(0, 0, 0);
-      const throne = new THREE.Mesh(throneGeometry, stone); throne.name = `Logos-sentinel-${i}-solid-throne`; throne.scale.setScalar(1.75); throne.receiveShadow = true; throne.castShadow = true; root.add(throne); thrones.push(throne); return figure;
+      const figure = makeFigure(source, 1.75, `Logos-sentinel-${i}`, drapery, sentinelPaints[i].body, sentinelPaints[i].trim); figure.chest.add(contact); contact.position.set(0, 0, 0);
+      const throne = new THREE.Mesh(throneGeometry, sentinelPaints[i].body); throne.name = `Logos-sentinel-${i}-solid-throne`; throne.scale.setScalar(1.75); throne.receiveShadow = true; throne.castShadow = true; root.add(throne); thrones.push(throne); return figure;
     });
     recount();
   };
@@ -544,13 +553,34 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     head.visible = value; leftHand.visible = value; rightHand.visible = value;
   };
 
+  const lightSentinel = (index: number, distant: boolean) => {
+    const level = distantLighting[index] ?? 0;
+    for (const material of [sentinelPaints[index].body, sentinelPaints[index].trim]) {
+      if (material.transparent !== distant) { material.transparent = distant; material.needsUpdate = true; }
+      material.depthWrite = !distant;
+      material.opacity = distant ? .008 + level * .62 : 1;
+      material.emissive.set('#60768f'); material.emissiveIntensity = distant ? level * .65 : 0;
+    }
+  };
+  const setDistantStatueLighting = (levels: readonly number[]) => {
+    if (disposed) return;
+    const distant = currentState?.encounter === 'crown' || currentState?.logos?.stage === 'descent';
+    for (let i = 0; i < sentinelPaints.length; i++) { distantLighting[i] = clamp01(levels[i] ?? 0); lightSentinel(i, distant); }
+  };
+
+  const setDistantStatueDistortion = (levels: readonly number[]) => {
+    if (disposed) return;
+    for (let i = 0; i < distantDistortion.length; i++) distantDistortion[i] = clamp01(levels[i] ?? 0);
+  };
+
   const update = (dt: number, state: LogosRigState, reducedMotion = false) => {
     if (disposed) return;
     currentState = state; currentReduced = reducedMotion;
     const delta = Math.max(0, Math.min(.1, finite(dt))); time += delta;
     const stage = state.logos?.stage ?? (state.encounter === 'logos' ? 'giant' : 'none');
     const elapsed = positive(state.logos?.elapsed ?? time), collapse = stage === 'collapse' ? clamp01(elapsed / 6) : 0;
-    root.visible = state.encounter === 'logos' && stage !== 'none' && stage !== 'escaped';
+    const crownScene = state.encounter === 'crown';
+    root.visible = crownScene ? sentinels.length > 0 : state.encounter === 'logos' && stage !== 'none' && stage !== 'escaped';
     stone.transparent = collapse > 0; stone.opacity = 1 - collapse; silver.transparent = collapse > 0; silver.opacity = 1 - collapse;
     stats.maxArmStretch = 1;
     if (!giant) return;
@@ -562,9 +592,11 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
       }
       return;
     }
-    giant.root.visible = stage === 'giant' || stage === 'collapse'; setContactsVisible(giant.root.visible);
+    const backdrop = !crownScene && (stage === 'descent' || stage === 'sentinels');
+    const giantActive = !crownScene && (stage === 'giant' || stage === 'collapse');
+    giant.root.visible = backdrop || giantActive; setContactsVisible(giantActive && stage === 'giant');
     if (giant.root.visible) {
-    giant.root.position.set(finite(state.boss.x), 17.3 - giant.headRestHeight - (reducedMotion ? 0 : collapse * 5), finite(state.boss.z, -12));
+    giant.root.position.set(backdrop ? 0 : finite(state.boss.x), 17.3 - giant.headRestHeight - (reducedMotion ? 0 : collapse * 5), backdrop ? -16 : finite(state.boss.z, -12));
     giant.root.rotation.set(0, 0, reducedMotion ? 0 : collapse * -.07);
     resetPose(giant);
     const headBone = giant.bones.get('head')!;
@@ -573,7 +605,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     for (let index = 0; index < 2; index++) {
       const id = index === 0 ? 'left-hand' : 'right-hand', sign = index === 0 ? -1 : 1;
       const enemy = state.enemies.find(enemy => enemy.id === id) ?? state.enemies.find(enemy => enemy.id === `echo-${index}`);
-      const x = finite(enemy?.x ?? finite(state.boss.x) + sign * 7), z = finite(enemy?.z ?? finite(state.boss.z, -12) + 9);
+      const x = backdrop ? sign * 7 : finite(enemy?.x ?? finite(state.boss.x) + sign * 7), z = backdrop ? -7 : finite(enemy?.z ?? finite(state.boss.z, -12) + 9);
       const attack = !reducedMotion && enemy && enemy.hp > 0 && enemy.stunRemaining <= 0 ? clamp01((.65 - positive(enemy.attackTimer)) / .65) : 0;
       const attackLift = Math.sin(attack * Math.PI) * 1.1;
       v[12].set(x, 4 + attackLift - (reducedMotion ? 0 : collapse * 5), z); root.localToWorld(v[12]);
@@ -581,42 +613,64 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
       const target = enemy ? state.party[enemy.target] : undefined;
       const facing = target && target.hp > 0 ? Math.atan2(finite(target.x) - x, finite(target.z) - z) : 0;
       poseArm(giant, index, v[12], v[13], facing, .14 + attack * .75, !!enemy && enemy.stunRemaining > 0);
-      (index === 0 ? leftHand : rightHand).visible = giant.root.visible && (!enemy || enemy.hp > 0);
+      (index === 0 ? leftHand : rightHand).visible = giantActive && stage === 'giant' && (!enemy || enemy.hp > 0);
     }
     }
     for (let i = 0; i < sentinels.length; i++) {
       const figure = sentinels[i], angle = i / 6 * Math.PI * 2;
       const enemy = state.enemies.find(enemy => enemy.id === `sentinel-${i}`);
-      const dormant = stage === 'descent';
+      const dormant = crownScene || stage === 'descent';
+      const distortion = dormant ? distantDistortion[i] : 0;
+      const entering = !dormant && stage === 'sentinels' && elapsed < SENTINEL_ENTRY_SECONDS;
+      const jump = entering ? clamp01((elapsed - i * .18) / Math.max(.1, SENTINEL_ENTRY_SECONDS - .9)) : 1;
+      const travel = jump * jump * (3 - 2 * jump);
+      const floatedY = 2.4 + i % 2 * .5 + (reducedMotion ? 0 : Math.sin(time * .5 + i) * .12);
+      lightSentinel(i, dormant);
       figure.root.visible = dormant || stage === 'sentinels' && !!enemy && enemy.hp > 0;
-      sentinelContacts[i].visible = figure.root.visible;
-      const throne = thrones[i]; throne.visible = dormant || stage === 'sentinels';
+      sentinelContacts[i].visible = figure.root.visible && !dormant;
+      const throne = thrones[i]; throne.visible = false;
       if (throne.visible) {
         throne.position.set(Math.sin(angle) * 18, 0, Math.cos(angle) * 18); throne.rotation.y = Math.atan2(-throne.position.x, -throne.position.z);
       }
       if (!figure.root.visible) { figure.motionInitialized = false; continue; }
-      const x = dormant ? Math.sin(angle) * 18 : finite(enemy?.x ?? Math.sin(angle) * 18);
-      const z = dormant ? Math.cos(angle) * 18 : finite(enemy?.z ?? Math.cos(angle) * 18);
+      const originX = Math.sin(angle) * 34, originZ = Math.cos(angle) * 34;
+      const destinationX = finite(enemy?.x ?? Math.sin(angle) * 18), destinationZ = finite(enemy?.z ?? Math.cos(angle) * 18);
+      const positionBlend = reducedMotion && entering ? (jump >= 1 ? 1 : 0) : travel;
+      const x = dormant ? originX : entering ? THREE.MathUtils.lerp(originX, destinationX, positionBlend) : destinationX;
+      const z = dormant ? originZ : entering ? THREE.MathUtils.lerp(originZ, destinationZ, positionBlend) : destinationZ;
       const target = enemy ? state.party[enemy.target] : undefined;
       const facing = dormant ? Math.atan2(-x, -z) : target && target.hp > 0 ? Math.atan2(finite(target.x) - x, finite(target.z) - z) : Math.atan2(-x, -z);
       const speed = !figure.motionInitialized || !delta ? 0 : Math.min(6, Math.hypot(x - figure.previousX, z - figure.previousZ) / delta);
       figure.previousX = x; figure.previousZ = z; figure.motionInitialized = true;
-      const moving = !reducedMotion && !dormant && speed > .05 && !(enemy && enemy.stunRemaining > 0);
+      const moving = !reducedMotion && !dormant && !entering && speed > .05 && !(enemy && enemy.stunRemaining > 0);
       const phase = time * 8 + i * 1.7, run = moving ? Math.min(1, speed / 2) : 0;
-      figure.root.position.set(x, moving && i % 3 === 1 ? Math.max(0, Math.sin(phase)) * .15 : 0, z);
+      const jumpY = reducedMotion ? (jump >= 1 ? 0 : floatedY) : floatedY * (1 - travel) + Math.sin(jump * Math.PI) * 5;
+      figure.root.position.set(x, dormant ? floatedY : entering ? jumpY : moving && i % 3 === 1 ? Math.max(0, Math.sin(phase)) * .15 : 0, z);
+      if (!reducedMotion && distortion > 0) {
+        figure.root.position.x += Math.sin(time * 35 + i * 2.1) * .06 * distortion;
+        figure.root.position.z += Math.cos(time * 29 + i * 1.3) * .04 * distortion;
+      }
       figure.root.rotation.set(0, facing, 0); resetPose(figure);
       const hips = figure.bones.get('hips')!;
       if (dormant) hips.position.y -= .41;
+      else if (entering) hips.position.y -= (1 - travel) * .41;
       else if (moving) hips.position.y += Math.sin(phase * 2) * .018;
-      const chest = figure.bones.get('spine'); if (chest && !dormant) chest.rotateX(run * .13);
+      const chest = figure.bones.get('spine'); if (chest && !dormant) chest.rotateX(run * .13 + (entering && !reducedMotion ? Math.sin(jump * Math.PI) * .22 : 0));
       const neck = figure.bones.get('head')!; if (enemy && enemy.stunRemaining > 0) neck.rotateX(.15);
+      if (distortion > 0) {
+        const sign = i % 2 ? -1 : 1;
+        neck.rotateX(.08 * distortion); neck.rotateZ(sign * .13 * distortion);
+        if (chest) chest.rotateZ(-sign * .065 * distortion);
+        figure.bones.get('upper_chest')!.rotateY(sign * .05 * distortion);
+      }
       figure.model.updateWorldMatrix(true, true);
       for (let side = 0; side < 2; side++) {
         const sign = side === 0 ? -1 : 1, stride = Math.sin(phase + side * Math.PI) * run;
-        point(figure, sign * .17, dormant ? .06 : .08 + Math.max(0, -stride) * .1, dormant ? .43 : stride * .25, v[12]);
+        const folded = dormant || entering && jump < .25;
+        point(figure, sign * .17, folded ? .06 : .08 + Math.max(0, -stride) * .1 + (entering ? Math.sin(jump * Math.PI) * .18 : 0), folded ? .43 : stride * .25, v[12]);
         point(figure, sign * .19, .5, .65, v[13]); solveLimb(figure.legs[side], v[12], v[13], false);
-        const attack = !reducedMotion && !dormant && enemy && enemy.stunRemaining <= 0 ? clamp01((.6 - positive(enemy.attackTimer)) / .6) : 0;
-        point(figure, sign * (dormant ? .24 : .29 + (i % 3 === 2 ? .12 : 0)), dormant ? .68 : .93 + stride * .15 + attack * .25, dormant ? .37 : .12 - stride * .18 + attack * .34, v[12]);
+        const attack = !reducedMotion && !dormant && !entering && enemy && enemy.stunRemaining <= 0 ? clamp01((.6 - positive(enemy.attackTimer)) / .6) : 0;
+        point(figure, sign * (folded ? .24 : .29 + (i % 3 === 2 ? .12 : 0)), folded ? .68 : .93 + stride * .15 + attack * .25 + (entering ? .2 : 0), folded ? .37 : .12 - stride * .18 + attack * .34, v[12]);
         point(figure, sign * .62, .85, -.15, v[13]);
         poseArm(figure, side, v[12], v[13], 0, dormant ? .08 : .25 + attack * .6, !!enemy && enemy.stunRemaining > 0);
       }
@@ -645,13 +699,14 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     if (disposed) return;
     time = 0; currentState = null; root.visible = false; stone.opacity = silver.opacity = 1;
     stone.transparent = silver.transparent = false; stats.maxArmStretch = 1;
+    distantLighting.fill(0); distantDistortion.fill(0); sentinelPaints.forEach((_, i) => lightSentinel(i, false));
     for (const figure of [giant, ...sentinels]) if (figure) { figure.motionInitialized = false; figure.root.position.set(0, 0, 0); figure.root.rotation.set(0, 0, 0); resetPose(figure); }
   };
   const dispose = () => {
     if (disposed) return;
     disposed = true; root.visible = false; root.removeFromParent(); clearFigures();
     ownGeometries.forEach(free); ownGeometries.clear(); sources.forEach(releaseSource); sources.clear();
-    free(stone); free(silver); targets.clear(); root.clear(); currentState = null; stats.assetStatus = 'disposed';
+    free(stone); free(silver); sentinelPaints.forEach(paints => { free(paints.body); free(paints.trim); }); distantStatueAnchors.clear(); targets.clear(); root.clear(); currentState = null; stats.assetStatus = 'disposed';
   };
-  return { root, head, leftHand, rightHand, targets, ready, stats, update, reset, dispose };
+  return { root, head, leftHand, rightHand, targets, distantStatueAnchors, setDistantStatueLighting, setDistantStatueDistortion, ready, stats, update, reset, dispose };
 }

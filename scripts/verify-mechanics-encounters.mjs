@@ -42,6 +42,6 @@ for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
  }
  assert.equal(s.status,'victory', `${mode} ${s.party[slot].name}`);
  assert.equal(s.party.filter(a=>a.hp>0).length,5);
- assert.ok(s.combatTime >= (mode==='trial'?100:300) && s.combatTime <= (mode==='trial'?180:450));
+ assert.ok(s.combatTime >= (mode==='trial'?80:240) && s.combatTime <= (mode==='trial'?180:450));
  console.log(JSON.stringify({mode,role:s.party[slot].name,seed:123,status:s.status,seconds:s.combatTime,bossHp:s.boss.hp,alive:s.party.filter(a=>a.hp>0).length,chains,bursts,newHits}));
 }

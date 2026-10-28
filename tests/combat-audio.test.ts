@@ -5,6 +5,14 @@ import type { CombatEvent } from '../components/game/world-feedback.ts';
 
 const event = (kind: string, extra: Partial<CombatEvent> = {}): CombatEvent => ({ id: 1, time: 0, kind, text: '', ...extra });
 
+test('a ground wave has one warning and thunder cue without stacking a voice per enemy', () => {
+  for (const [kind, sound] of [['ground_charge', 'bossCharge'], ['ground_awaken', 'thunder']] as const) {
+    const cues = [0, 1, 2].flatMap(index => combatSoundPlan(event(kind, { enemyId: `ground-2-${index}` })));
+    assert.equal(cues.length, 1);
+    assert.equal(cues[0].sound, sound);
+  }
+});
+
 test('elemental spells have distinct preparation and contact cues, with an additional matching burst accent', () => {
   for (const element of ['fire', 'ice', 'lightning'] as const) {
     const plan = combatSoundPlan(event('magic', { element, actor: 3 }), 'hecate');

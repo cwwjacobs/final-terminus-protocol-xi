@@ -1,0 +1,8 @@
+.sentinel-arrival-caption{position:absolute;z-index:6;top:43%;left:50%;transform:translateX(-50%);width:min(280px,68vw);padding:9px 18px 12px;text-align:center;pointer-events:none;background:linear-gradient(90deg,transparent,#080912c9 20%,#080912c9 80%,transparent);text-shadow:0 2px 8px #000}
+.sentinel-arrival-caption>span{display:block;font:10px/1.5 Arial,sans-serif;letter-spacing:1.5px;color:#c8c4d6}
+.sentinel-arrival-caption>strong{display:block;margin-top:2px;font:24px/1.25 Georgia,serif;letter-spacing:.5px;color:#f3e8f8;font-weight:400}
+.sentinel-arrival-caption.shouted{border-top:1px solid #b3c9e738;border-bottom:1px solid #b3c9e738}
+.sentinel-arrival-caption.shouted>span{color:#bccde4}
+.sentinel-arrival-caption.shouted>strong{font-size:36px;font-weight:700;letter-spacing:2px;color:#e4efff;text-shadow:0 2px 8px #000,0 0 16px #a4c6ff55}
+@media(max-height:540px){.sentinel-arrival-caption{top:39%;padding:6px 12px 8px}.sentinel-arrival-caption>strong{font-size:21px}.sentinel-arrival-caption.shouted>strong{font-size:29px}}
+@media(forced-colors:active){.sentinel-arrival-caption{background:Canvas;color:CanvasText;text-shadow:none}.sentinel-arrival-caption>span,.sentinel-arrival-caption>strong{color:CanvasText;text-shadow:none}}

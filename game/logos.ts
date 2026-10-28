@@ -1,9 +1,12 @@
 import type { Actor, GameState } from './types.ts';
 
 export const DESCENT_SECONDS = 60;
+export const SENTINEL_ENTRY_SECONDS = 2.2;
 export const COLLAPSE_SECONDS = 6;
 export const SENTINEL_NAMES = ['Observation', 'Judgment', 'Memory', 'Reason', 'Order', 'Knowledge'];
 export const sequenceLocked = (state: GameState) => ['descent', 'collapse', 'escaped'].includes(state.logos.stage);
+/** The same six statues are in flight and cannot be hit before they land. */
+export const sentinelEntryActive = (state: GameState) => state.logos.stage === 'sentinels' && state.logos.elapsed + 1e-8 < SENTINEL_ENTRY_SECONDS;
 /** Trusts need no vote. Zero connected humans never auto-skip the countdown. */
 export function descentReadiness(state: GameState) {
   const ready = new Set(state.logos.readySlots ?? []);

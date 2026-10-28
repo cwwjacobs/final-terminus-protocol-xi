@@ -10,7 +10,8 @@ export const LORE = {
  entryDescription: 'Your memories are sealed. Your instinct to protect is not.',
  objectiveTitle: 'Hold both worlds.',
  objectiveDescription: 'Your power recognizes a wound your memory cannot name.',
- premise: 'Zeus made you amnesiac guardians of the middle plane. At quantum scale, your godhood begins to surface before your memories return. You recognize a disturbance—not its cause, its culprit, or its cure. Logos sees gods descend and takes your arrival as proof of a path upward. His world is real. His understanding of yours is incomplete.',
+ livingGround: 'Lightning strikes the ground, and fractured slabs rise to confront you.',
+ premise: 'Zeus made you amnesiac guardians of Earth, the Middle Realm. In the Lower Realm, the quantum plane, your godhood begins to surface before your memories return. You recognize a disturbance—not its cause, its culprit, or its cure. Logos sees gods descend and takes your arrival as proof of a path upward. His world is real. His understanding of yours is incomplete.',
  victoryTitle: 'The fracture quiets.',
  victoryNote: 'Local stability does not resolve the fate of Logos or the beings sustained here.',
 } as const;

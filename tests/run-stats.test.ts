@@ -34,8 +34,10 @@ test('a full deterministic run retains effective totals after the combat log rol
   const board = getRunScoreboard(state);
   assert.equal(board.partial, false);
   assert.equal(board.seconds, state.combatTime);
-  assert.equal(board.totals.damage, state.boss.maxHp);
-  assert.equal(board.totals.dps, state.boss.maxHp / state.combatTime);
+  const encounterHealth = state.boss.maxHp + state.enemies.reduce((sum, enemy) => sum + enemy.maxHp, 0);
+  assert.equal(state.enemies.length, 8, 'the full run includes every finite ground wave');
+  assert.equal(board.totals.damage, encounterHealth);
+  assert.equal(board.totals.dps, encounterHealth / state.combatTime);
   assert.ok(board.totals.healing > 0);
   assert.equal(board.totals.taken, state.party.reduce((sum, actor) => sum + actor.maxHp - actor.hp, 0) + board.totals.healing);
   assert.ok(board.rows.every((row, index, rows) => index === 0 || rows[index - 1].damage >= row.damage));
@@ -109,7 +111,7 @@ test('damage taken measures actual HP loss after guarding, physical reduction, s
   applyAction(physical, 1, { type: 'provoke' });
   physical.boss.attackTimer = 0;
   stepGame(physical, .05);
-  assert.equal(physical.runStats.party[1].taken, 170);
+  assert.equal(physical.runStats.party[1].taken, Math.round(155 * 1.05 * .9));
 });
 
 test('Coherence Collapse records remaining HP loss and one death per living character', () => {

@@ -77,13 +77,14 @@ test('six seated skeletons stand and move at authoritative enemy positions with 
   const rig = createLogosRig('low', { loader: anatomy }); await rig.ready;
   const snapshot = state(); snapshot.logos = { stage: 'descent', elapsed: 35 }; snapshot.enemies = [];
   rig.update(.05, freeze(structuredClone(snapshot)), true);
-  const giant = rig.root.getObjectByName('Logos-giant')!; assert.equal(giant.visible, false);
+  const giant = rig.root.getObjectByName('Logos-giant')!; assert.equal(giant.visible, true);
+  assert.equal(rig.head.visible, false); assert.equal(rig.leftHand.visible, false);
   const point = new THREE.Vector3();
   for (let i = 0; i < 6; i++) {
     const seated = rig.root.getObjectByName(`Logos-sentinel-${i}`)!;
-    assert.equal(seated.visible, true); near(Math.hypot(seated.position.x, seated.position.z), 18);
+    assert.equal(seated.visible, true); near(Math.hypot(seated.position.x, seated.position.z), 34);
     rig.targets.get(`sentinel-${i}`)!.getWorldPosition(point);
-    assert.ok(point.y > 1.5 && point.y < 2, 'contact follows lowered seated torso');
+    assert.ok(point.y > 3.8 && point.y < 5, 'contact follows the floating seated torso');
   }
   snapshot.logos = { stage: 'sentinels', elapsed: 4 };
   snapshot.enemies = Array.from({ length: 6 }, (_, i) => ({ id: `sentinel-${i}`, x: i - 3, z: i * .7, hp: i === 5 ? 0 : 100, target: 0, attackTimer: .3, stunRemaining: 0 }));
@@ -101,7 +102,7 @@ test('six seated skeletons stand and move at authoritative enemy positions with 
   rig.dispose();
 });
 
-test('hidden encounters and inactive or dead stage figures skip skeleton posing', () => {
+test('distant skeletons remain posed while inactive targets and escaped figures stay hidden', () => {
   const rig = createLogosRig('low', { loader: false });
   const snapshot = state(); let giantUpdates = 0, sentinelUpdates = 0;
   const giantBone = rig.root.getObjectByName('Logos-giant')!.getObjectByName('upper_arm_R')!;
@@ -109,15 +110,54 @@ test('hidden encounters and inactive or dead stage figures skip skeleton posing'
   const giantUpdate = giantBone.updateWorldMatrix.bind(giantBone), sentinelUpdate = sentinelBone.updateWorldMatrix.bind(sentinelBone);
   giantBone.updateWorldMatrix = (parents, children) => { giantUpdates++; giantUpdate(parents, children); };
   sentinelBone.updateWorldMatrix = (parents, children) => { sentinelUpdates++; sentinelUpdate(parents, children); };
-  snapshot.encounter = 'crown'; rig.update(.05, snapshot); assert.equal(giantUpdates, 0); assert.equal(sentinelUpdates, 0);
+  snapshot.encounter = 'crown'; rig.update(.05, snapshot); assert.equal(giantUpdates, 0); assert.ok(sentinelUpdates > 0); sentinelUpdates = 0;
   assert.equal(rig.head.visible, false); assert.equal(rig.targets.get('sentinel-0')!.visible, false);
   snapshot.encounter = 'logos'; snapshot.logos = { stage: 'descent', elapsed: 20 }; rig.update(.05, snapshot, true);
-  assert.equal(giantUpdates, 0); assert.ok(sentinelUpdates > 0); sentinelUpdates = 0;
+  assert.ok(giantUpdates > 0); assert.ok(sentinelUpdates > 0); giantUpdates = sentinelUpdates = 0;
   snapshot.logos = { stage: 'sentinels', elapsed: 3 }; snapshot.enemies = [{ id: 'sentinel-0', x: 2, z: 3, hp: 0, target: 0, attackTimer: 1, stunRemaining: 0 }];
-  rig.update(.05, snapshot); assert.equal(giantUpdates, 0); assert.equal(sentinelUpdates, 0);
+  rig.update(.05, snapshot); assert.ok(giantUpdates > 0); assert.equal(sentinelUpdates, 0); giantUpdates = 0;
   assert.equal(rig.targets.get('sentinel-0')!.visible, false);
   snapshot.logos.stage = 'escaped'; rig.update(.05, snapshot); assert.equal(giantUpdates, 0); assert.equal(sentinelUpdates, 0);
   rig.dispose();
+});
+
+
+test('the same six figures persist from dark outskirts through staggered leaps into the lair', () => {
+  const rig = createLogosRig('low', { loader: false });
+  const snapshot = state(); snapshot.encounter = 'crown'; snapshot.logos = { stage: 'none', elapsed: 0 }; snapshot.enemies = [];
+  rig.setDistantStatueLighting([1, .5, 0, 0, 0, 0]); rig.update(.05, freeze(structuredClone(snapshot)), true);
+  const figures = Array.from({ length: 6 }, (_, i) => rig.root.getObjectByName(`Logos-sentinel-${i}`)!);
+  const contacts = [...rig.distantStatueAnchors.values()];
+  const material = (figure: THREE.Object3D) => {
+    let found: THREE.MeshStandardMaterial | null = null;
+    figure.traverse(object => { if (object instanceof THREE.Mesh && (object.material as THREE.Material).name === 'sentinel-polished-stone') found = object.material as THREE.MeshStandardMaterial; });
+    return found!;
+  };
+  assert.equal(figures.length, 6); assert.equal(contacts.length, 6);
+  for (const figure of figures) { assert.equal(figure.visible, true); near(Math.hypot(figure.position.x, figure.position.z), 34); }
+  near(material(figures[0]).opacity, .628); near(material(figures[1]).opacity, .318); near(material(figures[2]).opacity, .008);
+  assert.notEqual(material(figures[0]), material(figures[1]), 'lighting is independently controlled');
+  rig.setDistantStatueLighting([0, 0, 0, 0, 0, 0]); near(material(figures[0]).opacity, .008);
+  snapshot.encounter = 'logos'; snapshot.logos = { stage: 'descent', elapsed: 40 }; rig.update(.05, snapshot, true);
+  assert.equal(rig.root.getObjectByName('Logos-giant')!.visible, true);
+  assert.equal(rig.head.visible, false); assert.equal(rig.leftHand.visible, false); assert.equal(rig.rightHand.visible, false);
+  snapshot.logos = { stage: 'sentinels', elapsed: .65 };
+  snapshot.enemies = figures.map((_, i) => ({ id: `sentinel-${i}`, x: Math.sin(i * Math.PI / 3) * 18, z: Math.cos(i * Math.PI / 3) * 18, hp: 100, target: 0, attackTimer: 4, stunRemaining: 0 }));
+  const original = structuredClone(snapshot); rig.update(.05, snapshot);
+  assert.deepEqual(snapshot, original);
+  for (let i = 0; i < 6; i++) {
+    assert.equal(rig.root.getObjectByName(`Logos-sentinel-${i}`), figures[i]);
+    assert.equal(rig.distantStatueAnchors.get(`sentinel-${i}`), contacts[i]);
+    assert.equal(rig.targets.get(`sentinel-${i}`), contacts[i]);
+    assert.equal(material(figures[i]).opacity, 1); assert.equal(material(figures[i]).transparent, false);
+  }
+  assert.ok(figures[0].position.y > 5, 'first entrant follows a high leap arc');
+  near(Math.hypot(figures[5].position.x, figures[5].position.z), 34, .001);
+  assert.ok(Math.hypot(figures[0].position.x, figures[0].position.z) < 34, 'leaps are staggered');
+  snapshot.logos.elapsed = 2.2; rig.update(.05, snapshot, true);
+  figures.forEach((figure, i) => { near(figure.position.x, snapshot.enemies[i].x); near(figure.position.z, snapshot.enemies[i].z); near(figure.position.y, 0); });
+  assert.equal(rig.root.getObjectByName('Logos-giant')!.visible, true);
+  assert.equal(rig.head.visible, false); rig.dispose(); assert.equal(rig.distantStatueAnchors.size, 0);
 });
 
 test('hand attack, stun, reduced motion, stage changes and hostile numeric inputs keep finite transforms', () => {
@@ -167,4 +207,29 @@ test('failed or invalid anatomy keeps the volumetric fallback ready for the scen
     const point = rig.leftHand.getWorldPosition(new THREE.Vector3()); near(point.x, -7); near(point.y, 4); near(point.z, -3);
     rig.dispose();
   }
+});
+
+
+test('distant strike distortion is bounded, restores its pose and stays still in reduced motion', () => {
+  const rig = createLogosRig('low', { loader: false });
+  const snapshot = state(); snapshot.encounter = 'crown'; snapshot.logos = { stage: 'none', elapsed: 0 }; snapshot.enemies = [];
+  rig.update(0, snapshot, true);
+  const figure = rig.root.getObjectByName('Logos-sentinel-0')!, neck = figure.getObjectByName('head')!;
+  const rest = neck.quaternion.clone(), position = figure.position.clone();
+  rig.setDistantStatueDistortion([2, NaN, Infinity, -1]); rig.update(.05, snapshot, true);
+  assert.ok(rest.angleTo(neck.quaternion) > .1 && rest.angleTo(neck.quaternion) < .25);
+  const tilted = neck.quaternion.clone();
+  rig.update(.1, snapshot, true); near(tilted.angleTo(neck.quaternion), 0); assert.deepEqual(figure.position, position);
+  for (let i = 0; i < 20; i++) {
+    rig.update(.05, snapshot, false);
+    assert.ok(Math.hypot(figure.position.x - position.x, figure.position.z - position.z) <= .08);
+    rig.root.traverse(object => assert.ok([...object.position, ...object.quaternion, ...object.scale].every(Number.isFinite)));
+  }
+  rig.setDistantStatueDistortion([]); rig.update(0, snapshot, true);
+  near(rest.angleTo(neck.quaternion), 0); assert.deepEqual(figure.position, position);
+  rig.setDistantStatueDistortion([1]);
+  snapshot.encounter = 'logos'; snapshot.logos = { stage: 'sentinels', elapsed: 3 };
+  snapshot.enemies = [{ id: 'sentinel-0', x: 2, z: 3, hp: 100, target: 0, attackTimer: 4, stunRemaining: 0 }];
+  rig.update(0, snapshot, true); near(rest.angleTo(neck.quaternion), 0);
+  rig.reset(); rig.dispose();
 });

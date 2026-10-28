@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ATTACK_BASELINE, canUseActionRole, getAttackStats, GOD_ENRAGE_TIME, REVELRY, ROLES } from '../game/content.ts';
 import { applyAction, createGame, setHuman, stepGame } from '../game/engine.ts';
+import { nextGroundWave } from '../game/ground-enemies.ts';
 import type { GameState, Mode } from '../game/types.ts';
 
 function combat(mode: Mode = 'trial') {
@@ -13,6 +14,10 @@ function combat(mode: Mode = 'trial') {
     state.party[i].attackTimer = 10000;
   }
   applyAction(state, 0, { type: 'start' });
+  // These fixtures isolate stack/recast rules from the new finite ground waves.
+  state.combatTime = 300;
+  for (let wave = 0; wave < 3; wave++) state.enemies.push(...nextGroundWave(state).map(enemy => ({ ...enemy, hp: 0 })));
+  state.combatTime = 0;
   state.boss.attackTimer = state.boss.specialTimer = 10000;
   return state;
 }

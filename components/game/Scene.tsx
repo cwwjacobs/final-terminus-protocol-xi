@@ -19,6 +19,8 @@ import { createAbilityEffects } from './ability-effects';
 import { createDivinePresentation } from './divine-visuals';
 import { logosSequencePresentation } from './logos-encounter-visuals';
 import { createLogosRig } from './logos-rig';
+import { createGroundEnemyVisuals } from './ground-enemy-visuals';
+import { createDarkStatues } from './dark-statues';
 import { offensiveTarget, sequenceLocked } from '../../game/logos.ts';
 import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
@@ -242,6 +244,19 @@ export default function Scene(props: SceneProps) {
     const bossRig = createCrownResonance(assets); scene.add(bossRig.root);
     const divine = createDivinePresentation(scene, rigs, props.quality);
     const logosRig = createLogosRig(props.quality, { loader: props.characterStyle === 'scaffold' ? false : undefined }); scene.add(logosRig.root);
+    const groundVisuals = createGroundEnemyVisuals(scene, props.quality);
+    const darkStatues = createDarkStatues(scene, props.quality, {
+      getChest(index, out) {
+        const state = latest.current.state;
+        if (state.encounter === 'logos' && state.logos.stage !== 'descent' &&
+          (state.logos.stage !== 'sentinels' || !state.enemies.some(enemy => enemy.id === `sentinel-${index}` && enemy.hp > 0))) return false;
+        const anchor = logosRig.distantStatueAnchors.get(`sentinel-${index}`);
+        if (!anchor) return false;
+        anchor.getWorldPosition(out); return true;
+      },
+      setLighting: levels => logosRig.setDistantStatueLighting(levels),
+      setDistortion: levels => logosRig.setDistantStatueDistortion(levels),
+    });
     const escapeLight = new THREE.Group(); escapeLight.name = 'abstract-recall-light'; escapeLight.visible = false; scene.add(escapeLight);
     const recallPaint = new THREE.MeshBasicMaterial({ color: '#e4dcff', transparent: true, opacity: 0, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false });
     mesh(escapeLight, new THREE.CylinderGeometry(22, 20, 35, 48, 1, true), recallPaint, 0, 15, 0);
@@ -287,11 +302,10 @@ export default function Scene(props: SceneProps) {
       const rig = rigs[slot]; if (!rig) return false;
       rig.root.getWorldPosition(out); out.y += 1.3; return true;
     }, (event, state, out) => {
-      if (state.encounter !== 'logos') return false;
       const actor = state.party[event.actor ?? -1];
       const target = actor ? offensiveTarget(state, actor) : state.boss;
       const id = event.enemyId ?? ('id' in target ? target.id : 'boss');
-      const anchor = logosRig.targets.get(id); if (!anchor) return false;
+      const anchor = groundVisuals.targets.get(id) ?? (state.encounter === 'logos' ? logosRig.targets.get(id) : undefined); if (!anchor) return false;
       anchor.getWorldPosition(out); return true;
     });
     const numbers = new FloatingFeedback(host, props.quality === 'high' ? 24 : 12);
@@ -344,7 +358,7 @@ export default function Scene(props: SceneProps) {
     const pendingImpacts: { event: GameState['events'][number]; at: number }[] = [];
     let presentationActive = latest.current.presentationActive !== false && !document.hidden;
     const clearPresentation = () => {
-      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); cinema.reset(); atmosphere.reset(); divine.reset(); logosRig.reset();
+      pendingImpacts.length = 0; numbers.reset(); stormEffects.reset(); abilityEffects.reset(); cinema.reset(); atmosphere.reset(); divine.reset(); logosRig.reset(); groundVisuals.reset(); darkStatues.reset();
       heroVisuals.forEach(visual => visual?.resetCombat());
       rigs.forEach(rig => { rig.attack = 0; }); bossRig.attack = 0;
       effects.forEach(effect => { effect.life = 0; effect.root.visible = false; });
@@ -416,14 +430,14 @@ export default function Scene(props: SceneProps) {
       const hitEnemy = event.enemyId ? state.enemies.find(e=>e.id===event.enemyId) : undefined;
       const effectState = hitEnemy ? { ...state, boss: { ...state.boss, x: hitEnemy.x, z: hitEnemy.z } } : state;
       const handled = abilityEffects.impact(event, effectState);
-      if (event.kind === 'hit') bossRig.attack = 1;
+      if (event.kind === 'hit' && (!event.enemyId || event.enemyId === 'boss')) bossRig.attack = 1;
       if (!['revelry_lost', 'shield'].includes(event.kind) && typeof event.actor === 'number' && rigs[event.actor]) rigs[event.actor].attack = 1;
       const feedback = combatNumber(event, state);
       if (feedback) {
         const target = feedback.target === 'boss' ? bossRig : rigs[feedback.target];
         const height = feedback.target === 'boss' ? 3.4 : heroVisuals[feedback.target]?.labelHeight ?? 2.4;
         const enemy = event.enemyId ? state.enemies.find(enemy => enemy.id === event.enemyId) : undefined;
-        const anchor = state.encounter === 'logos' && feedback.target === 'boss' ? logosRig.targets.get(event.enemyId ?? 'boss') : undefined;
+        const anchor = feedback.target === 'boss' ? groundVisuals.targets.get(event.enemyId ?? 'boss') ?? (state.encounter === 'logos' ? logosRig.targets.get(event.enemyId ?? 'boss') : undefined) : undefined;
         if (anchor) {
           anchor.getWorldPosition(feedbackWorld);
           feedbackWorld.y += .55;
@@ -497,6 +511,7 @@ export default function Scene(props: SceneProps) {
       if (state.time < lastTime) initializedCamera = false;
       lastTime = state.time;
       if (incoming.reset) clearPresentation();
+      groundVisuals.update(presentationActive ? dt : 0, state, reducedMotion, selectedTarget);
       if (lastWireframe !== wireframe) {
         assets.materials.forEach(material => { if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe; });
         heroVisuals.forEach(visual => visual?.setWireframe(wireframe));
@@ -567,13 +582,13 @@ export default function Scene(props: SceneProps) {
       const selectedEnemy = state.enemies.find(enemy => enemy.id === selectedTarget && enemy.hp > 0);
       const target = selectedEnemy ?? attackTarget;
       const targetId = 'id' in target ? target.id : 'boss';
-      const bossSelected = state.encounter === 'logos' ? !sequenceLocked(state) && !!(selectedTarget || lockedTarget) && target.hp > 0 : (selectedTarget === 'boss' || !!lockedTarget) && state.boss.hp > 0;
+      const bossSelected = !sequenceLocked(state) && !!(selectedTarget || lockedTarget) && target.hp > 0;
       targetRing.position.set(target.x, .045, target.z);
       targetRing.visible = targetReticle.visible = bossSelected;
       targetRing.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .18));
       targetMaterial.color.setRGB(.86 + pulse * .14, .69 + pulse * .31, .4 + pulse * .6);
       targetMaterial.opacity = .65 + pulse * .35;
-      const targetAnchor = state.encounter === 'logos' ? logosRig.targets.get(targetId) : undefined;
+      const targetAnchor = groundVisuals.targets.get(targetId) ?? (state.encounter === 'logos' ? logosRig.targets.get(targetId) : undefined);
       if (targetAnchor) { targetAnchor.getWorldPosition(targetWorld); targetReticle.position.copy(targetWorld); }
       else targetReticle.position.set(bossRig.root.position.x, 3.8, bossRig.root.position.z);
       targetReticle.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .5));
@@ -658,6 +673,7 @@ export default function Scene(props: SceneProps) {
         cinema.update(dt, state, camera, reducedMotion);
       }
       atmosphere.update(presentationActive ? dt : 0, state, reducedMotion, stormEffects.flash, sequence.floorOpacity);
+      darkStatues.update(presentationActive ? dt : 0, state, reducedMotion, stormEffects.flash);
       renderer.render(scene, camera); frames++;
       if (now - reportAt >= 1000) {
         const fps = Math.round(frames * 1000 / (now - reportAt));
@@ -671,7 +687,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; loadingController.abort(); cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose(); groundVisuals.dispose(); darkStatues.dispose();
       document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.

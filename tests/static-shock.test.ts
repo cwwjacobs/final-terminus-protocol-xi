@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { applyAction, createGame, setHuman, stepGame } from '../game/engine.ts';
+import { SENTINEL_ENTRY_SECONDS } from '../game/logos.ts';
 import { createStaticStorm, nextStaticInterval, selectStaticStrike } from '../game/static-storm.ts';
 import { restoreSave, validSave } from '../lib/local-save.ts';
 import type { GameState } from '../game/types.ts';
@@ -30,6 +31,7 @@ function attackHeracles(state: GameState) {
 function echoes(state: GameState, sentinels = false) {
   state.encounter = 'logos';
   state.logos.stage = sentinels ? 'sentinels' : 'giant';
+  state.logos.elapsed = sentinels ? SENTINEL_ENTRY_SECONDS : 0;
   state.ultimatesUnlocked = !sentinels;
   state.enemies = [0, 1].map(index => ({ id: `${sentinels ? 'sentinel' : 'echo'}-${index}`, name: 'Test enemy', x: state.party[1].x, z: state.party[1].z + index + 1, hp: 9000, maxHp: 9000, target: 1, attackTimer: 10000, stunRemaining: 0, burn: null }));
 }

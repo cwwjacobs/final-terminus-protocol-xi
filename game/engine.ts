@@ -1,7 +1,8 @@
-import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_NAMES, sequenceLocked } from './logos.ts';
+import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_ENTRY_SECONDS, SENTINEL_NAMES, sentinelEntryActive, sequenceLocked } from './logos.ts';
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
+import { GROUND_BALANCE, GROUND_EMERGE_SECONDS, isGroundEnemy, nextGroundWave } from './ground-enemies.ts';
 import { createStaticStorm, nextStaticInterval, selectStaticStrike, STATIC_CHARGE_SECONDS, STATIC_REFLECT_DAMAGE, STATIC_RETALIATION_DAMAGE, STATIC_SHOCK_SECONDS, staticArcTargets } from './static-storm.ts';
 import { DUSK_WINDOW, isUltimate, matchesBurst, ULTIMATES } from './content.ts';
 import { ARCANIST_ENMITY_CAP, DPS_PASSIVES, ENMITY_CAP, WEAPON_ELEMENTS } from './content.ts';
@@ -26,7 +27,8 @@ function castArea(cast: BossCast): NonNullable<CombatPresentationMetadata['area'
 export function createGame(mode: Mode = 'trial', seed = DEFAULT_SEED): GameState {
   const safeMode = mode === 'god' ? 'god' : 'trial';
   // Stronger DPS passives target 80–180s Trial / 240–450s God active play.
-  const maxHp = safeMode === 'god' ? 310000 : 105000;
+  // Shift part of the encounter's health budget into eight finite ground shards.
+  const maxHp = safeMode === 'god' ? 297000 : 97000;
   return {
     version: 2, rng: seed >>> 0, sequenceSeq: 0, time: 0, combatTime: 0, tick: 0, remainder: 0, eventSeq: 0, mode: safeMode, status: 'ready', runStats: createRunStats(PARTY.length),
     encounter: 'crown', logos: { stage: 'none', elapsed: 0 }, ultimatesUnlocked: false, duskRemaining: 0, enemies: [],
@@ -109,7 +111,9 @@ function clearTransient(actor: Actor) {
 function beginSentinels(state: GameState) {
   state.logos = { stage: 'sentinels', elapsed: 0 };
   state.combatTime = 0; state.runStats = createRunStats(state.party.length);
-  event(state, 'sentinels_awaken', 'The six statues awaken — break their assault!');
+  event(state, 'sentinels_awaken', 'The six distant statues leap into the arena around the party.');
+  const ariadne = state.party.findIndex(actor => actor.id === 'ariadne');
+  event(state, 'lair_question', 'Logos..?', ariadne >= 0 ? ariadne : undefined);
 }
 
 function beginGiant(state: GameState) {
@@ -118,12 +122,12 @@ function beginGiant(state: GameState) {
   Object.assign(state.boss, { x: 0, z: -12, hp: state.boss.maxHp, target: 1, phase: 1, facing: 0, attackTimer: 3, specialTimer: 8, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null });
   state.enemies = [-1, 1].map((sign, i) => ({ id: i === 0 ? 'left-hand' : 'right-hand', name: i === 0 ? 'Logos · Left hand' : 'Logos · Right hand', x: sign * 7, z: -3, hp: 8000, maxHp: 8000, target: 1, attackTimer: 4 + i, stunRemaining: 0, burn: null }));
   state.party.forEach(a => { a.hp = a.maxHp; a.mp = a.maxMp; a.enemyTarget = a.role === 'warden' ? 'left-hand' : a.role === 'vanguard' ? 'right-hand' : 'boss'; a.engaged = true; a.aiTimer = 0; });
-  event(state, 'awakening', 'I am Logos. The giant rises — hold his hands; ranged heroes strike his head. Divine ultimates unlocked.');
+  event(state, 'awakening', 'Logos attacks — hold his hands; ranged heroes strike his head. Divine ultimates unlocked.');
 }
 
 function finishIfNeeded(state: GameState) {
   if (state.status !== 'fighting') return;
-  if (state.logos.stage === 'sentinels' && state.enemies.every(e => e.hp <= 0)) {
+  if (state.logos.stage === 'sentinels' && !sentinelEntryActive(state) && state.enemies.every(e => e.hp <= 0)) {
     beginGiant(state); return;
   }
   if (state.boss.hp <= 0 && state.logos.stage === 'giant') {
@@ -166,6 +170,8 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   if (enemy === state.boss && state.logos.stage === 'sentinels') return 0;
   if (enemy && 'id' in enemy) metadata = { ...metadata, enemyId: enemy.id };
   if (state.status !== 'fighting' || !enemy || enemy.hp <= 0 || state.party[slot].hp <= 0) return 0;
+  if (sentinelEntryActive(state)) return 0;
+  if ('id' in enemy && (enemy.emergeRemaining ?? 0) > 0) return 0;
   const actor = state.party[slot];
   // These passives reward landed kit hits only: no autos, chain echoes, or AoE ultimate refunds.
   const passive = actor.role === 'vanguard' || actor.role === 'hunter' ? DPS_PASSIVES[actor.role] : undefined;
@@ -180,6 +186,7 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   const elementalModifier = abilityHit && metadata.element ? passive!.elementalModifier : 1;
   const damage = Math.min(enemy.hp, Math.round(amount * elementalModifier * (headExposed ? 2 : 1) * attack / ATTACK_BASELINE * multiplier * (kind === 'burst' && actor.role === 'arcanist' ? 1.1 : 1)));
   enemy.hp -= damage;
+  if ('id' in enemy && isGroundEnemy(enemy) && enemy.hp <= 0) event(state, 'ground_shatter', `${enemy.name} falls back into the ground.`, slot, undefined, undefined, undefined, undefined, undefined, undefined, { enemyId: enemy.id });
   if ('id' in enemy && enemy.id.endsWith('-hand') && enemy.hp <= 0) { enemy.attackTimer = 12; event(state, 'hand_broken', `${enemy.name} is staggered for 12 seconds. The head is exposed.`, slot); }
   if (damage > 0 && empowered) {
     actor.criticalCharges--;
@@ -225,7 +232,8 @@ function damageActor(state: GameState, slot: number, amount: number, label: stri
   state.runStats.party[slot].taken += damage;
   actor.ce = Math.max(0, actor.ce - damage * 0.7);
   if (damage > 0) actor.tp = Math.min(TP_MAX, actor.tp + 45);
-  event(state, 'hit', `${actor.name}: ${label} · −${damage}`, slot, damage);
+  const groundAttacker = state.enemies.find(enemy => enemy.id === attackerId && isGroundEnemy(enemy));
+  event(state, 'hit', `${actor.name}: ${label} · −${damage}`, slot, damage, undefined, undefined, undefined, undefined, undefined, groundAttacker ? { enemyId: groundAttacker.id, abilityId: groundAttacker.kind === 'storm-shard' ? 'splinterBolt' : 'groundFracture', ...(groundAttacker.kind === 'storm-shard' ? { element: 'lightning' as const } : {}) } : {});
   if (actor.hp <= 0) {
     state.runStats.party[slot].deaths++;
     clearTransient(actor);
@@ -261,7 +269,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     state.encounter = 'logos'; state.ultimatesUnlocked = false; state.status = 'fighting'; state.logos = { stage: 'descent', elapsed: 0, readySlots: [] };
     state.combatTime = 0; state.runStats = createRunStats(state.party.length);
     state.chain = state.burst = null; state.duskRemaining = 0;
-    state.boss = { name: 'Logos', x: 0, z: -4, hp: maxHp, maxHp, target: slot, phase: 1, facing: 0, attackTimer: 3, specialTimer: 10, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null };
+    state.boss = { name: 'Logos', x: 0, z: -12, hp: maxHp, maxHp, target: slot, phase: 1, facing: 0, attackTimer: 3, specialTimer: 10, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null };
     state.enemies = SENTINEL_NAMES.map((name, index) => ({ id: `sentinel-${index}`, name, x: Math.sin(index * Math.PI / 3) * 18, z: Math.cos(index * Math.PI / 3) * 18, hp: 4500, maxHp: 4500, target: slot, attackTimer: 4 + index * .4, stunRemaining: 0, burn: null }));
     state.storm = createStaticStorm(state.rng);
     state.party.forEach((recipient, i) => {
@@ -585,11 +593,20 @@ function burnStep(state: GameState, enemy: EnemyStatus & { hp: number; name: str
 }
 
 function enemiesStep(state: GameState, dt: number) {
+  if (sentinelEntryActive(state)) return;
   for (const enemy of state.enemies) {
     if (state.status !== 'fighting') return;
     burnStep(state, enemy, dt, enemy.id);
     if (enemy.hp <= 0) {
       if (enemy.id.endsWith('-hand') && state.logos.stage === 'giant') { enemy.attackTimer -= dt; if (enemy.attackTimer <= 0) { enemy.hp = enemy.maxHp; enemy.attackTimer = 4; event(state, 'hand_reformed', `${enemy.name} reforms.`); } }
+      continue;
+    }
+    if ((enemy.emergeRemaining ?? 0) > 0) {
+      enemy.emergeRemaining = Math.max(0, enemy.emergeRemaining! - dt);
+      if (enemy.emergeRemaining <= 1e-8) {
+        enemy.emergeRemaining = 0;
+        event(state, 'ground_awaken', `${enemy.name} rises from the lightning-struck ground.`, undefined, undefined, undefined, undefined, undefined, undefined, undefined, { abilityId: 'groundAwakening', enemyId: enemy.id, element: 'lightning', area: { kind: 'circle', x: enemy.spawnX ?? enemy.x, z: enemy.spawnZ ?? enemy.z, radius: 2.2, total: GROUND_EMERGE_SECONDS, angle: 0 } });
+      }
       continue;
     }
     const forced = forcedTarget(state);
@@ -599,14 +616,17 @@ function enemiesStep(state: GameState, dt: number) {
     const target = state.party[enemy.target];
     if (!target || target.hp <= 0) continue;
     const range = distance(enemy, target);
-    const thrower = enemy.id.startsWith('sentinel-') && Number(enemy.id.at(-1)) % 3 === 2;
-    const reach = thrower ? 12 : 3;
-    if (range > reach) { enemy.x += (target.x - enemy.x) / range * (enemy.id.endsWith('-hand') ? 3.2 : 3.8) * dt; enemy.z += (target.z - enemy.z) / range * (enemy.id.endsWith('-hand') ? 3.2 : 3.8) * dt; }
+    const ground = enemy.kind ? GROUND_BALANCE[enemy.kind] : undefined;
+    const thrower = enemy.kind === 'storm-shard' || enemy.id.startsWith('sentinel-') && Number(enemy.id.at(-1)) % 3 === 2;
+    const reach = ground?.reach ?? (thrower ? 12 : 3);
+    const speed = ground?.speed ?? (enemy.id.endsWith('-hand') ? 3.2 : 3.8);
+    if (range > reach) { enemy.x += (target.x - enemy.x) / range * speed * dt; enemy.z += (target.z - enemy.z) / range * speed * dt; }
     enemy.attackTimer -= dt;
     if (enemy.attackTimer <= 1e-8 && range <= reach + .5) {
       const hand = enemy.id.endsWith('-hand');
       const leaper = enemy.id.startsWith('sentinel-') && Number(enemy.id.at(-1)) % 3 === 1;
-      damageActor(state, enemy.target, hand ? 220 : leaper ? 110 : 85, hand ? 'Titan palm' : leaper ? 'Sentinel leap' : thrower ? 'Ranged throw' : 'Melee charge', !thrower, enemy.id); enemy.attackTimer = hand ? 4 : leaper ? 5 : 3.5;
+      const damage = ground ? ground.damage * (state.mode === 'god' ? 1.2 : 1) : hand ? 220 : leaper ? 110 : 85;
+      damageActor(state, enemy.target, damage, enemy.kind === 'ground-shard' ? 'Ground fracture' : enemy.kind === 'storm-shard' ? 'Splinter bolt' : hand ? 'Titan palm' : leaper ? 'Sentinel leap' : thrower ? 'Ranged throw' : 'Melee charge', !thrower, enemy.id); enemy.attackTimer = ground?.interval ?? (hand ? 4 : leaper ? 5 : 3.5);
       finishIfNeeded(state);
     }
   }
@@ -657,6 +677,13 @@ function trustAction(state: GameState, slot: number) {
     return;
   }
   if (actor.sequence) return;
+  if (state.encounter === 'crown') {
+    // Tank/healer anchor the boss while damage trusts focus a shared living add.
+    // An explicit human target is never overwritten by this AI-only path.
+    const adds = state.enemies.filter(enemy => isGroundEnemy(enemy) && enemy.hp > 0 && (enemy.emergeRemaining ?? 0) <= 0);
+    const preferred = adds.find(enemy => enemy.kind === 'storm-shard') ?? adds[0];
+    actor.enemyTarget = actor.role === 'warden' || actor.role === 'luminary' ? 'boss' : preferred?.id ?? 'boss';
+  }
   if (state.ultimatesUnlocked && state.combatTime > 8 + slot * 1.25) {
     const use = actor.role !== 'luminary' || state.party.some(p => p.hp > 0 && p.hp < p.maxHp * .6);
     if (use && applyAction(state, slot, { type: ULTIMATES[actor.role] }).ok) return;
@@ -807,7 +834,7 @@ function bossStep(state: GameState, dt: number) {
   boss.attackTimer -= dt;
   boss.specialTimer -= dt;
   if (state.logos.stage !== 'giant' && boss.attackTimer <= 0 && distance(boss, target) <= 4.3) {
-    damageActor(state, boss.target, 180 * 1.05 * (1 + (boss.phase - 1) * 0.15), 'Crown strike', true);
+    damageActor(state, boss.target, (state.encounter === 'crown' ? 155 : 180) * 1.05 * (1 + (boss.phase - 1) * 0.15), 'Crown strike', true);
     boss.attackTimer = 2.7 - boss.phase * 0.15;
     finishIfNeeded(state);
   }
@@ -836,7 +863,7 @@ function bossStep(state: GameState, dt: number) {
       ...(ability.id === 'regentsDecree' ? { target: boss.target } : {}),
       ...(ability.id === 'terminalEcho' ? { pulses: 2 } : {}),
     };
-    boss.specialTimer = 12 - boss.phase;
+    boss.specialTimer = (state.encounter === 'crown' ? 14 : 12) - boss.phase;
     event(state, 'cast', `${ability.name} — ${ability.id === 'regentsDecree' ? 'protect the marked ally' : ability.kind === 'raid' ? 'guard the pulse' : ability.kind === 'cone' ? 'leave the cone' : 'leave the marked ground'}.`, undefined, undefined, ability.id === 'regentsDecree' ? boss.target : undefined, ability.id, undefined, undefined, undefined, { area: castArea(boss.cast) });
     break;
   }
@@ -965,8 +992,17 @@ function fixedStep(state: GameState) {
     else if (state.logos.stage === 'collapse' && state.logos.elapsed + 1e-8 >= COLLAPSE_SECONDS) { state.logos = { stage: 'escaped', elapsed: COLLAPSE_SECONDS }; finishIfNeeded(state); }
     return;
   }
-  if (state.status === 'fighting' && state.logos.stage !== 'none') state.logos.elapsed += dt;
+  if (state.status === 'fighting' && state.logos.stage !== 'none') {
+    const entering = sentinelEntryActive(state);
+    state.logos.elapsed += dt;
+    if (entering && !sentinelEntryActive(state)) event(state, 'lair_answer', 'Logos!');
+  }
   if (state.status === 'fighting') burnStep(state, state.boss, dt);
+  if (state.status === 'fighting') {
+    const wave = nextGroundWave(state);
+    state.enemies.push(...wave);
+    for (const enemy of wave) event(state, 'ground_charge', 'Lightning gathers. Something stirs beneath the stone.', undefined, undefined, undefined, undefined, undefined, undefined, undefined, { abilityId: 'groundAwakening', enemyId: enemy.id, element: 'lightning', area: { kind: 'circle', x: enemy.x, z: enemy.z, radius: 2.2, total: GROUND_EMERGE_SECONDS, angle: 0 } });
+  }
   if (state.status === 'fighting') enemiesStep(state, dt);
   if (state.status === 'fighting') stormStep(state, dt);
   if (state.status === 'fighting') bossStep(state, dt);

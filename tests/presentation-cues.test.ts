@@ -82,7 +82,7 @@ test('the engine emits weaponskill, chain, magic and shot identity with the tune
   assert.equal(applyAction(s, 3, { type: 'magic', element: 'fire' }).ok, true);
   const fire = s.events.at(-1)!;
   assert.equal(fire.kind, 'burst'); assert.equal(fire.abilityId, 'magic:fire'); assert.equal(fire.element, 'fire'); assert.equal(fire.value, 1122);
-  assert.equal(s.party[3].mp, 1430); assert.equal(s.party[3].spellRecovery, 2); assert.equal(s.boss.hp, 101657);
+  assert.equal(s.party[3].mp, 1430); assert.equal(s.party[3].spellRecovery, 2); assert.equal(s.boss.hp, s.boss.maxHp - 3343);
   s.party[2].shotElement = 'ice';
   assert.equal(applyAction(s, 2, { type: 'elementalShot' }).ok, true);
   const shot = s.events.at(-1)!;

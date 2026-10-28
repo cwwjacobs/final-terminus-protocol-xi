@@ -88,6 +88,11 @@ export function createStormEffects(scene: THREE.Scene, quality: 'low' | 'high') 
     event(event: CombatEvent, state: GameState) {
       if (disposed) return;
       const bossHeight = state.encounter === 'logos' && state.logos.stage === 'giant' ? 16.8 : 2.8;
+      if (event.kind === 'hit' && event.abilityId === 'splinterBolt' && event.actor !== undefined) {
+        const enemy = state.enemies.find(enemy => enemy.id === event.enemyId);
+        const target = state.party[event.actor];
+        if (enemy && target) bolt(point(enemy, 2), point(target, 1.5), reduced ? .25 : .75, reduced);
+      }
       if (event.kind === 'static_strike') {
         const actor = event.actor === undefined ? undefined : state.party[event.actor];
         const enemy = event.enemyId === 'boss' ? state.boss : state.enemies.find(e => e.id === event.enemyId);
