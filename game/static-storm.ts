@@ -32,8 +32,8 @@ export function selectStaticStrike(state: Pick<GameState, 'storm' | 'party' | 'b
   storm.target = choices[Math.floor(stormRandom(storm) * choices.length)];
   storm.enemyId = 'boss';
   let point: { x: number; z: number } = state.boss;
-  if (storm.target === 'boss' && state.logos.stage === 'sentinels') {
-    const enemies = state.enemies.filter(enemy => enemy.hp > 0);
+  if (storm.target === 'boss' && (state.logos.stage === 'sentinels' || state.logos.stage === 'giant' && state.enemies.some(enemy => enemy.id.startsWith('sentinel-') && enemy.hp > 0))) {
+    const enemies = state.enemies.filter(enemy => enemy.id.startsWith('sentinel-') && enemy.hp > 0);
     const enemy = enemies[Math.floor(stormRandom(storm) * enemies.length)];
     if (enemy) { point = enemy; storm.enemyId = enemy.id; }
   }

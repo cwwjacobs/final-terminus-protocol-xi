@@ -7,7 +7,7 @@ import { SENTINEL_ENTRY_SECONDS } from '../../game/logos.ts';
 type Stage = 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped';
 export interface LogosRigState {
   encounter: string;
-  logos?: { stage: Stage; elapsed: number };
+  logos?: { stage: Stage; elapsed: number; statueWave?: number; exposureRemaining?: number; statueEntryRemaining?: number };
   boss: { x: number; z: number; hp: number; stunRemaining: number; cast?: unknown };
   enemies: readonly { id: string; x: number; z: number; hp: number; target: number; attackTimer: number; stunRemaining: number }[];
   party: readonly { x: number; z: number; hp: number }[];
@@ -280,21 +280,21 @@ function draperyGeometry(bones: readonly THREE.Bone[], quality: 'low' | 'high') 
 }
 
 interface HandShape { geometry: THREE.BufferGeometry; joints: { parent: number; x: number; y: number; z: number; spread: number; name: string }[] }
-function handShape(mirror: number, quality: 'low' | 'high'): HandShape {
+function handShape(mirror: number, quality: 'low' | 'high', monumental = false): HandShape {
   const radial = quality === 'high' ? 10 : 6;
-  const palm = solidEllipsoid(.073, .091, .038, 0, .07, 0, quality === 'high' ? 16 : 10);
+  const palm = solidEllipsoid(monumental ? .095 : .073, monumental ? .105 : .091, monumental ? .047 : .038, 0, .07, 0, quality === 'high' ? 16 : 10);
   const parts: SkinPart[] = [{ geometry: palm, joint: 0 }];
   const joints = [{ parent: -1, x: 0, y: 0, z: 0, spread: 0, name: 'palm' }];
   for (let f = 0; f < 5; f++) {
-    const thumb = f === 4, length = thumb ? .13 : [.157, .181, .169, .137][f];
-    const x = thumb ? mirror * -.065 : (f - 1.5) * .037;
+    const thumb = f === 4, length = (thumb ? .13 : [.157, .181, .169, .137][f]) * (monumental ? .83 : 1);
+    const x = thumb ? mirror * (monumental ? -.086 : -.065) : (f - 1.5) * (monumental ? .049 : .037);
     const y = thumb ? .039 : .13 - Math.abs(f - 1.5) * .01;
     const spread = thumb ? mirror * .82 : (1.5 - f) * .07;
     const base = joints.length;
     joints.push({ parent: 0, x, y, z: -.003, spread, name: thumb ? 'thumb-base' : `finger-${f}-base` });
     joints.push({ parent: base, x: 0, y: length * .39, z: 0, spread: 0, name: thumb ? 'thumb-middle' : `finger-${f}-middle` });
     joints.push({ parent: base + 1, x: 0, y: length * .32, z: 0, spread: 0, name: thumb ? 'thumb-tip' : `finger-${f}-tip` });
-    const radius = thumb ? .023 : .018 - Math.abs(f - 1.5) * .0015;
+    const radius = (thumb ? .023 : .018 - Math.abs(f - 1.5) * .0015) * (monumental ? 1.24 : 1);
     const profile: [number, number, number][] = [[0, radius, radius * .9], [length * .12, radius, radius * .92], [length * .36, radius * .9, radius * .8], [length * .43, radius * .93, radius * .85], [length * .67, radius * .74, radius * .65], [length * .75, radius * .76, radius * .66], [length * .93, radius * .59, radius * .55], [length, .001, .001]];
     const geometry = loft(profile, radial);
     const p = geometry.getAttribute('position'), skinIndex = new Uint16Array(p.count * 4), skinWeight = new Float32Array(p.count * 4);
@@ -318,13 +318,26 @@ function handShape(mirror: number, quality: 'low' | 'high'): HandShape {
   parts.forEach(part => part.geometry.dispose()); return { geometry, joints };
 }
 
+/** Keep only the indexed anatomical head; compact vertices so its real bounds
+ * contain no invisible torso, limbs or unused source vertices. */
+function croppedHeadGeometry(source: THREE.BufferGeometry) {
+  const clone = source.clone(), position = clone.getAttribute('position');
+  const index = clone.index, count = index?.count ?? position.count, kept: number[] = [];
+  for (let i = 0; i < count; i += 3) {
+    const a = index ? index.getX(i) : i, b = index ? index.getX(i + 1) : i + 1, c = index ? index.getX(i + 2) : i + 2;
+    if (position.getY(a) >= 1.56 && position.getY(b) >= 1.56 && position.getY(c) >= 1.56) kept.push(a, b, c);
+  }
+  clone.setIndex(kept); const head = clone.toNonIndexed(); clone.dispose();
+  head.computeBoundingBox(); head.computeBoundingSphere(); return head;
+}
+
 interface ArticulatedHand {
   mesh: THREE.SkinnedMesh;
   bones: THREE.Bone[];
   anchor: THREE.Object3D;
   shape: HandShape;
 }
-function makeHand(parent: THREE.Bone, shape: HandShape, material: THREE.Material, name: string): ArticulatedHand {
+function makeHand(parent: THREE.Object3D, shape: HandShape, material: THREE.Material, name: string): ArticulatedHand {
   const mesh = new THREE.SkinnedMesh(shape.geometry, material); mesh.name = `${name}-full-3d-fingers`; parent.add(mesh);
   const bones = shape.joints.map((joint, index) => {
     const bone = new THREE.Bone(); bone.name = `${name}-${joint.name}`;
@@ -370,6 +383,11 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const distantStatueAnchors = new Map(sentinelContacts.map((contact, i) => [`sentinel-${i}`, contact]));
   const distantLighting = sentinelContacts.map(() => 0);
   const distantDistortion = sentinelContacts.map(() => 0);
+  const giantStone = createStoneMaterial(); giantStone.name = 'Logos-luminous-silver-stone';
+  giantStone.color.set('#8a98a8'); giantStone.metalness = .22; giantStone.roughness = .44; giantStone.envMapIntensity = 1.3; giantStone.emissive.set('#294359'); giantStone.emissiveIntensity = .26;
+  const giantSilver = silver.clone(); giantSilver.name = 'Logos-bright-silver-carving'; giantSilver.color.set('#d7e4f3'); giantSilver.emissive.set('#60788f'); giantSilver.emissiveIntensity = .16;
+  const eyePaint = new THREE.MeshBasicMaterial({ color: '#ccefff', toneMapped: false });
+  const shieldPaint = new THREE.MeshBasicMaterial({ color: '#92b9dc', transparent: true, opacity: .24, depthWrite: false, toneMapped: false });
   const ownGeometries = new Set<THREE.BufferGeometry>();
   const ownSkeletons = new Set<THREE.Skeleton>();
   const sources = new Set<THREE.Group>();
@@ -377,8 +395,13 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const stats: LogosRigStats = { assetStatus: 'loading', source: 'procedural-skinned-fallback', drawCalls: 0, triangles: 0, geometryBytes: 0, skinnedMeshes: 0, bones: 0, maxArmStretch: 1 };
   const crown = crownGeometry(), hair = carvedHeadGeometry(); ownGeometries.add(crown); ownGeometries.add(hair);
   const shapes = [-1, 1].map(sign => handShape(sign, quality)); shapes.forEach(shape => ownGeometries.add(shape.geometry));
+  const edgeShapes = [-1, 1].map(sign => handShape(sign, quality, true)); edgeShapes.forEach(shape => ownGeometries.add(shape.geometry));
+  const eyeGeometry = new THREE.SphereGeometry(1, 12, 8), shieldGeometry = new THREE.TorusGeometry(1, .014, 5, 64);
+  ownGeometries.add(eyeGeometry); ownGeometries.add(shieldGeometry);
   let disposed = false, time = 0, currentState: LogosRigState | null = null, currentReduced = false;
   let giant: Figure | null = null, sentinels: Figure[] = [];
+  let edgeHands: { root: THREE.Group; hand: ArticulatedHand }[] = [];
+  let headShield: THREE.Mesh | null = null;
   const thrones: THREE.Mesh[] = [];
   const throneParts = [new THREE.BoxGeometry(.74, .16, .62).translate(0, .48, -.02), new THREE.BoxGeometry(.74, .91, .14).translate(0, .95, -.37), new THREE.BoxGeometry(.12, .58, .65).translate(-.34, .29, -.03), new THREE.BoxGeometry(.12, .58, .65).translate(.34, .29, -.03)];
   const throneGeometry = mergeGeometries(throneParts, false)!; throneParts.forEach(part => part.dispose()); ownGeometries.add(throneGeometry);
@@ -403,7 +426,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const clearFigures = () => {
     for (const figure of [giant, ...sentinels]) figure?.root.removeFromParent();
     for (const skeleton of ownSkeletons) freeSkeleton(skeleton);
-    ownSkeletons.clear(); giant = null; sentinels = [];
+    ownSkeletons.clear(); giant = null; sentinels = []; edgeHands = []; headShield = null;
     thrones.splice(0).forEach(throne => throne.removeFromParent());
     root.clear();
   };
@@ -470,12 +493,33 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     source.traverse(object => { if (!anatomy && object instanceof THREE.SkinnedMesh) anatomy = object; });
     if (!anatomy) throw new Error('Logos anatomy has no skinned mesh');
     const drapery = draperyGeometry(anatomy.skeleton.bones, quality); ownGeometries.add(drapery);
-    // The colossus rises through the arena rather than standing on its floor.
-    // A larger anatomical body reaches the gameplay palms with natural arms;
-    // head height is pinned from the actual rest contact, not a guessed offset.
-    giant = makeFigure(source, 14.7, 'Logos-giant', drapery);
-    giant.head.add(head); giant.arms[0].hand!.anchor.add(leftHand); giant.arms[1].hand!.anchor.add(rightHand);
-    head.position.set(0, 0, 0); leftHand.position.set(0, 0, 0); rightHand.position.set(0, 0, 0);
+    // Only the colossal face remains at the far edge. The original source
+    // still supplies its true facial anatomy, without a torso over the arena.
+    giant = makeFigure(source, 30, 'Logos-giant', drapery, giantStone, giantSilver);
+    const hiddenBody: THREE.Object3D[] = [];
+    giant.model.traverse(object => {
+      if (!(object instanceof THREE.SkinnedMesh)) return;
+      if (object.name.endsWith('-sculpted-himation-sash') || object.name.endsWith('-full-3d-fingers')) { hiddenBody.push(object); return; }
+      object.geometry = croppedHeadGeometry(object.geometry); ownGeometries.add(object.geometry);
+    });
+    hiddenBody.forEach(object => object.removeFromParent());
+    const adornment = giant.root.getObjectByName('Logos-giant-carved-head-and-crown')!;
+    for (const sign of [-1, 1]) {
+      const eye = new THREE.Mesh(eyeGeometry, eyePaint); eye.name = `Logos-eye-${sign < 0 ? 'left' : 'right'}`;
+      eye.position.set(sign * .048, .124, .127); eye.scale.set(.026, .009, .008); adornment.add(eye);
+    }
+    giant.head.add(head); head.position.set(0, 0, 0);
+    edgeHands = [-1, 1].map((sign, index) => {
+      const frame = new THREE.Group(); frame.name = `Logos-edge-${index === 0 ? 'left' : 'right'}-hand`; root.add(frame);
+      const hand = makeHand(frame, edgeShapes[index], giantStone, frame.name); hand.mesh.scale.setScalar(18);
+      ownSkeletons.add(hand.mesh.skeleton);
+      hand.anchor.add(index === 0 ? leftHand : rightHand);
+      (index === 0 ? leftHand : rightHand).position.set(0, 0, 0);
+      frame.traverse(object => { if (object instanceof THREE.Mesh) object.layers.enable(1); });
+      return { root: frame, hand };
+    });
+    giant.root.traverse(object => { if (object instanceof THREE.Mesh) object.layers.enable(1); });
+    headShield = new THREE.Mesh(shieldGeometry, shieldPaint); headShield.name = 'Logos-closed-head-shield'; headShield.scale.set(5.2, 6.5, 1); root.add(headShield);
     sentinels = sentinelContacts.map((contact, i) => {
       const figure = makeFigure(source, 1.75, `Logos-sentinel-${i}`, drapery, sentinelPaints[i].body, sentinelPaints[i].trim); figure.chest.add(contact); contact.position.set(0, 0, 0);
       const throne = new THREE.Mesh(throneGeometry, sentinelPaints[i].body); throne.name = `Logos-sentinel-${i}-solid-throne`; throne.scale.setScalar(1.75); throne.receiveShadow = true; throne.castShadow = true; root.add(throne); thrones.push(throne); return figure;
@@ -585,7 +629,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     stats.maxArmStretch = 1;
     if (!giant) return;
     if (!root.visible) {
-      giant.root.visible = false; setContactsVisible(false);
+      giant.root.visible = false; setContactsVisible(false); edgeHands.forEach(edge => { edge.root.visible = false; }); if (headShield) headShield.visible = false;
       for (let i = 0; i < sentinels.length; i++) {
         sentinels[i].root.visible = false; sentinels[i].motionInitialized = false;
         sentinelContacts[i].visible = false; thrones[i].visible = false;
@@ -594,39 +638,60 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     }
     const backdrop = !crownScene && (stage === 'descent' || stage === 'sentinels');
     const giantActive = !crownScene && (stage === 'giant' || stage === 'collapse');
-    giant.root.visible = backdrop || giantActive; setContactsVisible(giantActive && stage === 'giant');
+    const statueShield = stage === 'sentinels' || stage === 'descent' || stage === 'giant' && state.enemies.some(enemy => enemy.id.startsWith('sentinel-') && enemy.hp > 0);
+    const targetable = giantActive && stage === 'giant' && !statueShield;
+    giant.root.visible = backdrop || giantActive; setContactsVisible(targetable);
+    giantStone.transparent = collapse > 0; giantStone.opacity = 1 - collapse;
+    giantSilver.transparent = collapse > 0; giantSilver.opacity = 1 - collapse;
+    giantStone.emissiveIntensity = statueShield ? .14 : .26;
+    eyePaint.color.set(statueShield ? '#6f93b6' : '#d3f5ff');
+    if (headShield) {
+      headShield.visible = giant.root.visible && statueShield;
+      headShield.position.set(finite(state.boss.x), 9, finite(state.boss.z, -20) + .3);
+      shieldPaint.opacity = reducedMotion ? .2 : .2 + Math.sin(time * .6) * .035;
+    }
     if (giant.root.visible) {
-    giant.root.position.set(backdrop ? 0 : finite(state.boss.x), 17.3 - giant.headRestHeight - (reducedMotion ? 0 : collapse * 5), backdrop ? -16 : finite(state.boss.z, -12));
-    giant.root.rotation.set(0, 0, reducedMotion ? 0 : collapse * -.07);
-    resetPose(giant);
-    const headBone = giant.bones.get('head')!;
-    if (!reducedMotion) headBone.rotateY(state.boss.stunRemaining > 0 ? -.025 : Math.sin(time * .3) * .018);
-    giant.model.updateWorldMatrix(true, true);
-    for (let index = 0; index < 2; index++) {
-      const id = index === 0 ? 'left-hand' : 'right-hand', sign = index === 0 ? -1 : 1;
-      const enemy = state.enemies.find(enemy => enemy.id === id) ?? state.enemies.find(enemy => enemy.id === `echo-${index}`);
-      const x = backdrop ? sign * 7 : finite(enemy?.x ?? finite(state.boss.x) + sign * 7), z = backdrop ? -7 : finite(enemy?.z ?? finite(state.boss.z, -12) + 9);
-      const attack = !reducedMotion && enemy && enemy.hp > 0 && enemy.stunRemaining <= 0 ? clamp01((.65 - positive(enemy.attackTimer)) / .65) : 0;
-      const attackLift = Math.sin(attack * Math.PI) * 1.1;
-      v[12].set(x, 4 + attackLift - (reducedMotion ? 0 : collapse * 5), z); root.localToWorld(v[12]);
-      point(giant, sign * .8, 1.05, .28, v[13]);
-      const target = enemy ? state.party[enemy.target] : undefined;
-      const facing = target && target.hp > 0 ? Math.atan2(finite(target.x) - x, finite(target.z) - z) : 0;
-      poseArm(giant, index, v[12], v[13], facing, .14 + attack * .75, !!enemy && enemy.stunRemaining > 0);
-      (index === 0 ? leftHand : rightHand).visible = giantActive && stage === 'giant' && (!enemy || enemy.hp > 0);
-    }
-    }
+      const headHeight = 10 - (reducedMotion ? 0 : collapse * 8);
+      giant.root.position.set(finite(state.boss.x), headHeight - giant.headRestHeight, finite(state.boss.z, -20));
+      giant.root.rotation.set(0, 0, reducedMotion ? 0 : collapse * -.07); resetPose(giant);
+      const headBone = giant.bones.get('head')!;
+      if (!reducedMotion) headBone.rotateY(state.boss.stunRemaining > 0 ? -.025 : Math.sin(time * .3) * .012);
+      giant.model.updateWorldMatrix(true, true);
+      // Pin the rendered face contact to the authoritative X/Z coordinate.
+      head.getWorldPosition(v[12]);
+      giant.root.position.x += finite(state.boss.x) - v[12].x;
+      giant.root.position.y += headHeight - v[12].y;
+      giant.root.position.z += finite(state.boss.z, -20) - v[12].z;
+      for (let index = 0; index < edgeHands.length; index++) {
+        const id = index === 0 ? 'left-hand' : 'right-hand', sign = index === 0 ? -1 : 1;
+        const edge = edgeHands[index], enemy = state.enemies.find(enemy => enemy.id === id) ?? state.enemies.find(enemy => enemy.id === `echo-${index}`);
+        const active = targetable && (!enemy || enemy.hp > 0);
+        const attack = active && !reducedMotion && enemy && enemy.stunRemaining <= 0 ? clamp01((.65 - positive(enemy.attackTimer)) / .65) : 0;
+        const lift = Math.sin(attack * Math.PI) * 1.2;
+        const x = finite(enemy?.x ?? sign * 19) + (statueShield ? sign * 1.5 : 0), z = finite(enemy?.z ?? -4) - (statueShield ? 1.5 : 0);
+        edge.root.visible = true;
+        edge.root.position.set(x, 3.8 + lift - (statueShield ? .8 : 0) - (reducedMotion ? 0 : collapse * 7), z);
+        edge.root.rotation.set(-.3 - attack * .15, -sign * 1.1, sign * .12);
+        fingers(edge.hand, .08 + attack * .55, !!enemy && enemy.stunRemaining > 0);
+        edge.hand.mesh.updateWorldMatrix(true, true);
+        edge.hand.anchor.getWorldPosition(v[12]);
+        edge.root.position.x += x - v[12].x; edge.root.position.y += 3.8 + lift - (statueShield ? .8 : 0) - (reducedMotion ? 0 : collapse * 7) - v[12].y; edge.root.position.z += z - v[12].z;
+        (index === 0 ? leftHand : rightHand).visible = active;
+      }
+    } else for (const edge of edgeHands) edge.root.visible = false;
     for (let i = 0; i < sentinels.length; i++) {
       const figure = sentinels[i], angle = i / 6 * Math.PI * 2;
       const enemy = state.enemies.find(enemy => enemy.id === `sentinel-${i}`);
       const dormant = crownScene || stage === 'descent';
       const distortion = dormant ? distantDistortion[i] : 0;
-      const entering = !dormant && stage === 'sentinels' && elapsed < SENTINEL_ENTRY_SECONDS;
-      const jump = entering ? clamp01((elapsed - i * .18) / Math.max(.1, SENTINEL_ENTRY_SECONDS - .9)) : 1;
+      const waveElapsed = stage === 'giant' ? SENTINEL_ENTRY_SECONDS - positive(state.logos?.statueEntryRemaining ?? 0) : elapsed;
+      const statueStage = stage === 'sentinels' || stage === 'giant';
+      const entering = !dormant && statueStage && waveElapsed < SENTINEL_ENTRY_SECONDS;
+      const jump = entering ? clamp01((waveElapsed - i * .18) / Math.max(.1, SENTINEL_ENTRY_SECONDS - .9)) : 1;
       const travel = jump * jump * (3 - 2 * jump);
       const floatedY = 2.4 + i % 2 * .5 + (reducedMotion ? 0 : Math.sin(time * .5 + i) * .12);
       lightSentinel(i, dormant);
-      figure.root.visible = dormant || stage === 'sentinels' && !!enemy && enemy.hp > 0;
+      figure.root.visible = dormant || statueStage && !!enemy && enemy.hp > 0;
       sentinelContacts[i].visible = figure.root.visible && !dormant;
       const throne = thrones[i]; throne.visible = false;
       if (throne.visible) {
@@ -706,7 +771,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     if (disposed) return;
     disposed = true; root.visible = false; root.removeFromParent(); clearFigures();
     ownGeometries.forEach(free); ownGeometries.clear(); sources.forEach(releaseSource); sources.clear();
-    free(stone); free(silver); sentinelPaints.forEach(paints => { free(paints.body); free(paints.trim); }); distantStatueAnchors.clear(); targets.clear(); root.clear(); currentState = null; stats.assetStatus = 'disposed';
+    free(stone); free(silver); free(giantStone); free(giantSilver); free(eyePaint); free(shieldPaint); sentinelPaints.forEach(paints => { free(paints.body); free(paints.trim); }); distantStatueAnchors.clear(); targets.clear(); root.clear(); currentState = null; stats.assetStatus = 'disposed';
   };
   return { root, head, leftHand, rightHand, targets, distantStatueAnchors, setDistantStatueLighting, setDistantStatueDistortion, ready, stats, update, reset, dispose };
 }

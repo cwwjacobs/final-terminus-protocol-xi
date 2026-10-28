@@ -189,3 +189,48 @@ test('a struck figure briefly distorts while its energy follows a living moving 
   visual.reset(); assert.deepEqual(distortions, [0, 0, 0, 0, 0, 0]);
   visual.dispose();
 });
+
+test('giant statue cycles reuse identities without replaying deaths or retaining prior-cycle streams', () => {
+  const scene = new THREE.Scene(), state = createGame();
+  state.status = 'fighting'; state.encounter = 'logos'; state.logos = { stage: 'giant', elapsed: 30, statueWave: 1 };
+  const wave = () => Array.from({ length: 3 }, (_, index) => ({ id: `sentinel-${index}`, name: `Statue ${index}`, x: index * 5, z: -10, hp: 1000, maxHp: 1000, target: 0, attackTimer: 3, stunRemaining: 0, burn: null }));
+  state.enemies = wave();
+  const visual = createDarkStatues(scene, 'low', {
+    getChest(index, out) {
+      const enemy = state.enemies.find(enemy => enemy.id === `sentinel-${index}` && enemy.hp > 0);
+      if (!enemy) return false;
+      out.set(enemy.x, 2, enemy.z); return true;
+    },
+    setLighting() {},
+  });
+  visual.update(.05, state);
+  state.enemies[0].hp = 0; state.time += .05; visual.update(.05, state);
+  assert.equal(visual.stats().absorptions, 1); assert.equal(visual.stats().activeTrails, 1);
+  visual.update(.05, state); assert.equal(visual.stats().absorptions, 1);
+  state.logos.statueWave = 2; state.enemies = wave(); state.time += .05; visual.update(.05, state);
+  assert.equal(visual.stats().activeTrails, 0, 'a new incarnation cannot inherit an old stream');
+  assert.equal(visual.stats().absorptions, 1, 'summoning is not a defeat');
+  state.enemies[0].hp = 0; state.time += .05; visual.update(.05, state);
+  assert.equal(visual.stats().absorptions, 2, 'the same ID can be defeated once in its new wave');
+  visual.update(.05, state); assert.equal(visual.stats().absorptions, 2);
+  visual.reset(); visual.update(.05, state);
+  assert.equal(visual.stats().absorptions, 0, 'restoring a corpse in a later cycle does not replay it');
+  visual.dispose();
+});
+
+test('the last fallen statue has no invisible receiver for energy or subsequent lightning', () => {
+  const scene = new THREE.Scene(), state = createGame();
+  state.status = 'fighting'; state.encounter = 'logos'; state.logos = { stage: 'giant', elapsed: 30, statueWave: 1 };
+  state.enemies = [{ id: 'sentinel-0', name: 'Statue', x: 0, z: -10, hp: 1000, maxHp: 1000, target: 0, attackTimer: 3, stunRemaining: 0, burn: null }];
+  const visual = createDarkStatues(scene, 'low', {
+    getChest(index, out) { out.set(0, 2, -10); return index === 0 && state.enemies[0].hp > 0; },
+    setLighting() {},
+  });
+  visual.update(.05, state);
+  state.enemies[0].hp = 0; state.time += .05; visual.update(.05, state, false, 1);
+  assert.equal(visual.stats().absorptions, 0);
+  assert.equal(visual.stats().activeTrails, 0);
+  assert.equal(visual.stats().statueTransfers, 0);
+  assert.equal(visual.root.getObjectByName('distant-lightning-contact')!.visible, false);
+  visual.dispose();
+});

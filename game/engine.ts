@@ -1,4 +1,4 @@
-import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_ENTRY_SECONDS, SENTINEL_NAMES, sentinelEntryActive, sequenceLocked } from './logos.ts';
+import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_ENTRY_SECONDS, SENTINEL_NAMES, sentinelEntryActive, sequenceLocked, GIANT_EXPOSURE_SECONDS, GIANT_STATUE_WAVES, giantStatuesActive, statuesEntering, statuesShieldLogos } from './logos.ts';
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
 import { createRunStats } from './run-stats.ts';
@@ -117,12 +117,59 @@ function beginSentinels(state: GameState) {
 }
 
 function beginGiant(state: GameState) {
-  state.logos = { stage: 'giant', elapsed: 0 }; state.ultimatesUnlocked = true;
+  state.logos = { stage: 'giant', elapsed: 0, statueWave: 0, exposureRemaining: GIANT_EXPOSURE_SECONDS, statueEntryRemaining: 0 }; state.ultimatesUnlocked = true;
   state.chain = state.burst = null; state.duskRemaining = 0;
-  Object.assign(state.boss, { x: 0, z: -12, hp: state.boss.maxHp, target: 1, phase: 1, facing: 0, attackTimer: 3, specialTimer: 8, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null });
-  state.enemies = [-1, 1].map((sign, i) => ({ id: i === 0 ? 'left-hand' : 'right-hand', name: i === 0 ? 'Logos · Left hand' : 'Logos · Right hand', x: sign * 7, z: -3, hp: 8000, maxHp: 8000, target: 1, attackTimer: 4 + i, stunRemaining: 0, burn: null }));
+  Object.assign(state.boss, { x: 0, z: -20, target: 1, phase: 1, facing: 0, attackTimer: 3, specialTimer: 8, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null });
+  state.enemies = [-1, 1].map((sign, i) => ({ id: i === 0 ? 'left-hand' : 'right-hand', name: i === 0 ? 'Logos · Left hand' : 'Logos · Right hand', x: sign * 19, z: -4, hp: 8000, maxHp: 8000, target: i === 0 ? 1 : 0, attackTimer: 4 + i, stunRemaining: 0, burn: null }));
   state.party.forEach(a => { a.hp = a.maxHp; a.mp = a.maxMp; a.enemyTarget = a.role === 'warden' ? 'left-hand' : a.role === 'vanguard' ? 'right-hand' : 'boss'; a.engaged = true; a.aiTimer = 0; });
   event(state, 'awakening', 'Logos attacks — hold his hands; ranged heroes strike his head. Divine ultimates unlocked.');
+}
+
+function creditStatueDeath(state: GameState, enemy: Enemy, source: number) {
+  if (!enemy.id.startsWith('sentinel-') || enemy.hp > 0 || enemy.linkedDamageCredited || state.encounter !== 'logos') return;
+  enemy.linkedDamageCredited = true;
+  const damage = Math.min(state.boss.hp, Math.round(state.boss.maxHp * (state.logos.stage === 'sentinels' ? .02 : .035)));
+  state.boss.hp -= damage;
+  state.runStats.party[source].damage += damage;
+  if (state.party[source].hp > 0) threat(state.party[source], damage * .65, damage * .8);
+  event(state, 'magic', `${enemy.name} shatters — Logos loses ${damage} coherence.`, source, damage, undefined, 'statueLink', undefined, undefined, undefined, { abilityId: 'statueLink', enemyId: 'boss' });
+}
+
+function giantCycleStep(state: GameState, dt: number) {
+  if (state.logos.stage !== 'giant') return;
+  const logos = state.logos;
+  if (logos.statueWave === undefined) {
+    Object.assign(logos, { statueWave: 0, exposureRemaining: GIANT_EXPOSURE_SECONDS, statueEntryRemaining: 0 });
+    state.boss.x = 0; state.boss.z = -20;
+    for (const hand of state.enemies) if (hand.id.endsWith('-hand')) {
+      hand.x = hand.id === 'left-hand' ? -19 : 19; hand.z = -4;
+    }
+  }
+  if ((logos.statueEntryRemaining ?? 0) > 0) {
+    logos.statueEntryRemaining = Math.max(0, logos.statueEntryRemaining! - dt);
+    if (logos.statueEntryRemaining < 1e-8) logos.statueEntryRemaining = 0;
+    return;
+  }
+  if (giantStatuesActive(state)) return;
+  if (logos.exposureRemaining === 0 && state.enemies.some(enemy => enemy.id.startsWith('sentinel-'))) {
+    logos.exposureRemaining = GIANT_EXPOSURE_SECONDS;
+    event(state, 'statues_exposed', 'The statues are broken. Logos’s head and hands are exposed!');
+    state.party.forEach(actor => { if (!actor.human) actor.aiTimer = 0; });
+    return;
+  }
+  if ((logos.statueWave ?? 0) >= GIANT_STATUE_WAVES) return;
+  logos.exposureRemaining = Math.max(0, (logos.exposureRemaining ?? GIANT_EXPOSURE_SECONDS) - dt);
+  if (logos.exposureRemaining > 1e-8) return;
+  logos.exposureRemaining = 0; logos.statueWave!++; logos.statueEntryRemaining = SENTINEL_ENTRY_SECONDS;
+  state.boss.cast = null;
+  state.enemies = state.enemies.filter(enemy => !enemy.id.startsWith('sentinel-'));
+  for (let index = 0; index < 3; index++) {
+    const angle = (index * 2 + logos.statueWave! % 2) * Math.PI / 3;
+    const hp = state.mode === 'god' ? 5400 : 4200;
+    state.enemies.push({ id: `sentinel-${index}`, name: SENTINEL_NAMES[(index + logos.statueWave! - 1) % SENTINEL_NAMES.length], x: Math.sin(angle) * 18, z: Math.cos(angle) * 18, hp, maxHp: hp, target: 1, attackTimer: 3 + index * .5, stunRemaining: 0, burn: null, linkedDamageCredited: false });
+  }
+  state.party.forEach(actor => { cancelSequence(actor); if (!actor.human) actor.aiTimer = 0; });
+  event(state, 'statues_summoned', 'Logos summons three statues. Break them to weaken him and expose his head and hands.');
 }
 
 function finishIfNeeded(state: GameState) {
@@ -167,10 +214,10 @@ function finishIfNeeded(state: GameState) {
 
 function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto' | 'weapon' | 'chain' | 'magic' | 'burst', label: string, source?: string, guaranteedCritical = false, sequenceId?: number, hitIndex?: number, metadata: CombatPresentationMetadata = {}, criticalScale = guaranteedCritical ? 2 : 1.5): number {
   const enemy = metadata.enemyId === 'boss' ? state.boss : metadata.enemyId ? state.enemies.find(enemy => enemy.id === metadata.enemyId) : offensiveTarget(state, state.party[slot]);
-  if (enemy === state.boss && state.logos.stage === 'sentinels') return 0;
+  if (statuesShieldLogos(state) && (enemy === state.boss || enemy && 'id' in enemy && enemy.id.endsWith('-hand'))) return 0;
   if (enemy && 'id' in enemy) metadata = { ...metadata, enemyId: enemy.id };
   if (state.status !== 'fighting' || !enemy || enemy.hp <= 0 || state.party[slot].hp <= 0) return 0;
-  if (sentinelEntryActive(state)) return 0;
+  if (statuesEntering(state)) return 0;
   if ('id' in enemy && (enemy.emergeRemaining ?? 0) > 0) return 0;
   const actor = state.party[slot];
   // These passives reward landed kit hits only: no autos, chain echoes, or AoE ultimate refunds.
@@ -196,6 +243,7 @@ function damageBoss(state: GameState, slot: number, amount: number, kind: 'auto'
   state.runStats.party[slot].damage += damage;
   threat(state.party[slot], damage * 0.65, damage * 0.8);
   event(state, kind, `${actor.name}: ${label}${metadata.enemyId ? ` → ${enemy.name}` : ''} · ${damage}`, slot, damage, undefined, source, physical || empowered || guaranteedCritical ? critical : undefined, sequenceId, hitIndex, metadata);
+  if ('id' in enemy && enemy.hp <= 0) creditStatueDeath(state, enemy, slot);
   finishIfNeeded(state);
   return damage;
 }
@@ -265,11 +313,13 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
 
   if (action.type === 'faceLogos') {
     const oldStats = state.runStats, oldTime = state.combatTime;
-    const maxHp = state.mode === 'god' ? 420000 : 210000;
+    // Statue breaks remove up to 43.5% of this shared pool; the remainder is
+    // fought through alternating twenty-second head/hand exposure windows.
+    const maxHp = state.mode === 'god' ? 660000 : 360000;
     state.encounter = 'logos'; state.ultimatesUnlocked = false; state.status = 'fighting'; state.logos = { stage: 'descent', elapsed: 0, readySlots: [] };
     state.combatTime = 0; state.runStats = createRunStats(state.party.length);
     state.chain = state.burst = null; state.duskRemaining = 0;
-    state.boss = { name: 'Logos', x: 0, z: -12, hp: maxHp, maxHp, target: slot, phase: 1, facing: 0, attackTimer: 3, specialTimer: 10, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null };
+    state.boss = { name: 'Logos', x: 0, z: -20, hp: maxHp, maxHp, target: slot, phase: 1, facing: 0, attackTimer: 3, specialTimer: 10, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null };
     state.enemies = SENTINEL_NAMES.map((name, index) => ({ id: `sentinel-${index}`, name, x: Math.sin(index * Math.PI / 3) * 18, z: Math.cos(index * Math.PI / 3) * 18, hp: 4500, maxHp: 4500, target: slot, attackTimer: 4 + index * .4, stunRemaining: 0, burn: null }));
     state.storm = createStaticStorm(state.rng);
     state.party.forEach((recipient, i) => {
@@ -345,7 +395,8 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     } else {
       actor.spellRecovery = type === 'fission' ? 2 : 1;
       const center = offensiveTarget(state, actor);
-      const targets = [...state.enemies.filter(enemy => enemy.hp > 0 && distance(enemy, center) <= 12), ...(state.logos.stage === 'sentinels' || distance(state.boss, center) > 12 ? [] : [state.boss])];
+      const shielded = statuesShieldLogos(state);
+      const targets = [...state.enemies.filter(enemy => enemy.hp > 0 && (!shielded || enemy.id.startsWith('sentinel-')) && distance(enemy, center) <= 12), ...(shielded || distance(state.boss, center) > 12 ? [] : [state.boss])];
       for (const enemy of targets) {
         const enemyId = 'id' in enemy ? enemy.id : 'boss';
         const dealt = damageBoss(state, slot, type === 'fission' ? 9000 : 2000, type === 'fission' ? 'magic' : 'weapon', definition.name, type, type === 'rainOfFire', undefined, undefined, { abilityId: type, ...(type === 'rainOfFire' ? { element: 'fire' as const } : {}), ...(enemyId ? { enemyId } : {}) }, type === 'rainOfFire' ? 3 : 1.5);
@@ -363,12 +414,14 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     } else {
       const amount = type === 'clap' ? 350 * (1 + actor.tp / TP_MAX) : 450;
       if (type === 'clap') actor.tp = 0;
-      const all = [...state.enemies.filter(enemy => enemy.hp > 0), state.boss];
+      const shielded = statuesShieldLogos(state);
+      const all = [...state.enemies.filter(enemy => enemy.hp > 0 && (!shielded || enemy.id.startsWith('sentinel-'))), ...(shielded ? [] : [state.boss])];
       let targets: typeof all;
       if (type === 'clap') targets = all.filter(enemy => distance(actor, enemy) <= 12);
       else {
-        targets = [state.boss];
-        const pending = all.filter(enemy => enemy !== state.boss);
+        const first = offensiveTarget(state, actor);
+        targets = [first];
+        const pending = all.filter(enemy => enemy !== first);
         while (pending.length) {
           const last = targets.at(-1)!;
           pending.sort((a, b) => distance(a, last) - distance(b, last));
@@ -576,6 +629,7 @@ function forcedTarget(state: GameState): number {
 
 /** Burn is a fixed budget of actual impact damage, never re-scaled or re-critted. */
 function burnStep(state: GameState, enemy: EnemyStatus & { hp: number; name: string }, dt: number, enemyId?: string) {
+  if (statuesShieldLogos(state) && (enemy === state.boss || enemyId?.endsWith('-hand')) || statuesEntering(state)) return;
   const burn = enemy.burn;
   if (!burn || enemy.hp <= 0) { enemy.burn = null; return; }
   burn.tickIn -= dt;
@@ -589,13 +643,15 @@ function burnStep(state: GameState, enemy: EnemyStatus & { hp: number; name: str
   if (state.party[burn.source].hp > 0) threat(state.party[burn.source], damage * .65, damage * .8);
   event(state, 'magic', `${enemy.name}: Rain of Fire burn · ${damage}`, burn.source, damage, undefined, 'rainOfFireBurn', false, undefined, undefined, { abilityId: 'rainOfFireBurn', element: 'fire', ...(enemyId ? { enemyId } : {}) });
   if (burn.ticks >= 3 || enemy.hp <= 0) enemy.burn = null;
+  if (enemyId && enemy.hp <= 0) creditStatueDeath(state, enemy as Enemy, burn.source);
   finishIfNeeded(state);
 }
 
 function enemiesStep(state: GameState, dt: number) {
-  if (sentinelEntryActive(state)) return;
+  if (statuesEntering(state)) return;
   for (const enemy of state.enemies) {
     if (state.status !== 'fighting') return;
+    if (enemy.id.endsWith('-hand') && giantStatuesActive(state)) continue;
     burnStep(state, enemy, dt, enemy.id);
     if (enemy.hp <= 0) {
       if (enemy.id.endsWith('-hand') && state.logos.stage === 'giant') { enemy.attackTimer -= dt; if (enemy.attackTimer <= 0) { enemy.hp = enemy.maxHp; enemy.attackTimer = 4; event(state, 'hand_reformed', `${enemy.name} reforms.`); } }
@@ -611,16 +667,17 @@ function enemiesStep(state: GameState, dt: number) {
     }
     const forced = forcedTarget(state);
     const threatTarget = state.party.map((a,i)=>({a,i})).filter(x=>x.a.hp>0).sort(compareThreat)[0]?.i ?? -1;
-    enemy.target = forced >= 0 ? forced : threatTarget;
+    const handDefender = enemy.id.endsWith('-hand') ? state.party.findIndex(actor => actor.hp > 0 && actor.engaged && actor.role === (enemy.id === 'left-hand' ? 'warden' : 'vanguard') && distance(actor, enemy) <= 8) : -1;
+    enemy.target = forced >= 0 ? forced : handDefender >= 0 ? handDefender : threatTarget;
     if (enemy.stunRemaining > 0) { enemy.stunRemaining = Math.max(0, enemy.stunRemaining - dt); if (enemy.stunRemaining <= 1e-8) enemy.stunRemaining = 0; continue; }
     const target = state.party[enemy.target];
     if (!target || target.hp <= 0) continue;
     const range = distance(enemy, target);
     const ground = enemy.kind ? GROUND_BALANCE[enemy.kind] : undefined;
     const thrower = enemy.kind === 'storm-shard' || enemy.id.startsWith('sentinel-') && Number(enemy.id.at(-1)) % 3 === 2;
-    const reach = ground?.reach ?? (thrower ? 12 : 3);
+    const reach = ground?.reach ?? (enemy.id.endsWith('-hand') ? 7 : thrower ? 12 : 3);
     const speed = ground?.speed ?? (enemy.id.endsWith('-hand') ? 3.2 : 3.8);
-    if (range > reach) { enemy.x += (target.x - enemy.x) / range * speed * dt; enemy.z += (target.z - enemy.z) / range * speed * dt; }
+    if (range > reach && !enemy.id.endsWith('-hand')) { enemy.x += (target.x - enemy.x) / range * speed * dt; enemy.z += (target.z - enemy.z) / range * speed * dt; }
     enemy.attackTimer -= dt;
     if (enemy.attackTimer <= 1e-8 && range <= reach + .5) {
       const hand = enemy.id.endsWith('-hand');
@@ -684,6 +741,10 @@ function trustAction(state: GameState, slot: number) {
     const preferred = adds.find(enemy => enemy.kind === 'storm-shard') ?? adds[0];
     actor.enemyTarget = actor.role === 'warden' || actor.role === 'luminary' ? 'boss' : preferred?.id ?? 'boss';
   }
+  if (state.logos.stage === 'giant') {
+    const statue = state.enemies.find(enemy => enemy.id.startsWith('sentinel-') && enemy.hp > 0);
+    actor.enemyTarget = statue?.id ?? (actor.role === 'warden' ? 'left-hand' : actor.role === 'vanguard' ? 'right-hand' : 'boss');
+  }
   if (state.ultimatesUnlocked && state.combatTime > 8 + slot * 1.25) {
     const use = actor.role !== 'luminary' || state.party.some(p => p.hp > 0 && p.hp < p.maxHp * .6);
     if (use && applyAction(state, slot, { type: ULTIMATES[actor.role] }).ok) return;
@@ -722,10 +783,11 @@ function trustAction(state: GameState, slot: number) {
     }
   }
   const desiredRange = actor.role === 'arcanist' || actor.role === 'luminary' || actor.role === 'hunter' ? 10 : 3.3;
-  const formationAngle = actor.role === 'warden' ? 0 : actor.role === 'hunter' ? Math.PI : slot * 1.2;
+  const formationAngle = state.logos.stage === 'giant' && !giantStatuesActive(state) ? actor.role === 'warden' ? Math.PI / 2 : actor.role === 'vanguard' ? -Math.PI / 2 : (slot - 3) * .45 : actor.role === 'warden' ? 0 : actor.role === 'hunter' ? Math.PI : slot * 1.2;
   if (distance(actor, enemy) > desiredRange + 1 || distance(actor, enemy) < desiredRange - 1.5) {
     moveToward(actor, enemy.x + Math.sin(formationAngle) * desiredRange, enemy.z + Math.cos(formationAngle) * desiredRange, 0.3);
   }
+  if (actor.role === 'luminary' && state.logos.stage === 'giant' && !giantStatuesActive(state)) moveToward(actor, 0, -6, .5);
   if (actor.role === 'luminary') {
     if (state.party.some(p => p.hp > 0 && p.maxHp - p.hp > 360)) applyAction(state, slot, { type: 'heal' });
   }
@@ -787,6 +849,7 @@ function bossStep(state: GameState, dt: number) {
     }
     return;
   }
+  if (giantStatuesActive(state)) return;
   const candidates = state.party.map((a, i) => ({ a, i })).filter(({ a }) => a.hp > 0 && (a.engaged || a.ce + a.ve > 0));
   candidates.sort(compareThreat);
   boss.target = forced >= 0 ? forced : candidates[0]?.i ?? -1;
@@ -898,6 +961,12 @@ function stormStep(state: GameState, dt: number) {
         event(state, 'static_discharge', 'Lightning grounds through the arena.', undefined, undefined, undefined, 'staticStorm');
         return;
       }
+      // A strike committed before the statue shield must not arc from a now
+      // protected head or hand. Fresh strikes select one of the living statues.
+      if (statuesShieldLogos(state) && (storm.enemyId === 'boss' || storm.enemyId.endsWith('-hand'))) {
+        event(state, 'static_discharge', 'Static discharge grounds harmlessly through the protected stone.', undefined, undefined, undefined, 'staticStorm');
+        return;
+      }
       if (heracles >= 0) staticCounter(state, heracles, storm.enemyId, STATIC_REFLECT_DAMAGE, 'static_reflect');
       if (state.status !== 'fighting') return;
       const origin = storm.enemyId === 'boss' ? state.boss : state.enemies.find(enemy => enemy.id === storm.enemyId);
@@ -997,6 +1066,7 @@ function fixedStep(state: GameState) {
     state.logos.elapsed += dt;
     if (entering && !sentinelEntryActive(state)) event(state, 'lair_answer', 'Logos!');
   }
+  if (state.status === 'fighting') giantCycleStep(state, dt);
   if (state.status === 'fighting') burnStep(state, state.boss, dt);
   if (state.status === 'fighting') {
     const wave = nextGroundWave(state);

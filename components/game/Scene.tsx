@@ -21,7 +21,7 @@ import { logosSequencePresentation } from './logos-encounter-visuals';
 import { createLogosRig } from './logos-rig';
 import { createGroundEnemyVisuals } from './ground-enemy-visuals';
 import { createDarkStatues } from './dark-statues';
-import { offensiveTarget, sequenceLocked } from '../../game/logos.ts';
+import { enemyTargets, offensiveTarget, sequenceLocked } from '../../game/logos.ts';
 import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
 import { createPartyMarker } from './party-markers';
@@ -226,6 +226,19 @@ export default function Scene(props: SceneProps) {
     key.shadow.camera.left = -27; key.shadow.camera.right = 27; key.shadow.camera.top = 27; key.shadow.camera.bottom = -27;
     key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; scene.add(key);
     const rim = new THREE.DirectionalLight('#a5b6d1', 1.7); rim.position.set(8, 9, -16); scene.add(rim);
+    // Local fill reveals the face and fingers without lifting the entire void.
+    // These lights have bounded cones and no extra shadow-map passes.
+    const giantLights = new THREE.Group(); giantLights.name = 'giant-contact-lighting';
+    const giantFill = (color: string, intensity: number, position: number[], target: number[], distance: number, angle: number) => {
+      const light = new THREE.SpotLight(color, intensity, distance, angle, .75, 2);
+      light.position.set(position[0], position[1], position[2]);
+      light.target.position.set(target[0], target[1], target[2]);
+      giantLights.add(light, light.target);
+    };
+    giantFill('#dbeaff', 1000, [0, 13, -4], [0, 10, -20], 32, .65);
+    giantFill('#d8e6ff', 260, [-12, 8, 1], [-19, 3.8, -4], 17, .65);
+    giantFill('#d8e6ff', 260, [12, 8, 1], [19, 3.8, -4], 17, .65);
+    giantLights.visible = false; scene.add(giantLights);
     const world = buildWorld(scene, props.quality);
     const atmosphere = createCinematicEnvironment(scene, world.floorGroup, props.quality);
     const assets = new ActorAssets();
@@ -249,7 +262,7 @@ export default function Scene(props: SceneProps) {
       getChest(index, out) {
         const state = latest.current.state;
         if (state.encounter === 'logos' && state.logos.stage !== 'descent' &&
-          (state.logos.stage !== 'sentinels' || !state.enemies.some(enemy => enemy.id === `sentinel-${index}` && enemy.hp > 0))) return false;
+          (!['sentinels', 'giant'].includes(state.logos.stage) || !state.enemies.some(enemy => enemy.id === `sentinel-${index}` && enemy.hp > 0))) return false;
         const anchor = logosRig.distantStatueAnchors.get(`sentinel-${index}`);
         if (!anchor) return false;
         anchor.getWorldPosition(out); return true;
@@ -505,6 +518,7 @@ export default function Scene(props: SceneProps) {
       escapeLight.visible = sequence.escapeOpacity > 0; escapeLight.position.y = sequence.actorY;
       recallPaint.opacity = sequence.escapeOpacity * .09; (recallRing.material as THREE.MeshBasicMaterial).opacity = sequence.escapeOpacity * .6;
       logosRig.update(presentationActive ? dt : 0, state, reducedMotion);
+      giantLights.visible = state.encounter === 'logos' && ['sentinels', 'giant', 'collapse'].includes(state.logos.stage);
       const nextActive = latest.current.presentationActive !== false && !document.hidden;
       if (nextActive !== presentationActive) rebaselinePresentation();
       const incoming = eventFeed.read(state, presentationEpoch);
@@ -579,10 +593,12 @@ export default function Scene(props: SceneProps) {
       const pulse = Math.max(0, 1 - targetPulseAge / .5);
       const lockedTarget = !sequenceLocked(state) && cameraLockTarget(state, slot) ? offensiveTarget(state, selected) : null;
       const attackTarget = offensiveTarget(state, selected);
-      const selectedEnemy = state.enemies.find(enemy => enemy.id === selectedTarget && enemy.hp > 0);
+      const legalTargets = enemyTargets(state);
+      const selectedEnemy = state.enemies.find(enemy => enemy.id === selectedTarget && legalTargets.some(target => target.id === enemy.id));
       const target = selectedEnemy ?? attackTarget;
       const targetId = 'id' in target ? target.id : 'boss';
-      const bossSelected = !sequenceLocked(state) && !!(selectedTarget || lockedTarget) && target.hp > 0;
+      const targetAvailable = legalTargets.some(candidate => candidate.id === targetId);
+      const bossSelected = targetAvailable && !!(selectedTarget || lockedTarget);
       targetRing.position.set(target.x, .045, target.z);
       targetRing.visible = targetReticle.visible = bossSelected;
       targetRing.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .18));
@@ -594,7 +610,7 @@ export default function Scene(props: SceneProps) {
       targetReticle.scale.setScalar(1 + (reducedMotion ? 0 : pulse * .5));
       reticleMaterial.color.copy(targetMaterial.color); reticleMaterial.opacity = .75 + pulse * .25;
       const burst = activeBurst(state);
-      burstRing.visible = !sequenceLocked(state) && (!!burst || state.duskRemaining > 0);
+      burstRing.visible = targetAvailable && (!!burst || state.duskRemaining > 0);
       if (burst || state.duskRemaining > 0) {
         burstRing.position.set(target.x, .07, target.z);
         burstMaterial.color.set(state.duskRemaining > 0 ? '#e2a5ff' : MAGIC[burst!.element].color);

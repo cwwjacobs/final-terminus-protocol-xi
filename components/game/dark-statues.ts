@@ -11,6 +11,7 @@ export interface DistantStatueAdapter {
 const TRAILS = 8;
 const FLIGHT_SECONDS = 1.85;
 const clamp = (n: number) => Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0));
+const generation = (state: StatueState) => `${state.encounter}:${state.logos.stage}:${state.logos.statueWave ?? 0}`;
 
 export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', adapter?: DistantStatueAdapter) {
   const root = new THREE.Group(); root.name = 'distant-statuary'; scene.add(root);
@@ -89,7 +90,7 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
   const baseline = (state: StatueState) => {
     previous.clear(); consumed.clear();
     state.enemies.forEach(enemy => { previous.set(enemy.id, enemy.hp); if (enemy.hp <= 0) consumed.add(enemy.id); });
-    lastTime = state.time; lastEvent = state.eventSeq; stage = `${state.encounter}:${state.logos.stage}`; initialized = true;
+    lastTime = state.time; lastEvent = state.eventSeq; stage = generation(state); initialized = true;
   };
   const launchTrail = (from: THREE.Vector3, destination: number) => {
     const trail = trails.find(item => !item.active) ?? trails.reduce((a, b) => a.age > b.age ? a : b);
@@ -101,9 +102,10 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
   };
   const absorb = (enemy: StatueState['enemies'][number]) => {
     if (consumed.has(enemy.id)) return;
-    consumed.add(enemy.id); absorbed++;
+    consumed.add(enemy.id);
     const available = figures.flatMap((figure, index) => figure.available ? [index] : []);
     if (!available.length) return;
+    absorbed++;
     const nearest = available.reduce((best, i) => Math.hypot(figures[i].chest.x - enemy.x, figures[i].chest.z - enemy.z) < Math.hypot(figures[best].chest.x - enemy.x, figures[best].chest.z - enemy.z) ? i : best, available[0]);
     launchTrail(new THREE.Vector3(enemy.x, 1.4, enemy.z), nearest);
   };
@@ -135,7 +137,7 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
         figure.available = adapter ? adapter.getChest(index, figure.chest) : true;
         figure.heart.visible = figure.available; figure.heart.position.copy(figure.chest);
       });
-      const currentStage = `${state.encounter}:${state.logos.stage}`;
+      const currentStage = generation(state);
       const flash = clamp(lightningFlash);
       const changed = !initialized || state.time < lastTime || state.time - lastTime > 1 || state.eventSeq < lastEvent || currentStage !== stage;
       if (changed) { clearTrails(); baseline(state); previousFlash = flash; }

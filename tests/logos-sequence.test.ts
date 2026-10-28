@@ -8,7 +8,7 @@ import type { GameState } from '../game/types.ts';
 
 function advance(s: GameState, seconds: number) { while(seconds>1e-8){const t=Math.min(30,seconds);stepGame(s,t);seconds-=t;} }
 function descend(){const s=createGame();s.party.forEach(a=>{a.human=true;a.x=0;a.z=-1;a.attackTimer=100000;a.engaged=true;});applyAction(s,0,{type:'start'});s.boss.hp=1;s.party[0].tp=1000;applyAction(s,0,{type:'weapon',id:'cleave'});assert.equal(s.status,'victory');assert.ok(applyAction(s,0,{type:'faceLogos'}).ok);return s;}
-function giant(){const s=descend();advance(s,60 + SENTINEL_ENTRY_SECONDS);for(const e of [...s.enemies]){s.party[0].x=e.x;s.party[0].z=e.z+1;s.party[0].tp=1000;s.party[0].recovery=0;s.party[0].cooldowns['weapon:cleave']=0;applyAction(s,0,{type:'selectEnemy',id:e.id});e.hp=1;assert.ok(applyAction(s,0,{type:'weapon',id:'cleave'}).ok);}s.party.forEach((a,i)=>{a.x=(i-2)*2;a.z=-1;a.attackTimer=100000;a.recovery=0;a.human=true;});return s;}
+function giant(){const s=descend();advance(s,60 + SENTINEL_ENTRY_SECONDS);for(const e of [...s.enemies]){s.party[0].x=e.x;s.party[0].z=e.z+1;s.party[0].tp=1000;s.party[0].recovery=0;s.party[0].cooldowns['weapon:cleave']=0;applyAction(s,0,{type:'selectEnemy',id:e.id});e.hp=1;assert.ok(applyAction(s,0,{type:'weapon',id:'cleave'}).ok);}s.party.forEach((a,i)=>{a.x=(i-2)*2;a.z=-6;a.attackTimer=100000;a.recovery=0;a.human=true;});return s;}
 
 test('descent preserves the Crown scoreboard and takes exactly 60 seconds without combat or input spending',()=>{
  const s=descend(),stats=structuredClone(s.runStats),clock=s.combatTime;
@@ -87,7 +87,7 @@ test('stage clocks survive saves and partitioned replay; stale or authority-bear
 });
 
 test('an area ultimate resolves each explicit target once and excludes the head when outside its area',()=>{
- const s=giant();s.enemies.forEach((e,i)=>{e.hp=e.maxHp=20000;e.x=i===0?-3:3;e.z=-3;});
+ const s=giant();s.enemies.forEach((e,i)=>{e.hp=e.maxHp=20000;e.x=i===0?-3:3;e.z=-14;});
  s.party[3].enemyTarget='left-hand';const before=s.boss.hp;
  assert.ok(applyAction(s,3,{type:'fission'}).ok);
  const hits=s.events.filter(e=>e.source==='fission'&&e.kind==='magic');

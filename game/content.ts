@@ -1,4 +1,4 @@
-import { enemyTargets, offensiveTarget, sentinelEntryActive, sequenceLocked } from './logos.ts';
+import { enemyTargets, offensiveTarget, statuesEntering, sequenceLocked } from './logos.ts';
 import type { Action, Actor, Element, GameState, Role, WeaponId } from './types.ts';
 
 export const FIXED_STEP = 1 / 20;
@@ -168,7 +168,7 @@ export function actionUnavailable(state: GameState, slot: number, action: Action
   if (action.type === 'magic' && !Object.hasOwn(MAGIC, action.element)) return 'Unknown magic element.';
   if (getCooldown(actor, action) > 1e-8) return `${ABILITY_DEFINITIONS[cooldownKey(action)]?.name ?? action.type} is on cooldown.`;
   const offensive = ['weapon', 'magic', 'criticalDash', 'splitVolley', 'elementalShot', 'fission', 'rainOfFire', ...FORM_ACTIONS].includes(action.type);
-  if (offensive && sentinelEntryActive(state)) return 'The statues are still landing.';
+  if (offensive && statuesEntering(state)) return 'The statues are still landing.';
   if (offensive && actor.sequence) return 'Finish the current attack sequence.';
   if (offensive && actor.recovery > 1e-8) return 'Recovering from an attack.';
   if (['magic', 'elementalShot', 'bolt', 'lightningShock', 'fission'].includes(action.type) && actor.spellRecovery > 1e-8) return 'Recovering from a spell.';

@@ -7,10 +7,10 @@ import { createLogosRig, parseLogosRigSource, type LogosRigState } from '../comp
 function state(): LogosRigState {
   return {
     encounter: 'logos', logos: { stage: 'giant', elapsed: 2 },
-    boss: { x: 0, z: -12, hp: 10000, stunRemaining: 0 },
+    boss: { x: 0, z: -20, hp: 10000, stunRemaining: 0 },
     enemies: [
-      { id: 'left-hand', x: -7, z: -3, hp: 8000, target: 0, attackTimer: 4, stunRemaining: 0 },
-      { id: 'right-hand', x: 7, z: -3, hp: 8000, target: 0, attackTimer: 4, stunRemaining: 0 },
+      { id: 'left-hand', x: -19, z: -4, hp: 8000, target: 0, attackTimer: 4, stunRemaining: 0 },
+      { id: 'right-hand', x: 19, z: -4, hp: 8000, target: 0, attackTimer: 4, stunRemaining: 0 },
     ],
     party: [{ x: 0, z: 3, hp: 1000 }],
   };
@@ -27,7 +27,7 @@ function freeze<T>(value: T): T {
   return value;
 }
 
-test('real source anatomy supplies continuous skinned volume, exact palm contacts and a 20m statue', async () => {
+test('source anatomy becomes a huge readable face and independent broad hands outside the play space', async () => {
   const source = await anatomy();
   const rig = createLogosRig('high', { sentinels: false, loader: async () => source });
   await rig.ready;
@@ -36,40 +36,47 @@ test('real source anatomy supplies continuous skinned volume, exact palm contact
   const palm = new THREE.Vector3();
   for (const enemy of snapshot.enemies) {
     rig.targets.get(enemy.id)!.getWorldPosition(palm);
-    near(palm.x, enemy.x); near(palm.y, 4); near(palm.z, enemy.z);
+    near(palm.x, enemy.x); near(palm.y, 3.8); near(palm.z, enemy.z);
   }
-  rig.head.getWorldPosition(palm); near(palm.y, 17.3);
+  rig.head.getWorldPosition(palm); near(palm.y, 10);
   assert.equal(rig.targets.get('head'), rig.targets.get('boss'));
   assert.equal(rig.targets.get('echo-0'), rig.leftHand);
   assert.ok(rig.leftHand.parent!.parent!.parent instanceof THREE.SkinnedMesh, 'palm lives in an articulated hand skin');
-  const bounds = new THREE.Box3().setFromObject(rig.root);
-  assert.ok(bounds.max.y > 19.8 && bounds.max.y < 20.2, `real skin bounds ${bounds.max.y}`);
-  assert.ok(bounds.min.y < -7, 'the enlarged body rises through the arena, with legs below its floor');
-  assert.ok(rig.root.getObjectByName('Logos-giant')!.position.y < -7);
-  assert.ok(bounds.max.z - bounds.min.z > 8, 'body, forearms and hands occupy true 3D depth');
-  assert.ok(rig.root.getObjectByName('Logos-giant-sculpted-himation-sash') instanceof THREE.SkinnedMesh);
+  const giant = rig.root.getObjectByName('Logos-giant')!;
+  const bounds = new THREE.Box3().setFromObject(giant), size = bounds.getSize(new THREE.Vector3());
+  assert.ok(size.x > 9 && size.x < 11 && size.y > 10 && size.y < 13, 'the face itself is monumental');
+  assert.ok(bounds.min.y > 3 && bounds.max.z < -19, 'visible geometry stays at the far edge without a torso over the arena');
+  assert.equal(rig.root.getObjectByName('Logos-giant-sculpted-himation-sash'), undefined);
   assert.ok(rig.root.getObjectByName('Logos-giant-solid-laurel-crown') instanceof THREE.Mesh);
+  for (const side of ['left', 'right']) {
+    const hand = rig.root.getObjectByName(`Logos-edge-${side}-hand`)!;
+    const handBounds = new THREE.Box3().setFromObject(hand), handSize = handBounds.getSize(new THREE.Vector3());
+    assert.ok(handSize.x > 3 && handSize.y > 6 && handSize.y < 9, 'broad palms and separated fingers have substantial volume');
+    assert.ok(side === 'left' ? handBounds.max.x < -16 : handBounds.min.x > 16, 'hands stay at the lateral edges');
+  }
   const meshes: THREE.Mesh[] = []; rig.root.traverse(object => { if (object instanceof THREE.Mesh) meshes.push(object); });
   assert.ok(meshes.every(mesh => !(mesh.geometry instanceof THREE.PlaneGeometry)), 'no billboards');
-  assert.ok(rig.stats.maxArmStretch >= 1 && rig.stats.maxArmStretch <= 1.4, 'enlarged anatomy reaches contacts without extreme arm extension');
+  giant.traverse(object => { if (object instanceof THREE.Mesh) assert.equal(object.layers.mask, 3, 'giant receives its dedicated light layer'); });
+  const stone = meshes.find(mesh => (mesh.material as THREE.Material).name === 'Logos-luminous-silver-stone')!.material as THREE.MeshStandardMaterial;
+  assert.ok(stone.color.r > .2 && stone.emissiveIntensity >= .2, 'giant stone stays readable without a lightning flash');
+  assert.equal(rig.stats.maxArmStretch, 1, 'edge hands need no stretching arm solve');
   rig.dispose();
 });
 
-test('emerged giant keeps head and palms fixed when moved, with collapse added to its below-floor root', async () => {
+test('head and palm contacts match authoritative coordinates and descend during collapse', async () => {
   const rig = createLogosRig('low', { sentinels: false, loader: anatomy }); await rig.ready;
   const snapshot = state(), point = new THREE.Vector3(); rig.update(0, snapshot, true);
-  const baseY = rig.root.getObjectByName('Logos-giant')!.position.y;
   snapshot.boss.x = 3; snapshot.boss.z = -14;
   snapshot.enemies[0].x = -4; snapshot.enemies[1].x = 10;
   snapshot.enemies.forEach(enemy => { enemy.z -= 2; });
   rig.update(0, freeze(structuredClone(snapshot)), true);
-  near(rig.head.getWorldPosition(point).y, 17.3);
+  near(rig.head.getWorldPosition(point).y, 10);
   for (const enemy of snapshot.enemies) {
-    rig.targets.get(enemy.id)!.getWorldPosition(point); near(point.x, enemy.x); near(point.y, 4); near(point.z, enemy.z);
+    rig.targets.get(enemy.id)!.getWorldPosition(point); near(point.x, enemy.x); near(point.y, 3.8); near(point.z, enemy.z);
   }
   snapshot.logos = { stage: 'collapse', elapsed: 3 }; rig.update(0, snapshot, false);
-  near(rig.root.getObjectByName('Logos-giant')!.position.y, baseY - 2.5);
-  near(rig.leftHand.getWorldPosition(point).y, 1.5);
+  near(rig.head.getWorldPosition(point).y, 6);
+  near(rig.leftHand.getWorldPosition(point).y, .3);
   rig.dispose();
 });
 
@@ -98,7 +105,7 @@ test('six seated skeletons stand and move at authoritative enemy positions with 
   }
   assert.equal(rig.stats.bones, count); assert.equal(rig.stats.drawCalls, draws);
   assert.ok(rig.stats.drawCalls <= 50); assert.ok(rig.stats.triangles < 215000);
-  assert.ok(rig.stats.geometryBytes < 1600000); assert.equal(rig.stats.bones, 378);
+  assert.ok(rig.stats.geometryBytes < 2000000); assert.equal(rig.stats.bones, 378);
   rig.dispose();
 });
 
@@ -150,6 +157,7 @@ test('the same six figures persist from dark outskirts through staggered leaps i
     assert.equal(rig.distantStatueAnchors.get(`sentinel-${i}`), contacts[i]);
     assert.equal(rig.targets.get(`sentinel-${i}`), contacts[i]);
     assert.equal(material(figures[i]).opacity, 1); assert.equal(material(figures[i]).transparent, false);
+    figures[i].traverse(object => { if (object instanceof THREE.Mesh) assert.equal(object.layers.mask, 1, 'distant statues never receive giant fill lights'); });
   }
   assert.ok(figures[0].position.y > 5, 'first entrant follows a high leap arc');
   near(Math.hypot(figures[5].position.x, figures[5].position.z), 34, .001);
@@ -165,8 +173,8 @@ test('hand attack, stun, reduced motion, stage changes and hostile numeric input
   const snapshot = state(); snapshot.enemies[0].attackTimer = .325;
   rig.update(.05, snapshot, false);
   const point = rig.leftHand.getWorldPosition(new THREE.Vector3()); assert.ok(point.y > 4.8);
-  snapshot.enemies[0].stunRemaining = 2; rig.update(.05, snapshot, false); near(rig.leftHand.getWorldPosition(point).y, 4);
-  snapshot.enemies[0].stunRemaining = 0; rig.update(.05, snapshot, true); near(rig.leftHand.getWorldPosition(point).y, 4);
+  snapshot.enemies[0].stunRemaining = 2; rig.update(.05, snapshot, false); near(rig.leftHand.getWorldPosition(point).y, 3.8);
+  snapshot.enemies[0].stunRemaining = 0; rig.update(.05, snapshot, true); near(rig.leftHand.getWorldPosition(point).y, 3.8);
   snapshot.enemies[0].x = -18; snapshot.enemies[1].z = 12;
   rig.update(.05, snapshot, true); near(rig.leftHand.getWorldPosition(point).x, -18); near(rig.rightHand.getWorldPosition(point).z, 12);
   snapshot.boss.x = NaN; snapshot.boss.z = Infinity; snapshot.enemies[0].x = NaN; snapshot.enemies[1].z = -Infinity;
@@ -185,11 +193,11 @@ test('shader adds restrained stone veins without textures and late loading/dispo
   const rig = createLogosRig('low', { sentinels: false, loader: () => new Promise(ok => { resolve = ok; }) });
   await Promise.resolve();
   const meshes: THREE.Mesh[] = []; rig.root.traverse(object => { if (object instanceof THREE.Mesh) meshes.push(object); });
-  const stone = meshes.find(mesh => (mesh.material as THREE.Material).name.includes('polished-black'))!.material as THREE.MeshStandardMaterial;
+  const stone = meshes.find(mesh => (mesh.material as THREE.Material).name === 'Logos-luminous-silver-stone')!.material as THREE.MeshStandardMaterial;
   const shader = { vertexShader: THREE.ShaderLib.standard.vertexShader, fragmentShader: THREE.ShaderLib.standard.fragmentShader, uniforms: {} };
   stone.onBeforeCompile(shader as Parameters<typeof stone.onBeforeCompile>[0], null as unknown as THREE.WebGLRenderer);
   assert.match(shader.vertexShader, /vLogosStone = position/); assert.match(shader.fragmentShader, /logosVein/);
-  assert.equal(stone.map, null); assert.ok(stone.roughness < .35);
+  assert.equal(stone.map, null); assert.ok(stone.roughness < .55);
   let materialsFreed = 0; stone.addEventListener('dispose', () => { materialsFreed++; });
   const source = await anatomy(); let sourceFreed = 0;
   source.traverse(object => { if (object instanceof THREE.Mesh) object.geometry.addEventListener('dispose', () => { sourceFreed++; }); });
@@ -204,7 +212,7 @@ test('failed or invalid anatomy keeps the volumetric fallback ready for the scen
     const rig = createLogosRig('low', { sentinels: false, loader }); await rig.ready;
     assert.equal(rig.stats.assetStatus, 'fallback'); rig.update(.05, freeze(state()), true);
     assert.equal(rig.root.visible, true); assert.equal(rig.stats.source, 'procedural-skinned-fallback');
-    const point = rig.leftHand.getWorldPosition(new THREE.Vector3()); near(point.x, -7); near(point.y, 4); near(point.z, -3);
+    const point = rig.leftHand.getWorldPosition(new THREE.Vector3()); near(point.x, -19); near(point.y, 3.8); near(point.z, -4);
     rig.dispose();
   }
 });
@@ -232,4 +240,26 @@ test('distant strike distortion is bounded, restores its pose and stays still in
   snapshot.enemies = [{ id: 'sentinel-0', x: 2, z: 3, hp: 100, target: 0, attackTimer: 4, stunRemaining: 0 }];
   rig.update(0, snapshot, true); near(rest.angleTo(neck.quaternion), 0);
   rig.reset(); rig.dispose();
+});
+
+
+test('recurring giant statue waves reuse figures, lock the face and retire the hands until cleared', () => {
+  const rig = createLogosRig('low', { loader: false }); const snapshot = state();
+  rig.update(0, snapshot, true); const giant = rig.root.getObjectByName('Logos-giant')!;
+  const sentinel = rig.root.getObjectByName('Logos-sentinel-0')!, contact = rig.targets.get('sentinel-0');
+  const shield = rig.root.getObjectByName('Logos-closed-head-shield')!;
+  assert.equal(rig.head.visible, true); assert.equal(rig.leftHand.visible, true); assert.equal(shield.visible, false);
+  snapshot.logos = { stage: 'giant', elapsed: 30, statueWave: 1, statueEntryRemaining: 1.55, exposureRemaining: 0 };
+  snapshot.enemies = [...snapshot.enemies, { id: 'sentinel-0', x: 0, z: 18, hp: 100, target: 0, attackTimer: 4, stunRemaining: 0 }];
+  const original = structuredClone(snapshot); rig.update(.05, snapshot); assert.deepEqual(snapshot, original);
+  assert.equal(giant.visible, true); assert.equal(sentinel.visible, true); assert.ok(sentinel.position.y > 5);
+  assert.equal(rig.targets.get('sentinel-0'), contact);
+  assert.equal(rig.head.visible, false); assert.equal(rig.leftHand.visible, false); assert.equal(rig.rightHand.visible, false); assert.equal(shield.visible, true);
+  const palm = rig.leftHand.getWorldPosition(new THREE.Vector3()); assert.ok(palm.x < -19 && palm.z < -4);
+  snapshot.logos.statueEntryRemaining = 0; rig.update(.05, snapshot, true);
+  near(sentinel.position.z, 18); near(sentinel.position.y, 0);
+  snapshot.enemies[2].hp = 0; rig.update(.05, snapshot, true);
+  assert.equal(sentinel.visible, false); assert.equal(rig.head.visible, true); assert.equal(rig.leftHand.visible, true); assert.equal(shield.visible, false);
+  rig.leftHand.getWorldPosition(palm); near(palm.x, -19); near(palm.y, 3.8); near(palm.z, -4);
+  rig.dispose();
 });

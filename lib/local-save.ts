@@ -7,7 +7,7 @@ const FLOAT_TOLERANCE = 1e-9;
 const MAX_RESOURCE_CAPACITY = 10_000_000;
 const ELEMENTS = ['fire', 'ice', 'lightning'];
 const BOSS_ABILITIES = ['nullBloom', 'severingArc', 'resonantPulse', 'regentsDecree', 'terminalEcho', 'collapse', 'logosRay', 'logosShudder', 'logosFracture'];
-const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'static_reflect', 'static_retaliation', 'bossImpact', 'rainOfFireBurn', 'groundAwakening', 'splinterBolt', 'groundFracture']);
+const PRESENTATION_ABILITIES = new Set([...Object.keys(ABILITY_DEFINITIONS), ...BOSS_ABILITIES, 'auto', 'chain', 'elementalCycle', 'staticStorm', 'static_reflect', 'static_retaliation', 'bossImpact', 'rainOfFireBurn', 'groundAwakening', 'splinterBolt', 'groundFracture', 'statueLink']);
 const GROUND_ID = /^ground-(1-[01]|[23]-[0-2])$/;
 const LEGACY_ENEMY_ID = /^(echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/;
 const enemyId = (value: unknown): value is string => typeof value === 'string' &&
@@ -81,6 +81,14 @@ export function validSave(raw: unknown): raw is GameState {
     !nonnegative(state.duskRemaining) || state.duskRemaining > 10 + FLOAT_TOLERANCE ||
     !Array.isArray(state.enemies) || state.enemies.length > (state.encounter === 'crown' ? 8 : 6) || state.encounter === 'crown' && state.logos.stage !== 'none' || state.encounter === 'logos' && state.logos.stage === 'none') return false;
   if (state.logos.readySlots !== undefined && (!Array.isArray(state.logos.readySlots) || state.logos.readySlots.length > 5 || !state.logos.readySlots.every(slot) || new Set(state.logos.readySlots).size !== state.logos.readySlots.length || state.logos.stage !== 'descent' && state.logos.readySlots.length > 0)) return false;
+  const cycle = state.logos as unknown as Record<string, unknown>;
+  const cycleFields = ['statueWave', 'exposureRemaining', 'statueEntryRemaining'];
+  if (cycleFields.some(key => Object.hasOwn(cycle, key)) &&
+    (state.logos.stage !== 'giant' || !cycleFields.every(key => Object.hasOwn(cycle, key)) ||
+      !integer(cycle.statueWave, 0, 3) || !nonnegative(cycle.exposureRemaining) || cycle.exposureRemaining > 20 + FLOAT_TOLERANCE ||
+      !nonnegative(cycle.statueEntryRemaining) || cycle.statueEntryRemaining > 2.2 + FLOAT_TOLERANCE)) return false;
+  if (Object.hasOwn(cycle, 'statueWave') && (state.enemies.length > 5 || state.enemies.some(enemy =>
+    !record(enemy) || typeof enemy.id !== 'string' || !/^(sentinel-[0-2]|left-hand|right-hand|echo-[01])$/.test(enemy.id)))) return false;
   const statusValid = (enemy: { stunRemaining: unknown; burn: unknown }) => {
     if (!nonnegative(enemy.stunRemaining) || enemy.stunRemaining > 5 + FLOAT_TOLERANCE) return false;
     const burn = enemy.burn;
@@ -98,6 +106,7 @@ export function validSave(raw: unknown): raw is GameState {
   };
   if (!statusValid(state.boss) || state.enemies.some(enemy => !record(enemy) ||
     !enemyId(enemy.id) || enemy.id === 'boss' || !groundValid(enemy) || typeof enemy.name !== 'string' || !withinArena(enemy.x, enemy.z) ||
+    Object.hasOwn(enemy, 'linkedDamageCredited') && (!/^sentinel-[0-5]$/.test(enemy.id) || typeof enemy.linkedDamageCredited !== 'boolean') ||
     !finite(enemy.hp) || !finite(enemy.maxHp) || enemy.maxHp <= 0 || enemy.maxHp > MAX_RESOURCE_CAPACITY || enemy.hp < 0 || enemy.hp > enemy.maxHp ||
     !integer(enemy.target, -1, 4) || !finite(enemy.attackTimer) || !statusValid(enemy))) return false;
   if (new Set(state.enemies.map(e=>e.id)).size !== state.enemies.length) return false;

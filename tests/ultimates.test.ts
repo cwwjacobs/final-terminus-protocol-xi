@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { applyAction, createGame, setHuman, stepGame } from '../game/engine.ts';
-import { SENTINEL_ENTRY_SECONDS } from '../game/logos.ts';
+import { SENTINEL_ENTRY_SECONDS, GIANT_STATUE_WAVES } from '../game/logos.ts';
 import { actionUnavailable, matchesBurst, TP_MAX, ULTIMATES } from '../game/content.ts';
 import { restoreSave, validSave } from '../lib/local-save.ts';
 import { roleActionSlots } from '../components/game/kit-ui.ts';
@@ -24,6 +24,7 @@ function logos() {
   assert.equal(applyAction(state, 0, { type: 'faceLogos' }).ok, true);
   advance(state, 60 + SENTINEL_ENTRY_SECONDS); state.enemies.forEach(e => { e.hp = 0; }); stepGame(state, .05);
   state.boss.z = -4;
+  state.logos.statueWave = GIANT_STATUE_WAVES; // Isolate ability/recast behavior after the finite waves.
   state.enemies = [-1,1].map((sign,i)=>({id:`echo-${i}`,name:'Logos Echo',x:sign*5,z:-3,hp:9000,maxHp:9000,target:0,attackTimer:100000,stunRemaining:0,burn:null}));
   state.party.forEach((a, i) => { a.x = i * .2; a.z = -1; a.attackTimer = 100000; });
   state.boss.attackTimer = state.boss.specialTimer = 100000;

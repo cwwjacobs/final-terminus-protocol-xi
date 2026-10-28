@@ -110,6 +110,7 @@ export interface Enemy extends EnemyStatus {
   emergeRemaining?: number;
   spawnX?: number;
   spawnZ?: number;
+  linkedDamageCredited?: boolean;
 }
 
 export interface ActorRunStats {
@@ -139,7 +140,7 @@ export interface GameState {
   mode: Mode;
   status: 'ready' | 'fighting' | 'victory' | 'defeat';
   encounter: 'crown' | 'logos';
-  logos: { stage: 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped'; elapsed: number; readySlots?: number[] };
+  logos: { stage: 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped'; elapsed: number; readySlots?: number[]; statueWave?: number; exposureRemaining?: number; statueEntryRemaining?: number };
   ultimatesUnlocked: boolean;
   duskRemaining: number;
   enemies: Enemy[];

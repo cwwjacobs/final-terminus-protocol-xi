@@ -1,6 +1,20 @@
 import type { GameState } from '../../game/types';
 import { getRunScoreboard } from '../../game/run-stats';
 import { descentReadiness, enemyTargets, offensiveTarget } from '../../game/logos';
+import { logosCombatStatus } from './logos-combat-status';
+import './logos-combat-status.css';
+
+export function LogosBossStatus({ state }: { state: GameState }) {
+  const status = logosCombatStatus(state);
+  if (!status) return null;
+  return <>
+    <div className={`logos-boss-state ${status.protectedByStatues ? 'protected' : 'exposed'}`}>
+      <span>{status.protectedByStatues ? 'Head & hands protected' : 'Head & hands exposed'}</span>
+      <span>{status.protectedByStatues ? `${status.activeStatues} statues${status.entering ? ' · incoming' : ' active'}` : status.finalExposure ? 'Final opening' : `${Math.ceil(status.exposureRemaining)}s`}</span>
+    </div>
+    {status.linkedDamage > 0 && <small key={status.linkedEventId} className="logos-link-feedback" role="status" aria-live="polite">Statue defeated · Logos −{Math.round(status.linkedDamage).toLocaleString()} HP</small>}
+  </>;
+}
 
 export default function LogosSequencePanel({ state, slot, onTarget, onReady }: { state: GameState; slot: number; onTarget: (id: string) => void; onReady: (ready: boolean) => void }) {
   const { stage, elapsed } = state.logos;
@@ -18,8 +32,10 @@ export default function LogosSequencePanel({ state, slot, onTarget, onReady }: {
   if (stage === 'collapse' || stage === 'escaped') return <section className={`logos-collapse ${stage}`} role="status"><span className="eyebrow">{stage === 'escaped' ? 'Beyond the scaffolding' : 'Coherence failing'}</span><h2>{stage === 'escaped' ? 'The party escapes.' : 'The floor is disappearing.'}</h2><p>{stage === 'escaped' ? 'Logos survives. His world no longer holds its shape around you.' : 'The lattice falls away. Hold together.'}</p></section>;
   const selected = offensiveTarget(state,state.party[slot]);
   const current = 'id' in selected ? selected.id : 'boss';
-  return <section className="logos-targets" aria-label="Logos encounter targets"><span>{stage === 'sentinels' ? 'The statues awaken' : 'Hold the hands · strike the head'}</span><div>{enemyTargets(state).map(target=>{
+  const status = logosCombatStatus(state);
+  if (!status) return null;
+  return <section className="logos-targets" aria-label="Logos encounter targets"><span className="logos-wave-heading">{status.heading}</span><div className="logos-target-list">{enemyTargets(state).map(target=>{
     const enemy=target.id==='boss'?state.boss:state.enemies.find(e=>e.id===target.id);
-    return <button key={target.id} aria-pressed={current===target.id} onClick={()=>onTarget(target.id)}><b>{target.name}</b><small>{Math.ceil(target.hp).toLocaleString()} HP{enemy&&enemy.stunRemaining>0?' · stunned':''}{enemy?.burn?' · burning':''}</small><i style={{width:`${target.hp/target.maxHp*100}%`}}/></button>;
-  })}</div>{stage==='giant'&&<small>Head damage doubles while the hands are held by melee heroes or staggered.</small>}</section>;
+    return <button type="button" key={target.id} aria-pressed={current===target.id} aria-label={`Target ${target.name}, ${Math.ceil(target.hp)} HP`} onClick={event=>{onTarget(target.id);event.currentTarget.blur();}}><b>{target.name}</b><small>{Math.ceil(target.hp).toLocaleString()} HP{enemy&&enemy.stunRemaining>0?' · stunned':''}{enemy?.burn?' · burning':''}</small><i style={{width:`${target.hp/target.maxHp*100}%`}}/></button>;
+  })}</div><small className="logos-wave-note">{status.protectedByStatues ? 'Each defeated statue removes overall boss HP. The head and hands cannot be targeted until the wave is cleared.' : <><span className="logos-wave-clock">{status.finalExposure ? 'Final opening.' : `Exposed for ${Math.ceil(status.exposureRemaining)}s.`}</span> Hold or stagger the hands to double head damage.</>}</small></section>;
 }
