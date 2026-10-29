@@ -102,7 +102,7 @@ export function createGroundEnemyVisuals(scene: THREE.Scene, quality: 'low' | 'h
       segment.position.copy(points[i]).add(points[i + 1]).multiplyScalar(.5); segment.quaternion.setFromUnitVectors(up, delta.normalize());
     }
     const shock = faceUp(mesh(scar, ringGeometry, strikePaint, 0, .09, 0, 1, 1, 1)); shock.name = 'ground-strike-shock'; shock.visible = false;
-    return { id: '', anchor, body, focus, melee, ranged, orbit, core, arms, legs, marker, scar, warning, crater, bolt, shock, seams, corePaint, ringPaint, warningPaint, crackPaint, strikePaint, previousX: 0, previousZ: 0, stride: 0 };
+    return { id: '', anchor, body, focus, melee, ranged, orbit, core, arms, legs, marker, scar, warning, crater, bolt, shock, seams, corePaint, ringPaint, warningPaint, crackPaint, strikePaint, stride: 0 };
   };
   const pool = Array.from({ length: POOL_SIZE }, (_, index) => build(index));
   let disposed = false, clock = 0;
@@ -114,7 +114,8 @@ export function createGroundEnemyVisuals(scene: THREE.Scene, quality: 'low' | 'h
     root, targets, reset,
     update(dt: number, state: GroundVisualState, reducedMotion = false, selectedTarget: string | null = null) {
       if (disposed) return;
-      clock += Number.isFinite(dt) && dt > 0 ? Math.min(dt, .1) : 0;
+      const delta = Number.isFinite(dt) && dt > 0 ? Math.min(dt, .1) : 0;
+      clock += delta;
       root.visible = state.encounter === 'crown' && (state.status === 'fighting' || state.status === 'defeat');
       const visible = root.visible ? state.enemies.filter(enemy => enemy.id.startsWith('ground-') && enemy.hp > 0).slice(0, POOL_SIZE) : [];
       const present = new Set(visible.map(enemy => enemy.id));
@@ -122,7 +123,10 @@ export function createGroundEnemyVisuals(scene: THREE.Scene, quality: 'low' | 'h
       for (const enemy of visible) {
         let rig = pool.find(item => item.id === enemy.id);
         if (!rig) {
-          rig = pool.find(item => !item.id)!; rig.id = enemy.id; rig.previousX = enemy.x; rig.previousZ = enemy.z; rig.stride = 0;
+          rig = pool.find(item => !item.id)!; rig.id = enemy.id; rig.stride = 0;
+          rig.anchor.position.set(enemy.x, 0, enemy.z);
+          const target = state.party[enemy.target];
+          if (target) rig.anchor.rotation.y = Math.atan2(target.x - enemy.x, target.z - enemy.z);
           rig.anchor.traverse(object => { object.userData.enemyId = enemy.id; });
           targets.set(enemy.id, rig.focus);
         }
@@ -130,13 +134,23 @@ export function createGroundEnemyVisuals(scene: THREE.Scene, quality: 'low' | 'h
         const progress = clamp(1 - remaining / EMERGE_SECONDS), rise = smooth(clamp(1 - remaining / RISE_SECONDS));
         const ranged = enemy.kind === 'storm-shard';
         const asleep = enemy.stunRemaining > 0;
-        rig.anchor.visible = true; rig.focus.visible = true; rig.focus.position.y = ranged ? 2 : 1.7; rig.anchor.position.set(enemy.x, 0, enemy.z);
+        rig.anchor.visible = true; rig.focus.visible = true; rig.focus.position.y = ranged ? 2 : 1.7;
+        const beforeX = rig.anchor.position.x, beforeZ = rig.anchor.position.z;
+        if (emerging || Math.hypot(enemy.x - beforeX, enemy.z - beforeZ) > 8) rig.anchor.position.set(enemy.x, 0, enemy.z);
+        else {
+          rig.anchor.position.x = THREE.MathUtils.damp(beforeX, enemy.x, 16, delta);
+          rig.anchor.position.z = THREE.MathUtils.damp(beforeZ, enemy.z, 16, delta);
+        }
         const target = state.party[enemy.target];
-        if (target) rig.anchor.rotation.y = Math.atan2(target.x - enemy.x, target.z - enemy.z);
+        if (target) {
+          const facing = Math.atan2(target.x - rig.anchor.position.x, target.z - rig.anchor.position.z);
+          const turn = Math.atan2(Math.sin(facing - rig.anchor.rotation.y), Math.cos(facing - rig.anchor.rotation.y));
+          rig.anchor.rotation.y += turn * (1 - Math.exp(-15 * delta));
+        }
         rig.melee.visible = !ranged; rig.ranged.visible = ranged; rig.body.visible = !emerging || remaining < RISE_SECONDS;
-        const travelled = Math.hypot(enemy.x - rig.previousX, enemy.z - rig.previousZ);
-        rig.stride += travelled * 4; rig.previousX = enemy.x; rig.previousZ = enemy.z;
-        const walking = !reducedMotion && !emerging && !asleep && travelled > .002;
+        const travelled = Math.hypot(rig.anchor.position.x - beforeX, rig.anchor.position.z - beforeZ);
+        rig.stride += travelled * 4;
+        const walking = !reducedMotion && !emerging && !asleep && delta > 0 && travelled / delta > .08;
         const attack = !emerging && !asleep && enemy.attackTimer >= 0 && enemy.attackTimer < .65 ? Math.sin((.65 - enemy.attackTimer) / .65 * Math.PI) : 0;
         rig.body.position.y = reducedMotion ? 0 : -2.9 * (1 - rise) + (ranged && !emerging && !asleep ? Math.sin(clock * 1.8) * .08 : walking ? Math.abs(Math.sin(rig.stride)) * .045 : 0);
         rig.body.rotation.x = reducedMotion ? 0 : asleep ? .15 : ranged ? 0 : attack * -.15;

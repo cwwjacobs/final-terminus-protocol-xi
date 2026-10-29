@@ -1,0 +1,6 @@
+/* Keep battlefield text readable without repeatedly blurring the WebGL canvas. */
+.game-shell[data-quality=low]{--glass-fill:linear-gradient(135deg,#282437f2,#12121ef5);--glass-fill-hot:linear-gradient(135deg,#393149f5,#211b31f5);--px:0px!important;--py:0px!important}
+.game-shell[data-quality=low] :is(.topbar,.boss-panel,.party-panel,.party-member,.direct-combat-hud,.direct-status,.direct-heal-target,.direct-touch-ability,.main-menu-panel,.modal,.modal-backdrop,.modal-navigation,.result-card,.encounter-summary,.command-popover,.controller-actions button){backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+.game-shell[data-quality=low] :is(.portrait .ui-icon,.player-sigil .ui-icon,.choice-sigil .ui-icon,.sigil-row .ui-icon,.label-sigil){animation:none;filter:none}
+.game-shell[data-quality=low] [data-combat-number]{filter:none!important}
+.game-shell[data-quality=low] :is(.boss-panel,.party-panel,.player-console){transition:none}

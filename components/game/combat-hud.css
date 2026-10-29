@@ -73,3 +73,46 @@
 @media(max-width:600px){.divine-awakening{top:34%;padding:10px;width:86vw}.divine-awakening strong{font-size:22px}.divine-awakening small{display:none}.direct-actions{gap:3px}}
 .logos-intermission{position:absolute;max-height:78%;overflow-y:auto;overscroll-behavior:contain;top:19%;left:50%;transform:translateX(-50%);width:min(680px,92vw);padding:22px 26px;background:linear-gradient(135deg,#121326ed,#241b2ae8);border:1px solid #d7b77c77;border-radius:12px;z-index:30;box-shadow:0 20px 70px #0009;display:grid;grid-template-columns:60px 1fr 70px;gap:14px;align-items:center;color:#eadfca}.logos-intermission>img{width:60px}.logos-intermission h2{font:24px Georgia,serif;margin:5px 0}.logos-intermission p{font-size:12px;color:#bdb4c9}.descent-timer{text-align:center;font:36px Georgia,serif;color:#e2c389}.descent-timer small{display:block;font:10px Arial,sans-serif}.descent-stats{grid-column:1/-1;overflow:auto;min-height:0}.descent-stats table{width:100%;font:12px Arial,sans-serif;border-collapse:collapse}.descent-stats caption{text-align:left;margin:8px 0 12px;color:#bfb4cc}.descent-stats th,.descent-stats td{text-align:right;padding:8px;border-bottom:1px solid #ffffff15}.descent-stats th:first-child{text-align:left}.logos-targets{position:absolute;top:180px;right:14px;z-index:4;width:min(350px,45vw);font:10px Arial,sans-serif;color:#d6c6df}.logos-targets>span{display:block;text-align:right;margin-bottom:6px;letter-spacing:.06em}.logos-targets>div{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:5px}.logos-targets button{position:relative;overflow:hidden;background:#151220cc;padding:7px 9px;min-height:36px;flex:1 1 95px;color:#ccc1d4;border:1px solid #87768d55;border-radius:5px}.logos-targets button[aria-pressed=true]{border-color:#e0bf86;color:#fff0c8}.logos-targets b,.logos-targets small{display:block;font-size:10px}.logos-targets button i{position:absolute;left:0;bottom:0;height:2px;background:#d2b17b}.logos-targets>small{display:block;text-align:right;color:#b0a2bb;margin-top:5px}.logos-collapse{position:absolute;left:50%;top:29%;transform:translateX(-50%);text-align:center;z-index:5;color:#f1e6d4;width:min(650px,90vw);text-shadow:0 3px 18px #000}.logos-collapse h2{font:34px Georgia,serif;margin:10px 0}.logos-collapse p{font-size:13px;color:#c2c1d7}.logos-collapse.escaped{top:14%;pointer-events:none}@media(max-width:600px){.logos-intermission{top:20%;padding:14px;grid-template-columns:40px 1fr 50px;gap:8px}.logos-intermission>img{width:40px}.logos-intermission h2{font-size:19px}.logos-intermission p{font-size:10px}.logos-targets{top:175px;width:45vw}.logos-targets button{padding:6px;font-size:9px;flex-basis:65px}.logos-targets b,.logos-targets small{font-size:9px}.logos-collapse h2{font-size:25px}}
 @media(max-height:620px) and (min-width:600px){.logos-intermission{top:92px;bottom:34px;max-height:none;overflow:hidden;width:min(760px,calc(100vw - 48px));padding:12px 16px;grid-template-columns:minmax(0,1fr) 58px;grid-template-rows:auto auto minmax(0,1fr);column-gap:10px;row-gap:8px;align-items:center}.logos-intermission>img{display:none}.logos-intermission h2{font-size:18px;margin:2px 0}.logos-intermission p{font-size:10px;margin:2px 0}.descent-timer{font-size:25px}.descent-readiness{padding-top:8px;gap:8px}.descent-readiness>div{min-width:150px}.descent-readiness p{font-size:12px;margin-bottom:2px}.descent-readiness button{min-height:48px;padding:8px 16px}.descent-readiness ul{display:none}.descent-stats{align-self:stretch}.descent-stats table{font-size:10px}.descent-stats caption{margin:2px 0 4px}.descent-stats th,.descent-stats td{padding:4px 7px}}
+
+/* Portrait touch status follows the actual boss panel height, including casts,
+   marks and ground-wave targets. Fixed offsets let those rows overlap. */
+@media (min-height:541px), (max-width:599px) {
+  .game-shell[data-layout=touch][data-front=false] {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    grid-template-rows:max-content max-content max-content;
+    align-content:start;
+    row-gap:8px;
+    padding-top:calc(12px + env(safe-area-inset-top,0px));
+  }
+  .game-shell[data-layout=touch][data-front=false] .boss-panel {
+    position:relative; grid-row:1; grid-column:1; top:auto; left:auto;
+    transform:none; margin-left:14px; width:min(530px,calc(100% - 104px));
+  }
+  .game-shell[data-layout=touch][data-front=false] .direct-combat-hud {
+    position:relative; grid-row:2; grid-column:1; top:auto; bottom:auto;
+    left:auto; transform:none; margin-left:14px;
+    padding:5px 7px; border-radius:5px;
+    background:linear-gradient(90deg,#141022de,#141022a6);
+  }
+  .game-shell[data-layout=touch][data-front=false] .logos-targets {
+    position:relative; grid-row:3; grid-column:1; top:auto; right:auto;
+    justify-self:end; margin-right:14px; width:calc(100% - 28px);
+  }
+  .game-shell[data-layout=touch][data-front=false] .logos-target-list {
+    flex-wrap:nowrap; justify-content:flex-start; overflow-x:auto;
+    padding:2px 2px 6px; scroll-snap-type:x proximity; scrollbar-width:thin;
+  }
+  .game-shell[data-layout=touch][data-front=false] .logos-target-list button {
+    flex:0 0 98px; scroll-snap-align:start;
+  }
+  .game-shell[data-layout=touch][data-front=false] .ground-enemy-panel {
+    position:static; width:100%; margin-top:8px;
+  }
+}
+
+@media(max-height:540px) and (min-width:600px) {
+  .game-shell[data-layout=touch][data-front=false] .logos-targets {
+    top:76px; width:min(240px,calc(32.5vw - 28px));
+  }
+}

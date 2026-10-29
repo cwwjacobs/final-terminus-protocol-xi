@@ -7,6 +7,7 @@ export type CombatSound =
   | 'bowDraw' | 'bow' | 'fireCharge' | 'fire' | 'iceCharge' | 'ice' | 'lightningCharge' | 'lightning'
   | 'chain' | 'burst' | 'heal' | 'shield' | 'shieldBreak' | 'revelry' | 'provoke' | 'weave'
   | 'guard' | 'dodge' | 'hit' | 'down' | 'bossCharge' | 'bossImpact'
+  | 'groundCharge' | 'warCry' | 'victory' | 'defeat' | 'phase'
   | 'cryBacchus' | 'cryHeracles' | 'cryDolos' | 'cryHecate' | 'cryAriadne' | 'enemyCry';
 export interface CombatSoundCue { sound: CombatSound; delay: number; gain: number; priority: 0 | 1 | 2 | 3 }
 export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perTick: 6, staleAfter: .25 });
@@ -14,10 +15,12 @@ export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perT
 /** One primary sound per event. Recipient fan-out and recurring healing ticks
  * do not replay a group spell's cast. This also preserves the original cues. */
 export function combatSound(event: CombatEvent): CombatSound | null {
+  if (event.kind === 'victory' || event.kind === 'defeat') return event.kind;
+  if (['phase', 'descent', 'sentinels_awaken', 'awakening'].includes(event.kind)) return 'phase';
   if (event.kind === 'lair_answer') return 'enemyCry';
   // Each wave shares one thunder cue; individual fragments do not stack voices.
   if (event.kind === 'ground_awaken') return event.enemyId?.endsWith('-0') ? 'thunder' : null;
-  if (event.kind === 'ground_charge') return event.enemyId?.endsWith('-0') ? 'bossCharge' : null;
+  if (event.kind === 'ground_charge') return event.enemyId?.endsWith('-0') ? 'groundCharge' : null;
   if (event.source === 'rainOfFireBurn') return null;
   if (['fission', 'rainOfFire', 'fearless', 'rejuvenator', 'thunderclap', 'lightningShock', 'clap'].includes(event.source ?? '')) {
     if (event.kind !== 'ability' || event.target !== undefined) return null;
@@ -25,7 +28,7 @@ export function combatSound(event: CombatEvent): CombatSound | null {
   }
   if (event.source === 'bolt' && (event.kind === 'magic' || event.kind === 'burst')) return 'lightning';
   const key = presentationKey(event);
-  if (key === 'warCry') return event.kind === 'ability' ? 'provoke' : null;
+  if (key === 'warCry') return event.kind === 'ability' ? 'warCry' : null;
   if (key === 'mendingThread') return event.kind === 'ability' ? 'thread' : null;
   if (key === 'shimmerWave') return event.kind === 'shimmer_wave' ? 'wave' : null;
   if (key === 'criticalDash') return event.kind === 'ability' ? 'dodge' : event.kind === 'weapon' ? 'impact' : null;
@@ -53,6 +56,8 @@ export function combatSoundPlan(event: CombatEvent, actorId?: string): CombatSou
   if (!sound) return [];
   const key = presentationKey(event), contact = presentationContact(event, actorId);
   const cue = (sound: CombatSound, delay: number, gain: number, priority: CombatSoundCue['priority'] = 2): CombatSoundCue => ({ sound, delay, gain, priority });
+  if (sound === 'victory' || sound === 'defeat' || sound === 'phase' || sound === 'groundCharge') return [cue(sound, 0, .65, 3)];
+  if (sound === 'warCry') return [cue(sound, 0, .75)];
   if (key === 'auto') {
     const ranged = actorId === 'dolos';
     return [cue(ranged ? 'bow' : 'swipe', 0, .16, 0), cue('impact', contact, .12, 0)];
@@ -157,6 +162,12 @@ const RECIPES: Record<CombatSound, Recipe> = {
   hit: { noise: ['lowpass', 700, 220, .12, .07] },
   down: { tones: [['sine', 220, 55, .55, .06]] },
   bossCharge: { tones: [['sine', 75, 170, .4, .035]] },
+  // Separate ground warning: it must not stop or borrow the boss's sustained cast.
+  groundCharge: { tones: [['triangle', 155, 310, .7, .045], ['sine', 310, 620, .85, .025]], noise: ['bandpass', 900, 1800, .5, .035] },
+  warCry: { tones: [['sawtooth', 112, 72, .48, .022], ['triangle', 168, 108, .65, .05], ['sine', 56, 36, .5, .07]], noise: ['bandpass', 430, 210, .45, .08] },
+  victory: { tones: [['sine', 392, 392, 1.1, .055], ['sine', 494, 494, 1.35, .04], ['sine', 587, 784, 1.6, .035]] },
+  defeat: { tones: [['sine', 220, 110, 1.3, .055], ['triangle', 261.6, 130.8, 1.5, .025]], noise: ['lowpass', 220, 80, 1, .025] },
+  phase: { tones: [['sine', 82, 164, .85, .055], ['triangle', 123, 246, .65, .022]], noise: ['bandpass', 700, 1400, .7, .035] },
   bossImpact: { noise: ['lowpass', 1800, 100, .6, .14], tones: [['sine', 80, 28, .7, .08]] },
   cryBacchus: {}, cryHeracles: {}, cryDolos: {}, cryHecate: {}, cryAriadne: {}, enemyCry: {},
 };
@@ -173,7 +184,7 @@ const VOCALS: Partial<Record<CombatSound, { pitch: number; formants: readonly nu
 };
 
 export function createCombatAudio() {
-  let context: AudioContext | null = null, master: GainNode | null = null, noise: AudioBuffer | null = null, volume = .35;
+  let context: AudioContext | null = null, master: GainNode | null = null, compressor: DynamicsCompressorNode | null = null, noise: AudioBuffer | null = null, volume = .35, disposed = false;
   let charge: { source: OscillatorNode; gain: GainNode; id: string } | null = null;
   const voices = new Map<AudioScheduledSourceNode, { nodes: AudioNode[]; priority: number }>();
   function release(source: AudioScheduledSourceNode) {
@@ -202,16 +213,21 @@ export function createCombatAudio() {
   function stopCharge() { if (charge) release(charge.source); charge = null; }
   return {
     unlock() {
+      if (disposed) return;
       try {
         if (!context) {
           const Constructor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
           if (!Constructor) return;
-          context = new Constructor(); master = context.createGain(); master.gain.value = volume; master.connect(context.destination);
+          context = new Constructor(); master = context.createGain(); master.gain.value = volume;
+          compressor = context.createDynamicsCompressor();
+          compressor.threshold.value = -14; compressor.knee.value = 12; compressor.ratio.value = 4;
+          compressor.attack.value = .006; compressor.release.value = .12;
+          master.connect(compressor); compressor.connect(context.destination);
           noise = context.createBuffer(1, Math.ceil(context.sampleRate * 2), context.sampleRate);
           const data = noise.getChannelData(0);
           for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
         }
-        if (context.state === 'suspended') void context.resume().catch(() => {});
+        if (context.state !== 'running' && context.state !== 'closed') void context.resume().catch(() => {});
       } catch { /* Unsupported or blocked audio never prevents gameplay. */ }
     },
     setVolume(value: number) {
@@ -263,6 +279,20 @@ export function createCombatAudio() {
       charge.gain.gain.setTargetAtTime(.025 + progress * .025, context.currentTime, .06);
     },
     silence() { for (const source of [...voices.keys()]) release(source); stopCharge(); },
-    dispose() { for (const source of [...voices.keys()]) release(source); stopCharge(); if (context) void context.close().catch(() => {}); context = null; master = null; noise = null; },
+    dispose() { disposed = true; for (const source of [...voices.keys()]) release(source); stopCharge(); master?.disconnect(); compressor?.disconnect(); if (context) void context.close().catch(() => {}); context = null; master = null; compressor = null; noise = null; },
   };
+}
+
+/** Request frames only while audible contacts are queued. A pause or unmount
+ * cancels the one pending callback; an idle game needs no audio frame loop. */
+export function createAudioFramePump(run: (now: number) => boolean,
+  request: (callback: FrameRequestCallback) => number,
+  cancel: (id: number) => void) {
+  let frame: number | null = null, disposed = false;
+  const wake = () => {
+    if (disposed || frame !== null) return;
+    frame = request(now => { frame = null; if (!disposed && run(now)) wake(); });
+  };
+  const stop = () => { if (frame !== null) cancel(frame); frame = null; };
+  return { wake, stop, dispose() { disposed = true; stop(); } };
 }

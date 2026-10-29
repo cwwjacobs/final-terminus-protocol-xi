@@ -617,6 +617,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     for (let i = 0; i < distantDistortion.length; i++) distantDistortion[i] = clamp01(levels[i] ?? 0);
   };
 
+  const dormantPoses = new WeakMap<Figure, string>();
   const update = (dt: number, state: LogosRigState, reducedMotion = false) => {
     if (disposed) return;
     currentState = state; currentReduced = reducedMotion;
@@ -715,7 +716,11 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
         figure.root.position.x += Math.sin(time * 35 + i * 2.1) * .06 * distortion;
         figure.root.position.z += Math.cos(time * 29 + i * 1.3) * .04 * distortion;
       }
-      figure.root.rotation.set(0, facing, 0); resetPose(figure);
+      figure.root.rotation.set(0, facing, 0);
+      const poseKey = `${crownScene}:${reducedMotion}:${distortion}`;
+      if (dormant && dormantPoses.get(figure) === poseKey) continue;
+      if (dormant) dormantPoses.set(figure, poseKey); else dormantPoses.delete(figure);
+      resetPose(figure);
       const hips = figure.bones.get('hips')!;
       if (dormant) hips.position.y -= .41;
       else if (entering) hips.position.y -= (1 - travel) * .41;
@@ -765,7 +770,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     time = 0; currentState = null; root.visible = false; stone.opacity = silver.opacity = 1;
     stone.transparent = silver.transparent = false; stats.maxArmStretch = 1;
     distantLighting.fill(0); distantDistortion.fill(0); sentinelPaints.forEach((_, i) => lightSentinel(i, false));
-    for (const figure of [giant, ...sentinels]) if (figure) { figure.motionInitialized = false; figure.root.position.set(0, 0, 0); figure.root.rotation.set(0, 0, 0); resetPose(figure); }
+    for (const figure of [giant, ...sentinels]) if (figure) { dormantPoses.delete(figure); figure.motionInitialized = false; figure.root.position.set(0, 0, 0); figure.root.rotation.set(0, 0, 0); resetPose(figure); }
   };
   const dispose = () => {
     if (disposed) return;

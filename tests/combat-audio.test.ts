@@ -6,7 +6,7 @@ import type { CombatEvent } from '../components/game/world-feedback.ts';
 const event = (kind: string, extra: Partial<CombatEvent> = {}): CombatEvent => ({ id: 1, time: 0, kind, text: '', ...extra });
 
 test('a ground wave has one warning and thunder cue without stacking a voice per enemy', () => {
-  for (const [kind, sound] of [['ground_charge', 'bossCharge'], ['ground_awaken', 'thunder']] as const) {
+  for (const [kind, sound] of [['ground_charge', 'groundCharge'], ['ground_awaken', 'thunder']] as const) {
     const cues = [0, 1, 2].flatMap(index => combatSoundPlan(event(kind, { enemyId: `ground-2-${index}` })));
     assert.equal(cues.length, 1);
     assert.equal(cues[0].sound, sound);
@@ -99,7 +99,7 @@ test('boss resolution, support abilities and defensive cues are explicit; unrela
     [event('provoke'), 'provoke'], [event('ability', { source: 'rapidWeave' }), 'weave'],
     [event('guard'), 'guard'], [event('dodge'), 'dodge'], [event('hit'), 'hit'], [event('down'), 'down'],
   ] as const) assert.equal(combatSound(e), sound);
-  for (const kind of ['start', 'engage', 'warning', 'victory', 'defeat', 'phase']) assert.deepEqual(combatSoundPlan(event(kind)), []);
+  for (const kind of ['start', 'engage', 'warning']) assert.deepEqual(combatSoundPlan(event(kind)), []);
 });
 
 test('audio can be constructed, kept silent and disposed without browser globals or an unlocked context', () => {

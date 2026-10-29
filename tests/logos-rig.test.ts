@@ -263,3 +263,23 @@ test('recurring giant statue waves reuse figures, lock the face and retire the h
   rig.leftHand.getWorldPosition(palm); near(palm.x, -19); near(palm.y, 3.8); near(palm.z, -4);
   rig.dispose();
 });
+
+test('dormant limb poses are reused while floating roots, lighting and distortion remain live', () => {
+  const rig = createLogosRig('low', { loader: false });
+  const snapshot = state(); snapshot.encounter='crown'; snapshot.logos={stage:'none',elapsed:0}; snapshot.enemies=[];
+  rig.update(1/60,snapshot);
+  const figure=rig.root.getObjectByName('Logos-sentinel-0')!;
+  const arm=figure.getObjectByName('upper_arm_R')!, original=arm.updateWorldMatrix.bind(arm);
+  let solves=0;arm.updateWorldMatrix=(parents,children)=>{solves++;original(parents,children);};
+  const rotation=arm.quaternion.clone(), startY=figure.position.y;
+  for(let frame=0;frame<60;frame++)rig.update(1/60,snapshot);
+  assert.equal(solves,0,'unchanged seated limbs do not repeat inverse-kinematics solves');
+  assert.deepEqual(arm.quaternion.toArray(),rotation.toArray());assert.notEqual(figure.position.y,startY);
+  rig.setDistantStatueDistortion([.7,0,0,0,0,0]); rig.update(1/60,snapshot);assert.ok(solves>0);
+  solves=0;rig.update(1/60,snapshot);assert.equal(solves,0);
+  rig.reset();rig.update(1/60,snapshot);assert.ok(solves>0,'reset invalidates the pose cache');
+  snapshot.encounter='logos';snapshot.logos={stage:'sentinels',elapsed:4};
+  snapshot.enemies=[{id:'sentinel-0',x:2,z:3,hp:100,target:0,attackTimer:.3,stunRemaining:0}];
+  solves=0;rig.update(1/60,snapshot);assert.ok(solves>0,'active combat always gets fresh articulated poses');
+  rig.dispose();
+});

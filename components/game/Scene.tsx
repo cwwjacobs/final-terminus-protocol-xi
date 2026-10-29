@@ -13,7 +13,7 @@ import { actorStatusFeedback, bossWarning, combatNumber, immediateImpact, Presen
 import { createStormEffects } from './storm-effects';
 import { createCinematicEnvironment } from './cinematic-environment';
 import { createCinematicCombat } from './cinematic-combat';
-import { RenderBudget } from './render-budget';
+import { RenderBudget, RenderCadence } from './render-budget';
 import { awaitBattlefield } from './scene-loading';
 import { createAbilityEffects } from './ability-effects';
 import { createDivinePresentation } from './divine-visuals';
@@ -84,7 +84,7 @@ function sectorGeometry(halfAngle: number) {
 }
 
 function buildWorld(scene: THREE.Scene, quality: 'low' | 'high') {
-  const stone = new THREE.MeshStandardMaterial({ color: '#0c0c10', metalness: .48, roughness: .5 });
+  const stone = new THREE.MeshStandardMaterial({ color: '#0c0c10', metalness: .22, roughness: .68 });
   const edge = new THREE.MeshStandardMaterial({ color: '#38363a', metalness: .7, roughness: .4 });
   const floorGroup = new THREE.Group(); floorGroup.name = 'encounter-floor'; scene.add(floorGroup);
   const floorSegments = quality === 'high' ? 96 : 48;
@@ -204,6 +204,7 @@ export default function Scene(props: SceneProps) {
       return;
     }
     setError(null);
+    const cadence = new RenderCadence(), shadowCadence = new RenderCadence();
     const renderBudget = new RenderBudget(props.quality, window.devicePixelRatio || 1);
     renderer.setPixelRatio(renderBudget.pixelRatio);
     renderer.domElement.dataset.renderScale = String(renderBudget.pixelRatio);
@@ -212,6 +213,9 @@ export default function Scene(props: SceneProps) {
     renderer.toneMappingExposure = 1.12;
     renderer.shadowMap.enabled = props.quality === 'high';
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Soft shadows can refresh at 30 Hz while characters and the camera stay
+    // at display refresh, avoiding a second full scene pass on every frame.
+    renderer.shadowMap.autoUpdate = false; renderer.shadowMap.needsUpdate = true;
     renderer.domElement.style.cssText = 'display:block;width:100%;height:100%;outline:none;touch-action:none';
     renderer.domElement.setAttribute('aria-label', 'Third-person Quantum Plane battlefield');
     renderer.domElement.dataset.gameCanvas = 'true';
@@ -224,7 +228,7 @@ export default function Scene(props: SceneProps) {
     const key = new THREE.DirectionalLight('#ffdfac', 3.1); key.position.set(-10, 18, 9);
     key.castShadow = props.quality === 'high'; key.shadow.mapSize.set(1024, 1024);
     key.shadow.camera.left = -27; key.shadow.camera.right = 27; key.shadow.camera.top = 27; key.shadow.camera.bottom = -27;
-    key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; scene.add(key);
+    key.shadow.camera.near = 1; key.shadow.camera.far = 65; key.shadow.bias = -.001; key.shadow.normalBias = .035; scene.add(key);
     const rim = new THREE.DirectionalLight('#a5b6d1', 1.7); rim.position.set(8, 9, -16); scene.add(rim);
     // Local fill reveals the face and fingers without lifting the entire void.
     // These lights have bounded cones and no extra shadow-map passes.
@@ -496,12 +500,13 @@ export default function Scene(props: SceneProps) {
       if (stopped) return;
       // Hidden tabs do no scene work. Menus render at 30 Hz; they do not feed
       // the adaptive combat budget or trigger a false resolution reduction.
-      if (document.hidden || !presentationActive && now - previous < 1000 / 30) {
+      const combatRendering = latest.current.presentationActive !== false && latest.current.state.status === 'fighting';
+      if (!cadence.shouldRender(now, combatRendering, document.hidden)) {
         if (document.hidden) { previous = reportAt = now; frames = 0; }
         frame = requestAnimationFrame(render); return;
       }
       const dt = Math.min(.05, Math.max(.001, (now - previous) / 1000)); previous = now;
-      animationTime += dt;
+      if (latest.current.presentationActive !== false) animationTime += dt;
       const { state, wireframe, cameraState, cameraHeight, shoulderOffset, selectedTarget, selectedAlly, targetPulse, presentationEpoch } = latest.current;
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
@@ -583,8 +588,8 @@ export default function Scene(props: SceneProps) {
       bossRig.root.position.x = THREE.MathUtils.damp(bossRig.root.position.x, state.boss.x, 9, dt);
       bossRig.root.position.z = THREE.MathUtils.damp(bossRig.root.position.z, state.boss.z, 9, dt);
       bossRig.root.rotation.y += Math.atan2(Math.sin(state.boss.facing - bossRig.root.rotation.y), Math.cos(state.boss.facing - bossRig.root.rotation.y)) * (1 - Math.exp(-5 * dt));
-      animateActor(bossRig, dt, now / 1000, 0, state.boss.hp > 0, Boolean(state.boss.cast));
       bossRig.root.visible = state.encounter !== 'logos';
+      if (bossRig.root.visible) animateActor(bossRig, dt, now / 1000, 0, state.boss.hp > 0, Boolean(state.boss.cast));
       divine.update(presentationActive ? dt : 0, state, animationTime, reducedMotion);
       if (targetPulse !== lastTargetPulse || selectedTarget !== lastSelectedTarget) {
         targetPulseAge = 0; lastTargetPulse = targetPulse; lastSelectedTarget = selectedTarget;
@@ -673,11 +678,12 @@ export default function Scene(props: SceneProps) {
       targetReticle.quaternion.copy(camera.quaternion);
       decreeMark.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);
+      camera.getWorldDirection(beamDirection);
       for (let i = 0; i < rigs.length; i++) {
         const label = labelRefs.current[i]; if (!label) continue;
         projected.copy(rigs[i].root.position);
         projected.y += (heroVisuals[i]?.labelHeight ?? (i === slot ? 2.5 : 2.75)) * (state.party[i].sonOfZeus ? 2 : 1);
-        ray.copy(projected).sub(camera.position); const inFront = ray.dot(camera.getWorldDirection(beamDirection)) > 0;
+        ray.copy(projected).sub(camera.position); const inFront = ray.dot(beamDirection) > 0;
         projected.project(camera);
         const visible = inFront && projected.z < 1 && Math.abs(projected.x) < 1.15 && Math.abs(projected.y) < 1.15 && state.party[i]?.hp > 0;
         label.style.opacity = visible ? (i === slot ? '.55' : '.9') : '0';
@@ -690,11 +696,16 @@ export default function Scene(props: SceneProps) {
       }
       atmosphere.update(presentationActive ? dt : 0, state, reducedMotion, stormEffects.flash, sequence.floorOpacity);
       darkStatues.update(presentationActive ? dt : 0, state, reducedMotion, stormEffects.flash);
+      if (renderer.shadowMap.enabled && shadowCadence.shouldRender(now, false)) renderer.shadowMap.needsUpdate = true;
       renderer.render(scene, camera); frames++;
       if (now - reportAt >= 1000) {
         const fps = Math.round(frames * 1000 / (now - reportAt));
         latest.current.onTelemetry?.({ fps, drawCalls: renderer.info.render.calls, triangles: renderer.info.render.triangles });
-        const nextRatio = renderBudget.sample(fps, presentationActive);
+        renderer.domElement.dataset.fps = String(fps);
+        renderer.domElement.dataset.drawCalls = String(renderer.info.render.calls);
+        renderer.domElement.dataset.triangles = String(renderer.info.render.triangles);
+        renderer.domElement.dataset.renderActive = String(combatRendering);
+        const nextRatio = renderBudget.sample(fps, combatRendering);
         if (nextRatio !== null) { renderer.setPixelRatio(nextRatio); renderer.domElement.dataset.renderScale = String(nextRatio); resize(); }
         frames = 0; reportAt = now;
       }

@@ -148,6 +148,7 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
   let formProps: THREE.Object3D[] = [];
   let disposed = false;
   let aliveBefore = true;
+  const anchors = new Map<'hand' | 'weapon', THREE.Object3D | undefined>();
   let moving = false;
   let walkWeight = 0;
   let idle: THREE.AnimationAction | undefined;
@@ -219,15 +220,17 @@ function createVisual(id: string, asset: HeroAssetSource, resources: AssetResour
     },
     getAnchor(kind, out) {
       if (disposed) return false;
-      const node = kind === 'weapon' ? model.getObjectByName(id === 'bacchus' ? 'bacchus-thyrsus' : 'hero-weapon-tip')
-        : model.getObjectByName(id === 'dolos' ? 'hand_L' : 'hand_R');
+      if (!anchors.has(kind)) anchors.set(kind, kind === 'weapon'
+        ? model.getObjectByName(id === 'bacchus' ? 'bacchus-thyrsus' : 'hero-weapon-tip')
+        : model.getObjectByName(id === 'dolos' ? 'hand_L' : 'hand_R'));
+      const node = anchors.get(kind);
       if (!node) return false;
       // Refresh only this attachment's ancestor chain. Updating every hero
       // mesh for each hand/trail sample repeats the whole skeleton traversal.
       node.updateWorldMatrix(true, false);
       if (kind === 'weapon' && id === 'bacchus') out.set(0, 1.72, 0).applyMatrix4(node.matrixWorld);
-      else node.getWorldPosition(out);
-      return out.toArray().every(Number.isFinite);
+      else out.setFromMatrixPosition(node.matrixWorld);
+      return Number.isFinite(out.x) && Number.isFinite(out.y) && Number.isFinite(out.z);
     },
     resetCombat() { if (!disposed) { combat?.reset(); bodyMotion?.reset(); layer?.reset(); regalia?.reset(); divinity?.reset(); } },
     setDivineForm(active) {

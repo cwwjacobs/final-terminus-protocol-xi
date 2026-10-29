@@ -31,10 +31,10 @@ test('lightning warning precedes rising stone and uses the authoritative strike 
   assert.equal(scar.getObjectByName('ground-lightning-warning')!.visible, false);
   assert.equal(scar.getObjectByName('ground-lightning-strike')!.visible, false);
   assert.equal(scar.position.x, 3, 'the crack stays where lightning struck');
-  assert.equal(anchor.position.x, 8, 'the enemy follows simulation movement');
+  assert.ok(anchor.position.x > 3 && anchor.position.x < 8, 'the enemy interpolates toward the next simulation sample');
   assert.equal(anchor.getObjectByName('ground-body')!.position.y >= 0, true);
   const contact = focus.getWorldPosition(new THREE.Vector3());
-  assert.equal(contact.x, 8); assert.ok(contact.y >= 1.7 && contact.y < 1.8, 'impact focus follows the risen chest');
+  assert.equal(contact.x, anchor.position.x); assert.ok(contact.y >= 1.7 && contact.y < 1.8, 'impact focus follows the risen chest');
   visual.dispose();
 });
 
@@ -73,4 +73,21 @@ test('bounded rigs are reused for new waves and all stale target identities are 
   state.encounter = 'logos'; visual.update(.05, state); assert.equal(visual.root.visible, false); assert.equal(visual.targets.size, 0);
   visual.dispose(); visual.dispose(); assert.equal(visual.root.parent, null);
   visual.update(.05, state); assert.equal(visual.targets.size, 0);
+});
+
+test('ground movement and walking continue between snapshots without changing simulation positions', () => {
+  const { visual, state } = fixture(); state.enemies[0].emergeRemaining = 0;
+  visual.update(1/60, state);
+  const anchor = visual.targets.get('ground-0-0')!.parent!.parent!;
+  const body = anchor.getObjectByName('ground-body')!;
+  state.enemies[0].x += .4;
+  const snapshot = structuredClone(state), positions: number[] = [], bobs: number[] = [];
+  for (let frame=0;frame<6;frame++) { visual.update(1/60,state); positions.push(anchor.position.x); bobs.push(body.position.y); }
+  assert.ok(positions.every((x,i)=>x>3 && x<3.4 && (!i || x>positions[i-1])));
+  assert.ok(new Set(bobs).size > 3, 'the stride animates across the 100ms snapshot gap');
+  const position = anchor.position.clone(); visual.update(0,state); assert.deepEqual(anchor.position,position);
+  for(let frame=0;frame<60;frame++)visual.update(1/60,state);
+  assert.ok(Math.abs(anchor.position.x-3.4)<.0001);
+  assert.deepEqual(state,snapshot);
+  visual.dispose();
 });
