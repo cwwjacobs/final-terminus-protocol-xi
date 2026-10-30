@@ -10,3 +10,7 @@
 @media(max-width:600px){.logos-targets .logos-wave-heading{font-size:10px}.logos-boss-state{font-size:8px;padding:3px 5px}.logos-link-feedback{font-size:9px}}
 @media(max-height:540px) and (orientation:landscape){.game-shell[data-layout=touch] .logos-targets{top:100px;right:14px;width:min(350px,45vw)}.game-shell .logos-targets .logos-target-list{flex-wrap:nowrap;justify-content:flex-start;overflow-x:auto;padding:2px 2px 6px;scrollbar-width:thin;scroll-snap-type:x proximity}.game-shell .logos-targets .logos-target-list button{flex:0 0 98px;scroll-snap-align:start}.logos-targets .logos-wave-note{display:none}.logos-targets .logos-wave-heading{font-size:10px}}
 @media(forced-colors:active){.logos-boss-state{border-color:CanvasText;background:Canvas;color:CanvasText}.logos-boss-state.exposed{border-color:Highlight}.logos-link-feedback{color:CanvasText}}
+
+.logos-arena-state{display:flex;justify-content:space-between;gap:.65rem;margin-top:.25rem;color:#e5bd8c;font-size:.65rem;line-height:1.35}
+.logos-arena-state.critical{color:#ffb19b}
+@media(max-width:600px){.logos-arena-state{font-size:.6rem;flex-wrap:wrap;gap:.15rem .5rem}}

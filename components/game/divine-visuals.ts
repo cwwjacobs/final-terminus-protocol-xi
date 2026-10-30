@@ -8,7 +8,6 @@ import { offensiveTarget } from '../../game/logos.ts';
 export function createDivinePresentation(scene: THREE.Scene, rigs: ActorRig[], quality: 'low' | 'high') {
   const root = new THREE.Group(); root.name = 'divine-presentation'; scene.add(root);
   const sphere = new THREE.SphereGeometry(1, quality === 'high' ? 20 : 12, 12);
-  const cylinder = new THREE.CylinderGeometry(1, 1, 1, 12);
   const cone = new THREE.ConeGeometry(1, 1, 12);
   const torus = new THREE.TorusGeometry(1, .025, 5, 48);
   const glow = (color: string, opacity = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });

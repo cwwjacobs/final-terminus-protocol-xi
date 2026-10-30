@@ -60,10 +60,10 @@ test('synthesized cues use one compressed audio graph; ground warnings preserve 
     connect(node:unknown){this.connections.push(node);}disconnect(){this.disconnected=true;}
     start(){this.started=true;}stop(at?:number){if(at===undefined)this.stopped=true;}
   }
-  let context:MockContext;
+  const contextRef:{current?:MockContext}={};
   class MockContext extends MockNode {
     compressor:MockNode|null=null;
-    constructor(){super();contexts++;context=this;}
+    constructor(){super();contexts++;contextRef.current=this;}
     createGain(){return new MockNode();}
     createDynamicsCompressor(){return this.compressor=new MockNode();}
     createOscillator(){const n=new MockNode();sources.push(n);return n;}
@@ -77,8 +77,8 @@ test('synthesized cues use one compressed audio graph; ground warnings preserve 
     Object.defineProperty(globalThis,'window',{configurable:true,value:{AudioContext:MockContext}});
     const doc={hidden:false};Object.defineProperty(globalThis,'document',{configurable:true,value:doc});
     const audio=createCombatAudio();audio.unlock();audio.unlock();assert.equal(contexts,1);
-    assert.equal(context!.compressor!.ratio.value,4);
-    context!.state='interrupted';audio.unlock();await Promise.resolve();assert.equal(resumed,1);
+    assert.equal(contextRef.current!.compressor!.ratio.value,4);
+    contextRef.current!.state='interrupted';audio.unlock();await Promise.resolve();assert.equal(resumed,1);
     const cast={name:'Warning',kind:'circle' as const,total:3,remaining:3,x:0,z:0,radius:4,angle:0};
     audio.beginBossCharge(cast);const charge=sources[0];
     audio.play('groundCharge',.6,3);assert.equal(charge.stopped,false,'independent ground cue does not restart the boss warning');

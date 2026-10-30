@@ -21,6 +21,8 @@ import { logosSequencePresentation } from './logos-encounter-visuals';
 import { createLogosRig } from './logos-rig';
 import { createGroundEnemyVisuals } from './ground-enemy-visuals';
 import { createDarkStatues } from './dark-statues';
+import { createLogosArenaEffects } from './logos-arena-effects';
+import { arenaRadius } from '../../game/logos-arena.ts';
 import { enemyTargets, offensiveTarget, sequenceLocked } from '../../game/logos.ts';
 import { presentationContact } from './presentation-cues';
 import { FloatingFeedback } from './floating-feedback';
@@ -245,6 +247,7 @@ export default function Scene(props: SceneProps) {
     giantLights.visible = false; scene.add(giantLights);
     const world = buildWorld(scene, props.quality);
     const atmosphere = createCinematicEnvironment(scene, world.floorGroup, props.quality);
+    const arenaEffects = createLogosArenaEffects(scene, props.quality);
     const assets = new ActorAssets();
     const rigs: ActorRig[] = latest.current.state.party.map(actor => {
       const rig = createActor(assets, actor.role, actor.color);
@@ -511,7 +514,8 @@ export default function Scene(props: SceneProps) {
       const slot = activeSlot(), selected = state.party[slot];
       if (!selected) return;
       const sequence = logosSequencePresentation(state, reducedMotion);
-      world.floorGroup.visible = sequence.floorVisible; world.floorGroup.position.y = sequence.floorY; world.floorGroup.scale.setScalar(sequence.floorScale);
+      arenaEffects.update(state, reducedMotion);
+      world.floorGroup.visible = sequence.floorVisible; world.floorGroup.position.y = sequence.floorY; world.floorGroup.scale.set(sequence.floorScale * arenaRadius(state) / ARENA_RADIUS, sequence.floorScale, sequence.floorScale * arenaRadius(state) / ARENA_RADIUS);
       world.floorMaterials.forEach(({ material, opacity, transparent }) => {
         const nextTransparent = transparent || sequence.floorOpacity < 1;
         if (material.transparent !== nextTransparent) { material.transparent = nextTransparent; material.needsUpdate = true; }
@@ -629,7 +633,7 @@ export default function Scene(props: SceneProps) {
       decreeMark.visible = decreeStem.visible = warning?.kind === 'target';
       echoEdge.visible = warning?.kind === 'raid' && warning.pulses > 1;
       if (cast && warning) {
-        const radius = warning.kind === 'raid' ? ARENA_RADIUS : warning.radius;
+        const radius = warning.kind === 'raid' ? arenaRadius(state) : warning.radius;
         const { x, z } = warning;
         circleWarn.position.set(x, .055, z); circleWarn.scale.set(radius, radius, 1);
         coneWarn.position.set(cast.x, .055, cast.z); coneWarn.scale.set(cast.radius, 1, cast.radius); coneWarn.rotation.y = cast.angle;
@@ -714,7 +718,7 @@ export default function Scene(props: SceneProps) {
     frame = requestAnimationFrame(render);
     return () => {
       stopped = true; loadingController.abort(); cancelAnimationFrame(frame); observer.disconnect(); dockObserver.disconnect();
-      motionPreference.removeEventListener('change', onMotionPreference); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose(); groundVisuals.dispose(); darkStatues.dispose();
+      motionPreference.removeEventListener('change', onMotionPreference); arenaEffects.dispose(); numbers.dispose(); stormEffects.dispose(); abilityEffects.dispose(); cinema.dispose(); atmosphere.dispose(); logosRig.dispose(); groundVisuals.dispose(); darkStatues.dispose();
       document.removeEventListener('visibilitychange', rebaselinePresentation);
       renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
       // GLB instances/cache own their skeletons, textures and shared geometry.
@@ -733,7 +737,7 @@ export default function Scene(props: SceneProps) {
       key.shadow.map?.dispose(); renderer.dispose(); renderer.forceContextLoss(); renderer.domElement.remove();
     };
   // Visual preferences rebuild the scene; simulation snapshots are read through latest.
-  }, [props.quality, props.characterStyle]);
+  }, [props.quality, props.characterStyle, props.state.party.length]);
 
   return <div ref={hostRef} className="quantum-scene" style={{ position: 'absolute', inset: 0, overflow: 'hidden', background: '#000000' }}>
     {props.state.party.map((actor, index) => {

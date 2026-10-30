@@ -1,6 +1,7 @@
 import type { GameState } from '../../game/types';
 import { getRunScoreboard } from '../../game/run-stats';
 import { descentReadiness, enemyTargets, offensiveTarget } from '../../game/logos';
+import { arenaRadius } from '../../game/logos-arena';
 import { logosCombatStatus } from './logos-combat-status';
 import './logos-combat-status.css';
 
@@ -12,6 +13,7 @@ export function LogosBossStatus({ state }: { state: GameState }) {
       <span>{status.protectedByStatues ? 'Head & hands protected' : 'Head & hands exposed'}</span>
       <span>{status.protectedByStatues ? `${status.activeStatues} statues${status.entering ? ' · incoming' : ' active'}` : status.finalExposure ? 'Final opening' : `${Math.ceil(status.exposureRemaining)}s`}</span>
     </div>
+    {state.logos.stage === 'giant' && <div className={`logos-arena-state${arenaRadius(state) <= 13.5 ? ' critical' : ''}`}><span>{arenaRadius(state) <= 13.5 ? 'Inner platform · hold together' : 'The arena recedes with Logos'}</span><span>{Math.round((arenaRadius(state) / 24) ** 2 * 100)}% ground remains</span></div>}
     {status.linkedDamage > 0 && <small key={status.linkedEventId} className="logos-link-feedback" role="status" aria-live="polite">Statue defeated · Logos −{Math.round(status.linkedDamage).toLocaleString()} HP</small>}
   </>;
 }

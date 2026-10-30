@@ -1,4 +1,5 @@
 import { applyAction, createGame, setHuman, stepGame } from "../game/engine.ts";
+import { GROUND_WAVES } from "../game/ground-enemies.ts";
 import type { Action, GameState } from "../game/types.ts";
 import { restoreSave } from "./local-save.ts";
 import { normalizeInviteCode } from "./room-invite.ts";
@@ -13,6 +14,8 @@ export const MAX_ACTIONS = 12;
 const MAX_CAS_ATTEMPTS = 8;
 const MIN_SYNC_MS = 80;
 const HEX_SECRET = /^[a-f0-9]{32}$/;
+const GROUND_TARGET_IDS = new Set(GROUND_WAVES.flatMap((wave, waveIndex) =>
+  wave.kinds.map((_, enemyIndex) => `ground-${waveIndex + 1}-${enemyIndex}`)));
 
 export class RoomError extends Error {
   status: number;
@@ -151,7 +154,7 @@ function parseAction(value: unknown): Action {
   }
   if (action.type === 'selectEnemy') {
     exactKeys(action, ['type', 'id']);
-    if (typeof action.id !== 'string' || !/^(boss|echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(action.id)) throw new RoomError(400, 'Unknown enemy target.');
+    if (typeof action.id !== 'string' || (!/^(boss|echo-[01]|sentinel-[0-5]|left-hand|right-hand)$/.test(action.id) && !GROUND_TARGET_IDS.has(action.id))) throw new RoomError(400, 'Unknown enemy target.');
     return { type: 'selectEnemy', id: action.id };
   }
   if (action.type === 'readyForLogos') {

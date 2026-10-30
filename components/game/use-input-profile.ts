@@ -9,6 +9,8 @@ export function useInputProfile() {
   const [detected, setDetected] = useState<InputMode>('keyboard');
   const activate = useCallback((mode: InputMode) => setDetected(current => current === mode ? current : mode), []);
   useEffect(() => {
+    // Keep server and initial client markup identical; restore browser preferences after hydration.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     try { setLayout(normalizeLayout(localStorage.getItem(STORAGE))); } catch {}
     const primaryTouch = window.matchMedia('(pointer: coarse)');
     if (primaryTouch.matches) activate('touch');

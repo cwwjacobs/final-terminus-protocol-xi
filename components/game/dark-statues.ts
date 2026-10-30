@@ -76,13 +76,21 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
   const motePaint = new THREE.MeshBasicMaterial({ color: '#b9e7f0', transparent: true, opacity: .85, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }); materials.add(motePaint);
   const motes = new THREE.InstancedMesh(moteGeometry, motePaint, TRAILS * perTrail);
   motes.name = 'inward-energy'; motes.frustumCulled = false; motes.instanceMatrix.setUsage(THREE.DynamicDrawUsage); root.add(motes);
-  const trails = Array.from({ length: TRAILS }, () => ({ active: false, age: 0, statue: 0, from: new THREE.Vector3(), bend: new THREE.Vector3(), to: new THREE.Vector3(), arrived: false }));
+  const trails = Array.from({ length: TRAILS }, () => ({ active: false, needsClear: false, age: 0, statue: 0, from: new THREE.Vector3(), bend: new THREE.Vector3(), to: new THREE.Vector3(), arrived: false }));
   const strikeGeometry = new THREE.BufferGeometry();
   strikeGeometry.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(8 * 6), 3)); geometries.add(strikeGeometry);
   const strikeMaterial = new THREE.LineBasicMaterial({ color: '#daefff', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }); materials.add(strikeMaterial);
   const directStrike = new THREE.LineSegments(strikeGeometry, strikeMaterial); directStrike.name = 'distant-lightning-contact'; directStrike.visible = false; directStrike.frustumCulled = false; root.add(directStrike);
   const matrix = new THREE.Matrix4(), position = new THREE.Vector3(), size = new THREE.Vector3(), quaternion = new THREE.Quaternion();
   const color = new THREE.Color();
+  // Inactive instances stay at zero scale. The palette never changes, so write
+  // it once instead of composing and uploading the entire idle pool each frame.
+  matrix.makeScale(0, 0, 0);
+  for (let i = 0; i < TRAILS * perTrail; i++) {
+    motes.setMatrixAt(i, matrix);
+    color.set(i % perTrail % 4 === 0 ? '#ebc58d' : '#aee9ef'); motes.setColorAt(i, color);
+  }
+  motes.visible = false;
   let disposed = false, initialized = false, lastTime = 0, lastEvent = 0, stage = '', ambientReveal = 0, absorbed = 0;
   let previousFlash = 0, strikeEdges = 0, transfers = 0, strikeLife = 0, strikeCooldown = 0;
   const previous = new Map<string, number>(), consumed = new Set<string>();
@@ -167,9 +175,10 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
       strikeLife = Math.max(0, strikeLife - elapsed);
       directStrike.visible = strikeLife > 0 && !reducedMotion; strikeMaterial.opacity = clamp(strikeLife / .26);
       figures.forEach(figure => { figure.pulse = Math.max(0, figure.pulse - elapsed * .8); figure.distortion = Math.max(0, figure.distortion - elapsed * 2); });
-      let visibleMotes = false;
+      let visibleMotes = false, matricesChanged = false;
       for (let i = 0; i < trails.length; i++) {
         const trail = trails[i];
+        if (!trail.active && !trail.needsClear) continue;
         if (trail.active) {
           if (!figures[trail.statue].available) trail.active = false;
           trail.to.copy(figures[trail.statue].chest);
@@ -177,6 +186,10 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
           if (!trail.arrived && trail.age >= FLIGHT_SECONDS) { figures[trail.statue].pulse = reducedMotion ? .25 : .85; trail.arrived = true; }
           if (trail.age > FLIGHT_SECONDS + .6) trail.active = false;
         }
+        // An expired or reset trail clears its old instances exactly once. All
+        // other inactive slots can retain their already invisible matrices.
+        trail.needsClear = trail.active;
+        matricesChanged = true;
         for (let j = 0; j < perTrail; j++) {
           const index = i * perTrail + j;
           let radius = 0;
@@ -195,7 +208,6 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
             }
           }
           visibleMotes ||= radius > 0; size.setScalar(radius); matrix.compose(position, quaternion, size); motes.setMatrixAt(index, matrix);
-          color.set(j % 4 === 0 ? '#ebc58d' : '#aee9ef'); motes.setColorAt(index, color);
         }
       }
       figures.forEach(figure => {
@@ -206,7 +218,8 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
       });
       adapter?.setLighting(figures.map(figure => figure.available ? ambient : 0));
       adapter?.setDistortion?.(figures.map(figure => figure.available ? figure.distortion : 0));
-      motes.visible = visibleMotes; motes.instanceMatrix.needsUpdate = true; if (motes.instanceColor) motes.instanceColor.needsUpdate = true;
+      motes.visible = visibleMotes;
+      if (matricesChanged) motes.instanceMatrix.needsUpdate = true;
     },
     reset,
     stats: () => ({ statues: figures.length, capacity: TRAILS, activeTrails: trails.filter(trail => trail.active).length, absorptions: absorbed, statueTransfers: transfers, disposed }),

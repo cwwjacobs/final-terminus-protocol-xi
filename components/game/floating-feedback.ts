@@ -115,7 +115,12 @@ export class FloatingFeedback {
     const tilt = reducedMotion ? 0 : -Math.asin(Math.max(-1, Math.min(1, this.direction.y))) * .55;
     this.pool.slots.forEach((slot, index) => {
       const label = this.labels[index], feedback = slot.feedback;
-      if (!feedback) { label.style.opacity = '0'; this.ids[index] = -1; return; }
+      if (!feedback) {
+        // Empty slots are already hidden. Clear an expired number once instead
+        // of writing every unused SVG node on every animation frame.
+        if (this.ids[index] !== -1) { label.style.opacity = '0'; this.ids[index] = -1; }
+        return;
+      }
       if (this.ids[index] !== feedback.id) { this.write(index, feedback); this.ids[index] = feedback.id; }
       const progress = slot.age / this.pool.duration;
       this.point.set(slot.x, slot.y + (reducedMotion ? 0 : progress * .65), slot.z);

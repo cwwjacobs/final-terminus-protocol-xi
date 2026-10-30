@@ -23,7 +23,7 @@ export function navigateDialog(root: HTMLElement, direction: 'up' | 'down' | 'le
       return;
     }
     if (current instanceof HTMLInputElement && ['range', 'number'].includes(current.type)) {
-      delta > 0 ? current.stepUp() : current.stepDown();
+      if (delta > 0) current.stepUp(); else current.stepDown();
       current.dispatchEvent(new Event('input', { bubbles: true }));
       current.dispatchEvent(new Event('change', { bubbles: true }));
       return;

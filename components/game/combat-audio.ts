@@ -7,7 +7,7 @@ export type CombatSound =
   | 'bowDraw' | 'bow' | 'fireCharge' | 'fire' | 'iceCharge' | 'ice' | 'lightningCharge' | 'lightning'
   | 'chain' | 'burst' | 'heal' | 'shield' | 'shieldBreak' | 'revelry' | 'provoke' | 'weave'
   | 'guard' | 'dodge' | 'hit' | 'down' | 'bossCharge' | 'bossImpact'
-  | 'groundCharge' | 'warCry' | 'victory' | 'defeat' | 'phase'
+  | 'arenaCrumble' | 'groundCharge' | 'warCry' | 'victory' | 'defeat' | 'phase'
   | 'cryBacchus' | 'cryHeracles' | 'cryDolos' | 'cryHecate' | 'cryAriadne' | 'enemyCry';
 export interface CombatSoundCue { sound: CombatSound; delay: number; gain: number; priority: 0 | 1 | 2 | 3 }
 export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perTick: 6, staleAfter: .25 });
@@ -15,6 +15,7 @@ export const COMBAT_AUDIO_LIMITS = Object.freeze({ pending: 48, voices: 18, perT
 /** One primary sound per event. Recipient fan-out and recurring healing ticks
  * do not replay a group spell's cast. This also preserves the original cues. */
 export function combatSound(event: CombatEvent): CombatSound | null {
+  if (event.kind === 'coherence_collapse' || event.kind === 'arena_recede') return 'arenaCrumble';
   if (event.kind === 'victory' || event.kind === 'defeat') return event.kind;
   if (['phase', 'descent', 'sentinels_awaken', 'awakening'].includes(event.kind)) return 'phase';
   if (event.kind === 'lair_answer') return 'enemyCry';
@@ -56,7 +57,7 @@ export function combatSoundPlan(event: CombatEvent, actorId?: string): CombatSou
   if (!sound) return [];
   const key = presentationKey(event), contact = presentationContact(event, actorId);
   const cue = (sound: CombatSound, delay: number, gain: number, priority: CombatSoundCue['priority'] = 2): CombatSoundCue => ({ sound, delay, gain, priority });
-  if (sound === 'victory' || sound === 'defeat' || sound === 'phase' || sound === 'groundCharge') return [cue(sound, 0, .65, 3)];
+  if (sound === 'arenaCrumble' || sound === 'victory' || sound === 'defeat' || sound === 'phase' || sound === 'groundCharge') return [cue(sound, 0, .65, 3)];
   if (sound === 'warCry') return [cue(sound, 0, .75)];
   if (key === 'auto') {
     const ranged = actorId === 'dolos';
@@ -167,6 +168,7 @@ const RECIPES: Record<CombatSound, Recipe> = {
   warCry: { tones: [['sawtooth', 112, 72, .48, .022], ['triangle', 168, 108, .65, .05], ['sine', 56, 36, .5, .07]], noise: ['bandpass', 430, 210, .45, .08] },
   victory: { tones: [['sine', 392, 392, 1.1, .055], ['sine', 494, 494, 1.35, .04], ['sine', 587, 784, 1.6, .035]] },
   defeat: { tones: [['sine', 220, 110, 1.3, .055], ['triangle', 261.6, 130.8, 1.5, .025]], noise: ['lowpass', 220, 80, 1, .025] },
+  arenaCrumble: { tones: [['sine', 62, 28, 1.1, .055], ['triangle', 138, 49, .65, .018]], noise: ['lowpass', 1200, 100, .9, .075] },
   phase: { tones: [['sine', 82, 164, .85, .055], ['triangle', 123, 246, .65, .022]], noise: ['bandpass', 700, 1400, .7, .035] },
   bossImpact: { noise: ['lowpass', 1800, 100, .6, .14], tones: [['sine', 80, 28, .7, .08]] },
   cryBacchus: {}, cryHeracles: {}, cryDolos: {}, cryHecate: {}, cryAriadne: {}, enemyCry: {},

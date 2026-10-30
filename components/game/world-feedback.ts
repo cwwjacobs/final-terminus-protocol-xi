@@ -38,7 +38,6 @@ export function combatNumber(event: CombatEvent, state: GameState): CombatNumber
   if (typeof event.value !== 'number' || !Number.isFinite(event.value) || event.value <= 0) return null;
   const amount = event.value > 999_999 ? '999,999+' : Math.round(event.value).toLocaleString('en-US');
   if (['auto', 'weapon', 'magic', 'chain', 'burst'].includes(event.kind)) {
-    const physical = event.kind === 'auto' || event.kind === 'weapon';
     const tone = event.kind === 'burst' ? 'burst' : event.kind === 'chain' ? 'chain' : event.critical === true ? 'critical' : 'damage';
     return { id: event.id, target: 'boss', text: `${tone === 'burst' ? '✦ ' : tone === 'chain' ? '◇ ' : ''}${amount}`, tone };
   }

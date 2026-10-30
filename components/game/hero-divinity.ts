@@ -10,7 +10,7 @@ export interface HeroDivinity {
   dispose(): void;
 }
 
-const IVORY = '#e7e2d3', FOLD = '#c8c9c2', GOLD = '#c5ad6b', SILVER = '#cbd1d0';
+const IVORY = '#e7e2d3', GOLD = '#c5ad6b', SILVER = '#cbd1d0';
 function material(metalness: number) {
   return new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, side: THREE.DoubleSide, emissiveIntensity: 0, metalness, roughness: metalness > .5 ? .35 : .8 });
 }

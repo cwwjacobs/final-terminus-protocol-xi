@@ -1,3 +1,4 @@
+import { arenaRadius, circleEscapeTarget, confineToArena, stepLogosArena } from './logos-arena.ts';
 import { COLLAPSE_SECONDS, DESCENT_SECONDS, descentReadiness, offensiveTarget, SENTINEL_ENTRY_SECONDS, SENTINEL_NAMES, sentinelEntryActive, sequenceLocked, GIANT_EXPOSURE_SECONDS, GIANT_STATUE_WAVES, giantStatuesActive, statuesEntering, statuesShieldLogos } from './logos.ts';
 import { ABILITY_DEFINITIONS, actionUnavailable, ARENA_RADIUS, ATTACK_BASELINE, BURST_WINDOW, canUseActionRole, CHAIN_MIN_DELAY, CHAIN_WINDOW, CONE_HALF_ANGLE, cooldownKey, DEFAULT_SEED, ELEMENTS, FIXED_STEP, getAttackStats, GOD_ENRAGE_CAST, GOD_ENRAGE_TIME, GOD_ENRAGE_WARNING, MAGIC, MAGIC_RANGE, MOVE_SPEED, PARTY, REVELRY, ROLES, SKILLCHAINS, TP_COST, TP_MAX, TRAITS, WEAPONS } from './content.ts';
 import { LORE } from './lore.ts';
@@ -58,12 +59,8 @@ export function setHuman(state: GameState, slot: number, human: boolean): void {
   actor.aiTimer = 0;
 }
 
-function bounds(actor: Actor) {
-  const length = Math.hypot(actor.x, actor.z);
-  if (length > ARENA_RADIUS) {
-    actor.x *= ARENA_RADIUS / length;
-    actor.z *= ARENA_RADIUS / length;
-  }
+function bounds(actor: Actor, state: GameState) {
+  confineToArena(actor, arenaRadius(state));
 }
 
 function threat(actor: Actor, cumulative: number, volatile: number) {
@@ -118,7 +115,7 @@ function beginSentinels(state: GameState) {
 }
 
 function beginGiant(state: GameState) {
-  state.logos = { stage: 'giant', elapsed: 0, statueWave: 0, exposureRemaining: GIANT_EXPOSURE_SECONDS, statueEntryRemaining: 0 }; state.ultimatesUnlocked = true;
+  state.logos = { stage: 'giant', elapsed: 0, statueWave: 0, exposureRemaining: GIANT_EXPOSURE_SECONDS, statueEntryRemaining: 0, arenaRadius: ARENA_RADIUS }; state.ultimatesUnlocked = true;
   state.chain = state.burst = null; state.duskRemaining = 0;
   Object.assign(state.boss, { x: 0, z: -20, target: 1, phase: 1, facing: 0, attackTimer: 3, specialTimer: 8, castCount: 0, cooldowns: {}, cast: null, stunRemaining: 0, burn: null });
   state.enemies = [-1, 1].map((sign, i) => ({ id: i === 0 ? 'left-hand' : 'right-hand', name: i === 0 ? 'Logos · Left hand' : 'Logos · Right hand', x: sign * 19, z: -4, hp: 8000, maxHp: 8000, target: i === 0 ? 1 : 0, attackTimer: 4 + i, stunRemaining: 0, burn: null }));
@@ -167,7 +164,7 @@ function giantCycleStep(state: GameState, dt: number) {
   for (let index = 0; index < 3; index++) {
     const angle = (index * 2 + logos.statueWave! % 2) * Math.PI / 3;
     const hp = state.mode === 'god' ? 5400 : 4200;
-    state.enemies.push({ id: `sentinel-${index}`, name: SENTINEL_NAMES[(index + logos.statueWave! - 1) % SENTINEL_NAMES.length], x: Math.sin(angle) * 18, z: Math.cos(angle) * 18, hp, maxHp: hp, target: 1, attackTimer: 3 + index * .5, stunRemaining: 0, burn: null, linkedDamageCredited: false });
+    state.enemies.push({ id: `sentinel-${index}`, name: SENTINEL_NAMES[(index + logos.statueWave! - 1) % SENTINEL_NAMES.length], x: Math.sin(angle) * Math.min(18, arenaRadius(state) - 2.5), z: Math.cos(angle) * Math.min(18, arenaRadius(state) - 2.5), hp, maxHp: hp, target: 1, attackTimer: 3 + index * .5, stunRemaining: 0, burn: null, linkedDamageCredited: false });
   }
   state.party.forEach(actor => { cancelSequence(actor); if (!actor.human) actor.aiTimer = 0; });
   event(state, 'statues_summoned', 'Logos summons three statues. Break them to weaken him and expose his head and hands.');
@@ -179,7 +176,7 @@ function finishIfNeeded(state: GameState) {
     beginGiant(state); return;
   }
   if (state.boss.hp <= 0 && state.logos.stage === 'giant') {
-    state.logos = { stage: 'collapse', elapsed: 0 }; state.boss.cast = null; state.boss.burn = null;
+    state.logos = { stage: 'collapse', elapsed: 0, arenaRadius: arenaRadius(state) }; state.boss.cast = null; state.boss.burn = null;
     state.enemies.forEach(e => { e.hp = 0; e.burn = null; });
     state.party.forEach(a => { a.engaged = false; a.moveX = a.moveZ = 0; cancelSequence(a); });
     event(state, 'coherence_collapse', 'Logos loses coherence. The floor is disappearing — get clear!'); return;
@@ -608,7 +605,7 @@ export function applyAction(state: GameState, slot: number, action: Action): Act
     const length = Math.hypot(dx, dz) || 1;
     actor.x += dx / length * 3.8;
     actor.z += dz / length * 3.8;
-    bounds(actor);
+    bounds(actor, state);
     event(state, 'dodge', `${actor.name} evades.`, slot);
     return { ok: true };
   }
@@ -718,7 +715,7 @@ function sequenceStep(state: GameState, slot: number, dt: number) {
     const endX = offensiveTarget(state, actor).x + dx / length * 1.2, endZ = offensiveTarget(state, actor).z + dz / length * 1.2;
     actor.x = sequence.originX + (endX - sequence.originX) * fraction;
     actor.z = sequence.originZ + (endZ - sequence.originZ) * fraction;
-    bounds(actor);
+    bounds(actor, state);
   }
   while (sequence.nextHit < times.length && sequence.elapsed + 1e-8 >= times[sequence.nextHit]) {
     const hitIndex = sequence.nextHit++;
@@ -781,10 +778,8 @@ function trustAction(state: GameState, slot: number) {
     if (cast.kind === 'raid') {
       if (cast.remaining < 4.5) applyAction(state, slot, { type: 'guard' });
     } else if (cast.kind === 'circle') {
-      let dx = actor.x - cast.x, dz = actor.z - cast.z;
-      if (Math.hypot(dx, dz) < 0.1) { dx = slot % 2 ? 1 : -1; dz = 0.2; }
-      const length = Math.hypot(dx, dz);
-      moveToward(actor, cast.x + dx / length * (cast.radius + 1.8), cast.z + dz / length * (cast.radius + 1.8));
+      const safe = circleEscapeTarget(actor, cast, arenaRadius(state), slot);
+      moveToward(actor, safe.x, safe.z);
       if (cast.remaining < 0.7) applyAction(state, slot, { type: 'dodge' });
       return;
     } else {
@@ -1009,7 +1004,9 @@ function fixedStep(state: GameState) {
   if (state.status === 'fighting' && !sequenceLocked(state)) {
     const previous = state.combatTime;
     state.combatTime = Math.round((state.combatTime + dt) / dt) * dt;
-    if (state.mode === 'god' && previous < GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING && state.combatTime >= GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING) event(state, 'warning', `Coherence Collapse approaches — 30 seconds remain. Finish ${state.boss.name}.`);
+    const previousFightClock = state.logos.stage === 'giant' ? state.logos.elapsed : previous;
+    const nextFightClock = state.logos.stage === 'giant' ? previousFightClock + dt : state.combatTime;
+    if (state.mode === 'god' && (state.encounter === 'crown' || state.logos.stage === 'giant') && previousFightClock + 1e-8 < GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING && nextFightClock + 1e-8 >= GOD_ENRAGE_TIME - GOD_ENRAGE_WARNING) event(state, 'warning', `Coherence Collapse approaches — 30 seconds remain. Finish ${state.boss.name}.`);
   }
   if (state.chain) {
     state.chain.remaining = Math.max(0, CHAIN_WINDOW - (state.time - state.chain.openedAt));
@@ -1057,7 +1054,7 @@ function fixedStep(state: GameState) {
     }
     actor.x += actor.moveX * MOVE_SPEED * dt;
     actor.z += actor.moveZ * MOVE_SPEED * dt;
-    bounds(actor);
+    bounds(actor, state);
     if (state.status !== 'fighting') continue;
     actor.attackTimer = Math.max(0, actor.attackTimer - dt - warCryTime * WAR_CRY.speedBonus);
     if (actor.engaged && actor.attackTimer <= 1e-8 && distance(actor, offensiveTarget(state, actor)) <= ROLES[actor.role].range) {
@@ -1073,7 +1070,7 @@ function fixedStep(state: GameState) {
   if (state.status === 'fighting' && sequenceLocked(state)) {
     state.logos.elapsed += dt;
     if (state.logos.stage === 'descent' && (state.logos.elapsed + 1e-8 >= DESCENT_SECONDS || descentReadiness(state).allReady)) beginSentinels(state);
-    else if (state.logos.stage === 'collapse' && state.logos.elapsed + 1e-8 >= COLLAPSE_SECONDS) { state.logos = { stage: 'escaped', elapsed: COLLAPSE_SECONDS }; finishIfNeeded(state); }
+    else if (state.logos.stage === 'collapse' && state.logos.elapsed + 1e-8 >= COLLAPSE_SECONDS) { state.logos = { stage: 'escaped', elapsed: COLLAPSE_SECONDS, arenaRadius: arenaRadius(state) }; finishIfNeeded(state); }
     return;
   }
   if (state.status === 'fighting' && state.logos.stage !== 'none') {
@@ -1082,6 +1079,12 @@ function fixedStep(state: GameState) {
     if (entering && !sentinelEntryActive(state)) event(state, 'lair_answer', 'Logos!');
   }
   if (state.status === 'fighting') giantCycleStep(state, dt);
+  if (state.status === 'fighting' && state.logos.stage === 'giant') {
+    const previousRadius = arenaRadius(state);
+    stepLogosArena(state, dt);
+    if (previousRadius > 18 && arenaRadius(state) <= 18) event(state, 'arena_recede', 'The outer lattice breaks away. Keep to the remaining ground.');
+    if (previousRadius > 13.5 && arenaRadius(state) <= 13.5) event(state, 'arena_recede', 'Only the inner platform remains. Hold together — Logos is almost broken.');
+  }
   if (state.status === 'fighting') burnStep(state, state.boss, dt);
   if (state.status === 'fighting') {
     const wave = nextGroundWave(state);

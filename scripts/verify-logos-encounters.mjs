@@ -3,16 +3,20 @@
 // --ready-up exercises the immediate descent skip for the controlled player.
 // Run: node --experimental-strip-types scripts/verify-logos-encounters.mjs
 import assert from 'node:assert/strict';
+import {arenaRadius} from '../game/logos-arena.ts';
+import {validSave,restoreSave} from '../lib/local-save.ts';
 import {offensiveTarget,sequenceLocked} from '../game/logos.ts';
 import {createGame,applyAction,stepGame,isInTelegraph,setHuman} from '../game/engine.ts';
 import {WEAPONS,ELEMENTS,ULTIMATES} from '../game/content.ts';
 const fullGame=process.argv.includes('--full-game');
 const readyUp=process.argv.includes('--ready-up');
-for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
- const s=createGame(mode,123);s.party.forEach((_,i)=>setHuman(s,i,i===slot));
+const seeds=process.argv.includes('--matrix')?[123,1,71,0x51f15e,0xffffffff]:[123];
+for(const seed of seeds)for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
+ const s=createGame(mode,seed);s.party.forEach((_,i)=>setHuman(s,i,i===slot));
  if(fullGame)applyAction(s,slot,{type:'start'});else{s.status='victory';applyAction(s,slot,{type:'faceLogos'});}
  let seen=0,chains=0,bursts=0,newHits=0,crownSeconds=0;
  const stages=new Set();
+ let minimumHp=1,minimumRadius=24,damageTaken=0;
  for(let tick=0;tick<24000&&(s.status==='fighting'||s.status==='victory'&&s.encounter==='crown');tick++){
   if(s.status==='victory'&&s.encounter==='crown'){crownSeconds=s.combatTime;assert.ok(s.party.every(a=>a.hp>0));applyAction(s,slot,{type:'faceLogos'});}
   stages.add(s.encounter==='crown'?'crown':s.logos.stage);
@@ -32,7 +36,7 @@ for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
    if(s.combatTime>9 && (slot!==4 || s.party.some(p=>p.hp>0 && p.hp<p.maxHp*.6)))applyAction(s,slot,{type:ULTIMATES[a.role]});
    if(slot===1&&a.sonOfZeus){if(b.stunRemaining<.1){if(a.tp>=1000)applyAction(s,slot,{type:'clap'});applyAction(s,slot,{type:'lightningShock'});}applyAction(s,slot,{type:'bolt'});}
    if(slot===0)applyAction(s,slot,{type:'revelry'});
-   if(slot===1){applyAction(s,slot,{type:'provoke'});if(a.hp<a.maxHp*.72)applyAction(s,slot,{type:'guard'});}
+   if(slot===1){applyAction(s,slot,{type:'warCry'});applyAction(s,slot,{type:'provoke'});if(a.hp<a.maxHp*.72)applyAction(s,slot,{type:'guard'});}
    if(slot<=2){
     const chain=s.chain;
     if(a.tp>=1000&&(!chain||((chain.opener!==slot||a.selfChainUntil>s.time||a.id==='bacchus'&&a.criticalCharges>0)&&s.time-chain.openedAt>=1.8)))applyAction(s,slot,{type:'weapon',id:chain?WEAPONS[chain.weapon].next:slot===2?'pierce':'cleave'});
@@ -50,13 +54,17 @@ for(const mode of ['trial','god'])for(let slot=0;slot<5;slot++){
    }
   }
   stepGame(s,.05);
-  for(const e of s.events.filter(e=>e.id>seen)){chains+=e.kind==='chain';bursts+=e.kind==='burst';newHits+=e.kind==='weapon'&&['criticalDash','splitVolley'].includes(e.source);seen=e.id;}
+  if(s.logos.stage==='giant'){minimumRadius=Math.min(minimumRadius,arenaRadius(s));minimumHp=Math.min(minimumHp,...s.party.map(p=>p.hp/p.maxHp));assert.ok(s.party.every(p=>Math.hypot(p.x,p.z)<=arenaRadius(s)+1e-8));}
+  if(tick%100===0){assert.ok(validSave(s),`snapshot ${mode} ${slot} ${seed} ${s.logos.stage}`);assert.ok(restoreSave(s));}
+  for(const e of s.events.filter(e=>e.id>seen)){damageTaken+=e.kind==='hit'?(e.value??0):0;chains+=e.kind==='chain';bursts+=e.kind==='burst';newHits+=e.kind==='weapon'&&['criticalDash','splitVolley'].includes(e.source);seen=e.id;}
  }
  assert.equal(s.status,'victory', `${mode} ${s.party[slot].name}`);
  assert.equal(s.party.filter(a=>a.hp>0).length,5);
  assert.ok(s.ultimatesUnlocked && s.encounter==='logos');
  assert.equal(s.logos.stage,'escaped');
+ assert.ok(minimumRadius<13.5,'reaches the last inner platform');
+ assert.ok(validSave(s));
  for(const stage of ['descent','sentinels','giant','collapse'])assert.ok(stages.has(stage),stage);
  if(fullGame)assert.ok(crownSeconds>0&&stages.has('crown'));
- console.log(JSON.stringify({mode,role:s.party[slot].name,seed:123,status:s.status,crownSeconds,logosSeconds:s.combatTime,stage:s.logos.stage,bossHp:s.boss.hp,alive:s.party.filter(a=>a.hp>0).length,chains,bursts,newHits}));
+ console.log(JSON.stringify({mode,role:s.party[slot].name,seed,minimumHp,minimumRadius,damageTaken,status:s.status,crownSeconds,logosSeconds:s.combatTime,stage:s.logos.stage,bossHp:s.boss.hp,alive:s.party.filter(a=>a.hp>0).length,chains,bursts,newHits}));
 }

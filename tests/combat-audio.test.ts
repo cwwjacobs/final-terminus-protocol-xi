@@ -106,3 +106,12 @@ test('audio can be constructed, kept silent and disposed without browser globals
   const audio = createCombatAudio();
   assert.doesNotThrow(() => { audio.play('fire'); audio.beginBossCharge(null); audio.syncBossCharge(null); audio.setVolume(NaN); audio.silence(); audio.dispose(); audio.dispose(); });
 });
+
+
+test('arena loss sounds once per retreat event and the final floor collapse', () => {
+  for (const e of [event('arena_recede'), event('coherence_collapse')]) {
+    assert.equal(combatSound(e), 'arenaCrumble');
+    assert.deepEqual(combatSoundPlan(e).map(c => [c.sound, c.delay]), [['arenaCrumble', 0]]);
+  }
+  assert.equal(combatSound(event('warning')), null, 'unrelated warnings do not rumble');
+});

@@ -87,7 +87,7 @@ test('a lethal static chain ends combat immediately and clears active healing', 
 });
 
 test('old snapshots gain additive defaults but malformed storm/thread state is rejected', () => {
-  const legacy = structuredClone(combat()) as any; delete legacy.storm; legacy.party.forEach((p: any) => delete p.mendingThread);
+  const legacy = structuredClone(combat()); Reflect.deleteProperty(legacy, 'storm'); legacy.party.forEach(p => Reflect.deleteProperty(p, 'mendingThread'));
   const restored = restoreSave(legacy)!; assert.ok(restored); assert.ok(restored.storm.remaining >= 15 && restored.storm.remaining <= 25); assert.equal(restored.party[0].mendingThread, null);
   for (const value of [NaN, -1, 301]) { const s = combat(); s.storm.remaining = value; assert.equal(validSave(s), false); }
   const s = combat(); s.party[0].mendingThread = { remaining: 12, tickIn: 2, source: 0 }; assert.equal(validSave(s), false);

@@ -1,3 +1,4 @@
+import { LOGOS_MIN_RADIUS } from '../game/logos-arena.ts';
 import { createGame } from '../game/engine.ts';
 import { ABILITY_DEFINITIONS, ARENA_RADIUS, FIXED_STEP, GOD_ENRAGE_CAST, REVELRY, ROLES, WAR_CRY } from '../game/content.ts';
 import type { GameState } from '../game/types.ts';
@@ -82,6 +83,9 @@ export function validSave(raw: unknown): raw is GameState {
     !Array.isArray(state.enemies) || state.enemies.length > (state.encounter === 'crown' ? 8 : 6) || state.encounter === 'crown' && state.logos.stage !== 'none' || state.encounter === 'logos' && state.logos.stage === 'none') return false;
   if (state.logos.readySlots !== undefined && (!Array.isArray(state.logos.readySlots) || state.logos.readySlots.length > 5 || !state.logos.readySlots.every(slot) || new Set(state.logos.readySlots).size !== state.logos.readySlots.length || state.logos.stage !== 'descent' && state.logos.readySlots.length > 0)) return false;
   const cycle = state.logos as unknown as Record<string, unknown>;
+  if (Object.hasOwn(cycle, 'arenaRadius') &&
+    (!['giant', 'collapse', 'escaped'].includes(state.logos.stage) || !finite(cycle.arenaRadius) ||
+      cycle.arenaRadius < LOGOS_MIN_RADIUS || cycle.arenaRadius > ARENA_RADIUS)) return false;
   const cycleFields = ['statueWave', 'exposureRemaining', 'statueEntryRemaining'];
   if (cycleFields.some(key => Object.hasOwn(cycle, key)) &&
     (state.logos.stage !== 'giant' || !cycleFields.every(key => Object.hasOwn(cycle, key)) ||

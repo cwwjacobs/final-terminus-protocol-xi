@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useLayoutEffect, useRef, type PointerEvent, type MouseEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, type PointerEvent, type MouseEvent, type RefObject } from 'react';
 import type { Action, GameState } from '../../game/types';
 import { getCooldown } from '../../game/content';
 import { abilityDetail, roleActionSlots, formatCooldown } from './kit-ui';
@@ -12,7 +12,7 @@ import { resetTouchStick, touchAxes, type TouchStickState } from './touch-input'
 interface Props {
   state: GameState;
   slot: number;
-  stick: TouchStickState;
+  stickRef: RefObject<TouchStickState>;
   blocked: boolean;
   allyTarget: number | null;
   onAllyTarget: () => void;
@@ -23,13 +23,13 @@ interface Props {
 }
 
 /** Each surface owns its pointer; an ability never releases the left stick. */
-export default function TouchControls({ state, slot, stick, blocked, allyTarget, onAllyTarget, onAction, onFocus, onUnavailable, notice }: Props) {
+export default function TouchControls({ state, slot, stickRef, blocked, allyTarget, onAllyTarget, onAction, onFocus, onUnavailable, notice }: Props) {
   const knob = useRef<HTMLSpanElement>(null);
   const origin = useRef({ x: 0, y: 0, radius: 1 });
-  const reset = () => {
-    resetTouchStick(stick);
+  const reset = useCallback(() => {
+    resetTouchStick(stickRef.current);
     if (knob.current) knob.current.style.transform = 'translate(0px, 0px)';
-  };
+  }, [stickRef]);
   useEffect(() => {
     const clear = () => reset();
     const hidden = () => { if (document.hidden) clear(); };
@@ -40,26 +40,26 @@ export default function TouchControls({ state, slot, stick, blocked, allyTarget,
       clear(); window.removeEventListener('blur', clear); window.removeEventListener('pagehide', clear);
       document.removeEventListener('visibilitychange', hidden);
     };
-  }, [stick]);
-  useLayoutEffect(() => { if (blocked || stick.pointerId === null) reset(); });
+  }, [reset]);
+  useLayoutEffect(() => { if (blocked || stickRef.current.pointerId === null) reset(); });
   function update(event: PointerEvent<HTMLDivElement>) {
-    if (event.pointerId !== stick.pointerId) return;
+    if (event.pointerId !== stickRef.current.pointerId) return;
     const dx = event.clientX - origin.current.x, dy = event.clientY - origin.current.y;
-    Object.assign(stick, touchAxes(dx, dy, origin.current.radius));
+    Object.assign(stickRef.current, touchAxes(dx, dy, origin.current.radius));
     const scale = Math.min(1, origin.current.radius / Math.max(1, Math.hypot(dx, dy)));
     if (knob.current) knob.current.style.transform = `translate(${dx * scale}px, ${dy * scale}px)`;
   }
   function begin(event: PointerEvent<HTMLDivElement>) {
-    if (blocked || stick.pointerId !== null || (event.pointerType === 'mouse' && event.button !== 0)) return;
+    if (blocked || stickRef.current.pointerId !== null || (event.pointerType === 'mouse' && event.button !== 0)) return;
     event.preventDefault(); onFocus();
     const box = event.currentTarget.getBoundingClientRect();
     origin.current = { x: box.left + box.width / 2, y: box.top + box.height / 2, radius: box.width * .32 };
-    stick.pointerId = event.pointerId;
+    stickRef.current.pointerId = event.pointerId;
     event.currentTarget.setPointerCapture(event.pointerId);
     update(event);
   }
   function end(event: PointerEvent<HTMLDivElement>) {
-    if (event.pointerId !== stick.pointerId) return;
+    if (event.pointerId !== stickRef.current.pointerId) return;
     reset();
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   }

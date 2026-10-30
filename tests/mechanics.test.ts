@@ -14,9 +14,6 @@ function combat(seed?: number) {
   state.boss.attackTimer = state.boss.specialTimer = 10000;
   return state;
 }
-function advance(state: GameState, seconds: number) {
-  while (seconds > 1e-8) { const dt = Math.min(30, seconds); stepGame(state, dt); seconds -= dt; }
-}
 function pulse(state: GameState, amountOfPulses = 1) {
   state.boss.cast = { name: 'Terminal Echo', abilityId: 'terminalEcho', kind: 'raid', remaining: .05, total: 4, pulses: amountOfPulses, x: 0, z: -4, radius: 100, angle: 0 };
   stepGame(state, .05);

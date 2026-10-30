@@ -53,9 +53,9 @@ export default function EncounterResult({ won, time, mode, online, busy, control
         </> : <p className="result-partial">Statistics are unavailable for this older run. New encounters record the full party’s results.</p>}
       </div>
       <div className="result-actions">
-        {onFaceLogos && <button className="primary" disabled={busy} onClick={onFaceLogos}>Descend to Logos <Icon name="arrow"/></button>}
-        {online ? <button autoFocus className="primary" disabled={busy} onClick={onLobby ?? onClose}>{onLobby ? 'Party lobby' : 'Back to arena'}</button>
-          : <button autoFocus className="primary" onClick={onReplay}>Play again <Icon name="arrow"/></button>}
+        {onFaceLogos && <button autoFocus data-autofocus className="primary" disabled={busy} onClick={onFaceLogos}>Descend to Logos <Icon name="arrow"/></button>}
+        {online ? <button autoFocus={!onFaceLogos} data-autofocus={!onFaceLogos || undefined} className={onFaceLogos ? undefined : 'primary'} disabled={busy} onClick={onLobby ?? onClose}>{onLobby ? 'Party lobby' : 'Back to arena'}</button>
+          : <button autoFocus={!onFaceLogos} data-autofocus={!onFaceLogos || undefined} className={onFaceLogos ? undefined : 'primary'} onClick={onReplay}>Play again <Icon name="arrow"/></button>}
         {online ? <button disabled={busy} onClick={onLeave}>Leave party</button>
           : <button onClick={onStart}>Back to start</button>}
       </div>

@@ -39,7 +39,9 @@ export function selectStaticStrike(state: Pick<GameState, 'storm' | 'party' | 'b
   }
   if (storm.target === 'heracles' && heracles) point = heracles;
   if (storm.target === 'arena') {
-    const angle = stormRandom(storm) * Math.PI * 2, radius = 5 + stormRandom(storm) * 15;
+    const angle = stormRandom(storm) * Math.PI * 2;
+    const outer = state.logos.stage === 'giant' ? Math.min(20, (state.logos.arenaRadius ?? 24) - 1) : 20;
+    const radius = 5 + stormRandom(storm) * (outer - 5);
     storm.x = Math.sin(angle) * radius; storm.z = Math.cos(angle) * radius;
   } else { storm.x = point.x; storm.z = point.z; }
 }
