@@ -4,6 +4,8 @@ import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { SENTINEL_ENTRY_SECONDS } from '../../game/logos.ts';
 
+const DISTANT_STATUE_SCALE = 6;
+
 type Stage = 'none' | 'descent' | 'sentinels' | 'giant' | 'collapse' | 'escaped';
 export interface LogosRigState {
   encounter: string;
@@ -378,7 +380,8 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const sentinelPaints = sentinelContacts.map(() => {
     const body = createStoneMaterial(), trim = silver.clone();
     body.name = 'sentinel-polished-stone'; trim.name = 'sentinel-silver-trim';
-    return { body, trim };
+    body.emissive.set('#60768f'); trim.emissive.set('#60768f');
+    return { body, trim, lighting: NaN };
   });
   const distantStatueAnchors = new Map(sentinelContacts.map((contact, i) => [`sentinel-${i}`, contact]));
   const distantLighting = sentinelContacts.map(() => 0);
@@ -399,13 +402,10 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
   const eyeGeometry = new THREE.SphereGeometry(1, 12, 8), shieldGeometry = new THREE.TorusGeometry(1, .014, 5, 64);
   ownGeometries.add(eyeGeometry); ownGeometries.add(shieldGeometry);
   let disposed = false, time = 0, currentState: LogosRigState | null = null, currentReduced = false;
-  let giant: Figure | null = null, sentinels: Figure[] = [];
+  let giant: Figure | null = null;
+  let sentinels: (Figure & { shadowCasters: THREE.Mesh[]; distant: boolean })[] = [];
   let edgeHands: { root: THREE.Group; hand: ArticulatedHand }[] = [];
   let headShield: THREE.Mesh | null = null;
-  const thrones: THREE.Mesh[] = [];
-  const throneParts = [new THREE.BoxGeometry(.74, .16, .62).translate(0, .48, -.02), new THREE.BoxGeometry(.74, .91, .14).translate(0, .95, -.37), new THREE.BoxGeometry(.12, .58, .65).translate(-.34, .29, -.03), new THREE.BoxGeometry(.12, .58, .65).translate(.34, .29, -.03)];
-  const throneGeometry = mergeGeometries(throneParts, false)!; throneParts.forEach(part => part.dispose()); ownGeometries.add(throneGeometry);
-
   const free = (value: { dispose(): void }) => { if (!released.has(value)) { released.add(value); value.dispose(); } };
   const freeSkeleton = (skeleton: THREE.Skeleton) => {
     if (skeleton.boneTexture) { free(skeleton.boneTexture); skeleton.boneTexture = null; }
@@ -427,7 +427,6 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     for (const figure of [giant, ...sentinels]) figure?.root.removeFromParent();
     for (const skeleton of ownSkeletons) freeSkeleton(skeleton);
     ownSkeletons.clear(); giant = null; sentinels = []; edgeHands = []; headShield = null;
-    thrones.splice(0).forEach(throne => throne.removeFromParent());
     root.clear();
   };
   const makeFigure = (source: THREE.Group, scale: number, name: string, drapery: THREE.BufferGeometry, bodyPaint = stone, trimPaint = silver): Figure => {
@@ -522,7 +521,9 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     headShield = new THREE.Mesh(shieldGeometry, shieldPaint); headShield.name = 'Logos-closed-head-shield'; headShield.scale.set(5.2, 6.5, 1); root.add(headShield);
     sentinels = sentinelContacts.map((contact, i) => {
       const figure = makeFigure(source, 1.75, `Logos-sentinel-${i}`, drapery, sentinelPaints[i].body, sentinelPaints[i].trim); figure.chest.add(contact); contact.position.set(0, 0, 0);
-      const throne = new THREE.Mesh(throneGeometry, sentinelPaints[i].body); throne.name = `Logos-sentinel-${i}-solid-throne`; throne.scale.setScalar(1.75); throne.receiveShadow = true; throne.castShadow = true; root.add(throne); thrones.push(throne); return figure;
+      const shadowCasters: THREE.Mesh[] = [];
+      figure.root.traverse(node => { if (node instanceof THREE.Mesh && node.castShadow) shadowCasters.push(node); });
+      return { ...figure, shadowCasters, distant: false };
     });
     recount();
   };
@@ -589,7 +590,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     const arm = figure.arms[index];
     figure.root.getWorldQuaternion(q[3]);
     q[4].setFromAxisAngle(up, facing).multiply(palmDown).premultiply(q[3]);
-    v[10].copy(fingerForward).applyQuaternion(q[4]).multiplyScalar(.075 * figure.scale);
+    v[10].copy(fingerForward).applyQuaternion(q[4]).multiplyScalar(.075 * figure.scale * figure.root.scale.x);
     v[11].copy(palm).sub(v[10]);
     solveLimb(arm, v[11], pole, true, q[4]); fingers(arm.hand!, curl, stunned);
   };
@@ -599,11 +600,16 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
 
   const lightSentinel = (index: number, distant: boolean) => {
     const level = distantLighting[index] ?? 0;
-    for (const material of [sentinelPaints[index].body, sentinelPaints[index].trim]) {
+    const paint = sentinelPaints[index];
+    // A negative value denotes solid combat stone. Dormant light is in [0,1].
+    const lighting = distant ? level : -1;
+    if (paint.lighting === lighting) return;
+    paint.lighting = lighting;
+    for (const material of [paint.body, paint.trim]) {
       if (material.transparent !== distant) { material.transparent = distant; material.needsUpdate = true; }
       material.depthWrite = !distant;
       material.opacity = distant ? .008 + level * .62 : 1;
-      material.emissive.set('#60768f'); material.emissiveIntensity = distant ? level * .65 : 0;
+      material.emissiveIntensity = distant ? level * .65 : 0;
     }
   };
   const setDistantStatueLighting = (levels: readonly number[]) => {
@@ -633,7 +639,7 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
       giant.root.visible = false; setContactsVisible(false); edgeHands.forEach(edge => { edge.root.visible = false; }); if (headShield) headShield.visible = false;
       for (let i = 0; i < sentinels.length; i++) {
         sentinels[i].root.visible = false; sentinels[i].motionInitialized = false;
-        sentinelContacts[i].visible = false; thrones[i].visible = false;
+        sentinelContacts[i].visible = false;
       }
       return;
     }
@@ -694,14 +700,18 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
       lightSentinel(i, dormant);
       figure.root.visible = dormant || statueStage && !!enemy && enemy.hp > 0;
       sentinelContacts[i].visible = figure.root.visible && !dormant;
-      const throne = thrones[i]; throne.visible = false;
-      if (throne.visible) {
-        throne.position.set(Math.sin(angle) * 18, 0, Math.cos(angle) * 18); throne.rotation.y = Math.atan2(-throne.position.x, -throne.position.z);
+      if (figure.distant !== dormant) {
+        figure.distant = dormant;
+        if (!dormant) figure.model.visible = true;
+        for (const mesh of figure.shadowCasters) mesh.castShadow = !dormant;
       }
       if (!figure.root.visible) { figure.motionInitialized = false; continue; }
       const originX = Math.sin(angle) * 34, originZ = Math.cos(angle) * 34;
       const destinationX = finite(enemy?.x ?? Math.sin(angle) * 18), destinationZ = finite(enemy?.z ?? Math.cos(angle) * 18);
       const positionBlend = reducedMotion && entering ? (jump >= 1 ? 1 : 0) : travel;
+      // The same carving looms outside the arena, then settles to its combat
+      // scale on landing. Contacts, hands and lightning inherit the transform.
+      figure.root.scale.setScalar(dormant ? DISTANT_STATUE_SCALE : THREE.MathUtils.lerp(DISTANT_STATUE_SCALE, 1, positionBlend));
       const x = dormant ? originX : entering ? THREE.MathUtils.lerp(originX, destinationX, positionBlend) : destinationX;
       const z = dormant ? originZ : entering ? THREE.MathUtils.lerp(originZ, destinationZ, positionBlend) : destinationZ;
       const target = enemy ? state.party[enemy.target] : undefined;
@@ -750,6 +760,18 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     root.updateMatrixWorld(true);
   };
 
+  // Conservative seated bounds enclose the crown, folded limbs and distorted
+  // poses. Cull as a figure, so the six skinned bodies need no per-bone bounds.
+  const seatedBounds = new THREE.Sphere(new THREE.Vector3(0, 1.3, 0), 2.8);
+  const worldBounds = new THREE.Sphere();
+  const cullDistantStatues = (frustum: THREE.Frustum) => {
+    for (const figure of sentinels) {
+      if (!figure.distant) continue;
+      worldBounds.copy(seatedBounds).applyMatrix4(figure.root.matrixWorld);
+      figure.model.visible = frustum.intersectsSphere(worldBounds);
+    }
+  };
+
   install(fallbackAnatomy());
   const loader = options.loader === false || !options.loader && typeof document === 'undefined' ? null : options.loader ?? loadAnatomy;
   if (!loader) stats.assetStatus = 'fallback';
@@ -778,5 +800,5 @@ export function createLogosRig(quality: 'low' | 'high', options: LogosRigOptions
     ownGeometries.forEach(free); ownGeometries.clear(); sources.forEach(releaseSource); sources.clear();
     free(stone); free(silver); free(giantStone); free(giantSilver); free(eyePaint); free(shieldPaint); sentinelPaints.forEach(paints => { free(paints.body); free(paints.trim); }); distantStatueAnchors.clear(); targets.clear(); root.clear(); currentState = null; stats.assetStatus = 'disposed';
   };
-  return { root, head, leftHand, rightHand, targets, distantStatueAnchors, setDistantStatueLighting, setDistantStatueDistortion, ready, stats, update, reset, dispose };
+  return { root, head, leftHand, rightHand, targets, distantStatueAnchors, cullDistantStatues, setDistantStatueLighting, setDistantStatueDistortion, ready, stats, update, reset, dispose };
 }

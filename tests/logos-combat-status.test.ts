@@ -7,6 +7,9 @@ test('statue-linked HP feedback follows the combat clock after a long descent', 
   const state = createGame('trial');
   state.encounter = 'logos'; state.status = 'fighting';
   state.logos = { stage: 'giant', elapsed: 20, statueWave: 1, exposureRemaining: 12 };
+  // Some embedded browsers have no Array.findLast. Opening the first wave
+  // still needs to render the target panel and recent linked damage.
+  Object.defineProperty(state.events, 'findLast', { value: undefined });
   state.time = 185; state.combatTime = 25;
   state.events.push({ id: 1, time: 24, kind: 'magic', text: 'Statue shattered', source: 'statueLink', abilityId: 'statueLink', enemyId: 'boss', value: 2400 });
   assert.equal(logosCombatStatus(state)?.linkedDamage, 2400);

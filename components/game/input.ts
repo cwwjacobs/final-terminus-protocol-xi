@@ -8,6 +8,11 @@ export const deadzone = (n: number, threshold = 0.18) => !Number.isFinite(n) || 
 /** Positive local x is screen-right; positive local z is camera-forward. */
 export const movement = (x: number, z: number, yaw: number) => ({ x: bounded(-Math.cos(yaw) * x + Math.sin(yaw) * z, 1), z: bounded(Math.sin(yaw) * x + Math.cos(yaw) * z, 1) });
 
+function isBattlefield(target: EventTarget | null) {
+  const element = target as Element | null;
+  return element?.tagName === 'CANVAS' || !!element?.closest?.('svg[data-game-canvas]');
+}
+
 export interface InputOptions {
   send: (action: Action) => void;
   getFacing: () => number;
@@ -144,7 +149,7 @@ export function bindInput(options: InputOptions): () => void {
   function visibility() { if (document.hidden) clearHeld(); }
   function mouseDown(event: MouseEvent) {
     refreshSettings();
-    if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || (event.button !== 0 && event.button !== 2) || !available() || menuOpen()) return;
+    if (!isBattlefield(event.target) || (event.button !== 0 && event.button !== 2) || !available() || menuOpen()) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     if (!playable()) return;
     options.onInputMode?.('keyboard');
@@ -158,17 +163,17 @@ export function bindInput(options: InputOptions): () => void {
   function mouseUp() { dragging = false; }
   function wheel(event: WheelEvent) {
     refreshSettings();
-    if (!playable() || (event.target as HTMLElement)?.tagName !== 'CANVAS') return;
+    if (!playable() || !isBattlefield(event.target)) return;
     event.preventDefault();
     const pixels = event.deltaY * (event.deltaMode === 1 ? 16 : event.deltaMode === 2 ? 120 : 1);
     onZoom(bounded(pixels, 1000) * 0.01 * settings.zoomSensitivity);
   }
   function contextMenu(event: MouseEvent) {
-    if (playable() && (event.target as HTMLElement)?.tagName === 'CANVAS') event.preventDefault();
+    if (playable() && isBattlefield(event.target)) event.preventDefault();
   }
   function touchDown(event: PointerEvent) {
     if (event.pointerType !== 'touch' && event.pointerType !== 'pen') return;
-    if ((event.target as HTMLElement)?.tagName !== 'CANVAS' || !available() || menuOpen() || touchPointers.size >= 2) return;
+    if (!isBattlefield(event.target) || !available() || menuOpen() || touchPointers.size >= 2) return;
     (document.activeElement as HTMLElement | null)?.blur?.();
     if (!playable()) return;
     event.preventDefault(); options.onInputMode?.('touch');

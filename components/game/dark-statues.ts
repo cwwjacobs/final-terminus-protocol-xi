@@ -68,7 +68,7 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
     const chest = new THREE.Vector3(0, 3.05, .45).multiplyScalar(size).applyAxisAngle(new THREE.Vector3(0, 1, 0), body.rotation.y).add(body.position);
     const glowPaint = new THREE.MeshBasicMaterial({ color: '#c4e4ee', transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false });
     materials.add(glowPaint);
-    const heart = new THREE.Mesh(sphere, glowPaint); heart.name = `distant-ember-${index}`; heart.position.copy(chest); heart.scale.set(.12, .2, .12); root.add(heart);
+    const heart = new THREE.Mesh(sphere, glowPaint); heart.name = `distant-ember-${index}`; heart.visible = false; heart.position.copy(chest); heart.scale.set(.12, .2, .12); root.add(heart);
     return { body, material, chest, heart, glowPaint, pulse: 0, distortion: 0, available: true };
   });
   const perTrail = quality === 'high' ? 24 : 14;
@@ -130,11 +130,12 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
     points.needsUpdate = true; strikeLife = .26; figures[source].pulse = .7; figures[source].distortion = 1;
     launchTrail(target, destination); transfers++;
   };
+  const lighting = figures.map(() => 0), distortions = figures.map(() => 0);
   const reset = () => {
     initialized = false; previous.clear(); consumed.clear(); ambientReveal = absorbed = 0; previousFlash = strikeEdges = transfers = strikeCooldown = 0; clearTrails();
-    adapter?.setLighting([0, 0, 0, 0, 0, 0]);
-    adapter?.setDistortion?.([0, 0, 0, 0, 0, 0]);
-    figures.forEach(figure => { figure.material.opacity = .008; figure.material.emissiveIntensity = 0; figure.glowPaint.opacity = 0; });
+    adapter?.setLighting(lighting.fill(0));
+    adapter?.setDistortion?.(distortions.fill(0));
+    figures.forEach(figure => { figure.material.opacity = .008; figure.material.emissiveIntensity = 0; figure.glowPaint.opacity = 0; figure.heart.visible = false; });
   };
   return {
     root,
@@ -143,7 +144,7 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
       const elapsed = Number.isFinite(dt) && dt > 0 ? Math.min(dt, .1) : 0;
       figures.forEach((figure, index) => {
         figure.available = adapter ? adapter.getChest(index, figure.chest) : true;
-        figure.heart.visible = figure.available; figure.heart.position.copy(figure.chest);
+        figure.heart.position.copy(figure.chest);
       });
       const currentStage = generation(state);
       const flash = clamp(lightningFlash);
@@ -210,14 +211,17 @@ export function createDarkStatues(scene: THREE.Scene, quality: 'low' | 'high', a
           visibleMotes ||= radius > 0; size.setScalar(radius); matrix.compose(position, quaternion, size); motes.setMatrixAt(index, matrix);
         }
       }
-      figures.forEach(figure => {
+      figures.forEach((figure, index) => {
+        lighting[index] = figure.available ? ambient : 0;
+        distortions[index] = figure.available ? figure.distortion : 0;
         const reveal = ambient;
         figure.material.opacity = .008 + reveal * .62;
         figure.material.emissiveIntensity = reveal * .65;
+        figure.heart.visible = figure.available && figure.pulse > 0;
         figure.glowPaint.opacity = figure.pulse * .8; figure.heart.scale.setScalar(.12 + figure.pulse * .2);
       });
-      adapter?.setLighting(figures.map(figure => figure.available ? ambient : 0));
-      adapter?.setDistortion?.(figures.map(figure => figure.available ? figure.distortion : 0));
+      adapter?.setLighting(lighting);
+      adapter?.setDistortion?.(distortions);
       motes.visible = visibleMotes;
       if (matricesChanged) motes.instanceMatrix.needsUpdate = true;
     },

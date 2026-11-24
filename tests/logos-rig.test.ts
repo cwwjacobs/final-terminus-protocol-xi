@@ -91,7 +91,10 @@ test('six seated skeletons stand and move at authoritative enemy positions with 
     const seated = rig.root.getObjectByName(`Logos-sentinel-${i}`)!;
     assert.equal(seated.visible, true); near(Math.hypot(seated.position.x, seated.position.z), 34);
     rig.targets.get(`sentinel-${i}`)!.getWorldPosition(point);
-    assert.ok(point.y > 3.8 && point.y < 5, 'contact follows the floating seated torso');
+    const size = new THREE.Box3().setFromObject(seated, true).getSize(new THREE.Vector3());
+    near(seated.scale.x, 6); assert.ok(size.y > 15 && size.y < 18, 'the seated figure towers over the distant arena rim');
+    assert.ok(point.y > 12 && point.y < 14, 'lightning follows the enlarged chest');
+    seated.traverse(node => { if (node instanceof THREE.Mesh) assert.equal(node.castShadow, false); });
   }
   snapshot.logos = { stage: 'sentinels', elapsed: 4 };
   snapshot.enemies = Array.from({ length: 6 }, (_, i) => ({ id: `sentinel-${i}`, x: i - 3, z: i * .7, hp: i === 5 ? 0 : 100, target: 0, attackTimer: .3, stunRemaining: 0 }));
@@ -100,7 +103,9 @@ test('six seated skeletons stand and move at authoritative enemy positions with 
   assert.deepEqual(snapshot, before);
   for (let i = 0; i < 6; i++) {
     const figure = rig.root.getObjectByName(`Logos-sentinel-${i}`)!;
-    if (i !== 5) { near(figure.position.x, snapshot.enemies[i].x); near(figure.position.z, snapshot.enemies[i].z); }
+    if (i !== 5) { near(figure.position.x, snapshot.enemies[i].x); near(figure.position.z, snapshot.enemies[i].z); near(figure.scale.x, 1);
+      assert.ok(figure.getObjectsByProperty('castShadow', true).length > 0, 'combat shadows return on landing');
+    }
     assert.equal(figure.visible, i !== 5);
   }
   assert.equal(rig.stats.bones, count); assert.equal(rig.stats.drawCalls, draws);
@@ -159,6 +164,8 @@ test('the same six figures persist from dark outskirts through staggered leaps i
     assert.equal(material(figures[i]).opacity, 1); assert.equal(material(figures[i]).transparent, false);
     figures[i].traverse(object => { if (object instanceof THREE.Mesh) assert.equal(object.layers.mask, 1, 'distant statues never receive giant fill lights'); });
   }
+  assert.ok(figures[0].scale.x > 1 && figures[0].scale.x < 6);
+  near(figures[5].scale.x, 6);
   assert.ok(figures[0].position.y > 5, 'first entrant follows a high leap arc');
   near(Math.hypot(figures[5].position.x, figures[5].position.z), 34, .001);
   assert.ok(Math.hypot(figures[0].position.x, figures[0].position.z) < 34, 'leaps are staggered');
@@ -281,5 +288,28 @@ test('dormant limb poses are reused while floating roots, lighting and distortio
   snapshot.encounter='logos';snapshot.logos={stage:'sentinels',elapsed:4};
   snapshot.enemies=[{id:'sentinel-0',x:2,z:3,hp:100,target:0,attackTimer:.3,stunRemaining:0}];
   solves=0;rig.update(1/60,snapshot);assert.ok(solves>0,'active combat always gets fresh articulated poses');
+  rig.dispose();
+});
+
+test('a camera turn reveals culled colossi and landing restores every combat mesh', async () => {
+  const rig = createLogosRig('high', { loader: anatomy }); await rig.ready;
+  const snapshot = state(); snapshot.encounter = 'crown'; snapshot.logos = { stage: 'none', elapsed: 0 };
+  rig.update(.05, snapshot, true);
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, .1, 160);
+  const visible = (direction: number) => {
+    camera.position.set(0, 6, 0); camera.lookAt(0, 8, direction); camera.updateMatrixWorld();
+    rig.cullDistantStatues(new THREE.Frustum().setFromProjectionMatrix(
+      new THREE.Matrix4().multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)));
+    return Array.from({length: 6}, (_, i) => rig.root.getObjectByName(`Logos-sentinel-${i}-continuous-anatomy`)!.visible);
+  };
+  const front = visible(-34), back = visible(34);
+  assert.equal(front[0], false); assert.equal(front[3], true);
+  assert.equal(back[0], true); assert.equal(back[3], false);
+  // Hidden scenery can still receive energy at its correct world-space chest.
+  assert.ok(rig.distantStatueAnchors.get('sentinel-3')!.getWorldPosition(new THREE.Vector3()).y > 12);
+  snapshot.encounter = 'logos'; snapshot.logos = { stage: 'sentinels', elapsed: 3 };
+  snapshot.enemies = Array.from({length: 6}, (_, i) => ({ id: `sentinel-${i}`, x: i, z: 1, hp: 100, target: 0, attackTimer: 2, stunRemaining: 0 }));
+  rig.update(.05, snapshot, true);
+  assert.deepEqual(visible(-34), Array(6).fill(true));
   rig.dispose();
 });

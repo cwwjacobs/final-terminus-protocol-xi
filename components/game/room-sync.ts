@@ -9,3 +9,8 @@ export function roomSyncActions(status: GameState['status'], pending: Action[], 
   if (status === 'victory') return pending.filter(action => action.type === 'faceLogos');
   return [];
 }
+
+/** A guest can review the lobby between bosses while the host starts the descent. */
+export function roomBattlefieldOpened(previous: GameState['status'], next: GameState['status'], inLobby: boolean) {
+  return next === 'fighting' && (previous !== 'fighting' || inLobby);
+}

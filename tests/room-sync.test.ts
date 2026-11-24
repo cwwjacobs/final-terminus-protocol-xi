@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { roomSyncActions } from '../components/game/room-sync.ts';
+import { roomBattlefieldOpened, roomSyncActions } from '../components/game/room-sync.ts';
 import type { Action } from '../game/types.ts';
 
 const movement: Action = { type: 'move', x: 0, z: 0 };
@@ -25,4 +25,12 @@ test('descent polls send only readiness and escape polls send no combat or movem
   const pending: Action[] = [{ type: 'guard' }, { type: 'readyForLogos', ready: true }];
   assert.deepEqual(roomSyncActions('fighting', pending, movement, 'descent'), [pending[1]]);
   for (const stage of ['collapse', 'escaped'] as const) assert.deepEqual(roomSyncActions('fighting', pending, movement, stage), []);
+});
+
+test('a room guest following Crown victory returns from the lobby when the host descends', () => {
+  assert.equal(roomBattlefieldOpened('victory', 'victory', true), false);
+  assert.equal(roomBattlefieldOpened('victory', 'fighting', true), true);
+  assert.equal(roomBattlefieldOpened('fighting', 'fighting', true), true, 'recover even when a poll already observed the new fight');
+  assert.equal(roomBattlefieldOpened('fighting', 'fighting', false), false);
+  assert.equal(roomBattlefieldOpened('ready', 'fighting', true), true, 'initial room start still opens');
 });

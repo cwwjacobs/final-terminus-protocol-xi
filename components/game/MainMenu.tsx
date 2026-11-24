@@ -45,6 +45,7 @@ export interface MainMenuProps {
   onGuide: () => void;
   onRetryLoad: () => void;
   onLightLoad: () => void;
+  onVectorView: () => void;
   loading?: { ready: boolean; loaded: number; total: number; error?: string };
 }
 
@@ -100,11 +101,11 @@ export default function MainMenu(props: MainMenuProps) {
         </div>}
         {(view === 'loading'||view === 'lobby') && !props.loading?.ready && <div className="battlefield-recovery">
           <p>{props.loading?.error ? 'Your run is kept. Choose a recovery option below.' : 'Slow connection or older phone? Basic hero models need less memory and no model downloads.'}</p>
-          <div><button type="button" onClick={props.onLightLoad} disabled={busy}>Use lighter 3D</button>{props.loading?.error && <button type="button" onClick={props.onRetryLoad} disabled={busy}>Retry loading</button>}</div>
+          <div>{props.loading?.error && <button type="button" className="primary" onClick={props.onVectorView} disabled={busy}>Continue in vector view</button>}<button type="button" onClick={props.onLightLoad} disabled={busy}>Use lighter 3D</button>{props.loading?.error && <button type="button" onClick={props.onRetryLoad} disabled={busy}>Retry loading</button>}</div>
         </div>}
         {view === 'loading' && <><ul className="main-menu-party" aria-label="Your expedition">{state.party.map((actor,index)=><li key={actor.id}><span className="main-menu-party-sigil" style={{color:actor.color}}><Icon name={roleIcon(actor.role)}/></span><span className="main-menu-party-name">{actor.name}<small>{actor.role}</small></span><span className="main-menu-party-status">{index===slot?'YOU':'TRUST'}</span></li>)}</ul><p className="main-menu-note">The encounter begins when the battlefield finishes loading.</p></>}
         {view === 'home' && <div className="main-menu-choices">
-          {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}><span>Resume encounter<small>Continue as {state.party[slot]?.name ?? selectedHero.name}</small></span><Icon name="arrow"/></button>}
+          {canResume && <button type="button" className="primary" data-autofocus disabled={busy} onClick={props.onResume}><span>Resume encounter<small>{state.encounter==='crown' && state.status==='victory' ? 'Crown defeated · the descent awaits' : `Continue as ${state.party[slot]?.name ?? selectedHero.name}`}</small></span><Icon name="arrow"/></button>}
           <button type="button" className={canResume ? '' : 'primary'} data-autofocus={!canResume || undefined} disabled={busy} onClick={() => props.onView('solo')}><span>Play solo<small>You and four trusts</small></span><Icon name="arrow"/></button>
           <button type="button" className="main-menu-choose-hero" disabled={busy} onClick={() => props.onView('heroes')}><span className="main-menu-chosen-sigil" style={{ color: selectedHero.color }}><Icon name={roleIcon(selectedHero.role)}/></span><span>Choose hero<small>{selectedHero.name} · <span className="main-menu-role">{selectedHero.role}</span></small></span><Icon name="arrow"/></button>
           <div className="main-menu-online-choices">
