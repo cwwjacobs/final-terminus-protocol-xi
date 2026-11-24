@@ -1,0 +1,26 @@
+.vector-scene {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 46%, #141622 0%, #090911 50%, #040407 82%);
+}
+.vector-field {
+  position: absolute;
+  width: 100%;
+  height: 78%;
+  top: 9%;
+  overflow: visible;
+  touch-action: none;
+}
+.vector-name {
+  font: 600 .95px Arial, sans-serif;
+  text-anchor: middle;
+  fill: #f4ead8;
+  stroke: #11101a;
+  stroke-width: .23px;
+  paint-order: stroke;
+  pointer-events: none;
+}
+@media (max-height: 540px) {
+  .vector-field { height: 74%; top: 13%; }
+}

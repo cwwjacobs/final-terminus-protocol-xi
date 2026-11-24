@@ -7,7 +7,14 @@ export function logosCombatStatus(state: GameState) {
   const activeStatues = state.enemies.filter(enemy => enemy.id.startsWith('sentinel-') && enemy.hp > 0).length;
   const protectedByStatues = state.logos.stage === 'sentinels' || giantStatuesActive(state);
   const entering = statuesEntering(state);
-  const linkedHit = state.events.findLast(event => event.source === 'statueLink' && (event.value ?? 0) > 0 && state.combatTime >= event.time && state.combatTime - event.time <= 2.5);
+  let linkedHit: GameState['events'][number] | undefined;
+  for (let i = state.events.length - 1; i >= 0; i--) {
+    const event = state.events[i], age = state.combatTime - event.time;
+    if (event.source === 'statueLink' && (event.value ?? 0) > 0 && age >= 0 && age <= 2.5) {
+      linkedHit = event;
+      break;
+    }
+  }
   return {
     protectedByStatues,
     entering,

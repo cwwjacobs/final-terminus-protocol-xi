@@ -201,8 +201,8 @@ export default function Scene(props: SceneProps) {
     } catch {
       // Renderer startup is external system state; surface its failure in the UI.
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setError('3D could not start in this browser. Try lighter graphics or open the game in your device’s main browser.');
-      latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.state.party.length, error: '3D could not start here. Try lighter graphics, or open this game in your device’s main browser.' });
+      setError('3D is unavailable in this browser. Vector view can run this expedition.');
+      latest.current.onLoadStatus?.({ ready: false, loaded: 0, total: props.state.party.length, error: '3D could not start. Vector view uses the same party, combat and saves.' });
       return;
     }
     setError(null);
@@ -399,6 +399,7 @@ export default function Scene(props: SceneProps) {
     let targetPulseAge = 10;
     const fallbackCamera = createCamera(latest.current.state.party[latest.current.slot]?.facing ?? Math.PI);
     const cameraPosition = new THREE.Vector3(), cameraLook = new THREE.Vector3(), smoothedLook = new THREE.Vector3();
+    const viewFrustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4();
     const projected = new THREE.Vector3(), ray = new THREE.Vector3(), beamDirection = new THREE.Vector3();
     const targetWorld = new THREE.Vector3(), feedbackWorld = new THREE.Vector3();
     const up = new THREE.Vector3(0, 1, 0);
@@ -438,8 +439,8 @@ export default function Scene(props: SceneProps) {
     resize();
     const onContextLost = (event: Event) => {
       event.preventDefault(); stopped = true; loadingController.abort(); cancelAnimationFrame(frame); clearPresentation();
-      setError('The graphics context was interrupted. Your game state is retained; reload to restore the 3D view.');
-      latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels, total: props.state.party.length, error: 'The graphics context was interrupted. Reload to restore the battlefield.' });
+      setError('3D was interrupted. Your party and encounter are ready to resume.');
+      latest.current.onLoadStatus?.({ ready: false, loaded: loadedModels, total: props.state.party.length, error: '3D was interrupted. Continue in vector view or retry 3D.' });
     };
     renderer.domElement.addEventListener('webglcontextlost', onContextLost);
 
@@ -679,6 +680,10 @@ export default function Scene(props: SceneProps) {
       else { camera.position.lerp(cameraPosition, 1 - Math.exp(-7 * dt)); smoothedLook.lerp(cameraLook, 1 - Math.exp(-9 * dt)); }
       camera.lookAt(smoothedLook);
       camera.updateMatrixWorld();
+      if (state.encounter === 'crown' || state.logos.stage === 'descent') {
+        viewFrustum.setFromProjectionMatrix(viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+        logosRig.cullDistantStatues(viewFrustum);
+      }
       targetReticle.quaternion.copy(camera.quaternion);
       decreeMark.quaternion.copy(camera.quaternion);
       numbers.update(dt, camera, size.x, size.y, reducedMotion);

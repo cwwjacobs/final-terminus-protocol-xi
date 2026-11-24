@@ -29,6 +29,9 @@ test('idle statue particles do not rewrite matrices or dirty either GPU buffer',
     assert.equal(f.motes.instanceMatrix.version, matrixVersion);
     assert.equal(f.motes.instanceColor!.version, colorVersion);
     assert.equal(f.motes.visible, false);
+    const dormantEmbers = f.visual.root.children.filter(node => node.name.startsWith('distant-ember-'));
+    assert.equal(dormantEmbers.length, 6);
+    assert.ok(dormantEmbers.every(ember => !ember.visible), 'zero-opacity glows are absent from the render list');
     f.visual.dispose();
   }
 });
